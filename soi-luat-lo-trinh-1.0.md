@@ -21,7 +21,7 @@
 
 Làm tuần tự một người: khoảng 16 tuần. P4 và nhánh độ chính xác chạy song song được với P2–P3 nếu có người thứ hai.
 
-**Mô hình đề xuất:** **Qwen3.5-4B** (Apache-2.0, phát hành 03/2026), bản GGUF Q4_K_M hoặc Q5_K_M, chạy bằng llama.cpp trên CPU. **Gemma 4 E4B** (Apache 2.0; repo Hugging Face tạo 03/2026, báo chí đưa tin phát hành 04/2026) là đối thủ trong vòng đo P0. **Qwen3.5-9B** dùng cho chế độ "Phân tích kỹ" nếu P0 đo thấy đủ nhanh. Chi tiết ở mục 4.
+**Mô hình (chọn theo benchmark công khai, mục 4):** **Qwen3-VL-4B-Instruct** (Apache-2.0), GGUF Q4_K_M chính hãng, chạy bằng llama.cpp trên CPU; dự phòng **Gemma 4 E4B** (QAT Q4_0). Lý do chính: điểm tiếng Việt cao nhất nhóm 4B ở chế độ trả lời kịp 45 giây (bảng SEA-HELM), nhất là phần hỏi đáp trích từ đoạn văn. Tốc độ chưa đo: P0 xác nhận trên máy 16 GB.
 
 ---
 
@@ -48,7 +48,7 @@ Làm tuần tự một người: khoảng 16 tuần. P4 và nhánh độ chính 
 1. **Không thay bộ OCR.** Số đo cho thấy OCR không phải chỗ yếu (98,5% ký tự đúng, trung vị 100%). Chỗ yếu từng là tách cấu trúc và siêu dữ liệu, đã sửa còn 3/344 Điều sai. Phần còn lại chủ yếu là chữ viết tay và ô chữ ký số: không bộ OCR nào đọc chắc được, nên cần người điền (P2). Toạ độ chữ để tô đoạn mới có một nửa: `ocr.ocr_data` đã gọi `image_to_data` (có toạ độ từng chữ) nhưng chỉ giữ chữ và độ tin cậy. Toạ độ đó đo trên ảnh đã khử nghiêng, có thể đã xoay, ở 150–300 dpi; ảnh `/page` thì không xoay và khác tỉ lệ; góc và dpi không được lưu. Muốn tô đúng phải lưu thêm các thông số này (nhánh chính xác).
 2. **"Mô hình tự lập index": chỉ mục đã có.** Cái còn thiếu là chỉ mục cấp văn bản, và làm được bằng quy tắc, không cần AI, nên không có ảo giác: trích yếu lấy từ trang đầu (`pages.raw_text`, vì parser bỏ phần mở đầu khỏi `units`); tóm tắt là nguyên văn Điều 1 "Phạm vi điều chỉnh"; từ khoá là các từ hay gặp trong văn bản nhưng hiếm trên toàn kho (đếm từ chữ của chính văn bản; độ hiếm lấy từ `units_vocab`, bảng này chỉ đếm âm tiết đơn trên toàn kho). Văn bản không có cấu trúc thì lấy đoạn đầu. Bản 1.0 không dùng LLM để lập chỉ mục.
 3. **"Còn hiệu lực không" chỉ trả lời được theo các văn bản đang có trong kho.** App không biết văn bản ngoài kho. Vì vậy huy hiệu luôn kèm bằng chứng ("bị thay thế bởi …, Điều …") và ngày kho được cập nhật. LLM không được tự kết luận hiệu lực; nó chỉ đọc trạng thái do app cung cấp.
-4. **LLM trên CPU chậm; chủ dự án chốt chờ tối đa 45 giây**, tính từ lúc bấm Enter tới khi câu trả lời xong. Trên CPU, điều đó có nghĩa: phần tìm giữ ~5–9 giây (reranker chạy nhiều luồng hơn thì mô hình có thêm thời gian), prompt ~1.500 token, câu trả lời ~150–250 token, và mô hình phải đủ nhanh. Đây là ràng buộc chính khi chọn mô hình (mục 4). Việc quy tắc làm được (tra số hiệu, lọc, gộp trùng, hiệu lực) thì không đưa cho LLM.
+4. **LLM trên CPU chậm; chủ dự án chốt chờ tối đa 45 giây**, tính từ lúc bấm Enter tới khi câu trả lời xong. Trên CPU, điều đó có nghĩa: phần tìm giữ ~5–9 giây (reranker chạy nhiều luồng hơn thì mô hình có thêm thời gian), prompt ~1.000 token, câu trả lời tối đa 200 token, và mô hình phải đủ nhanh. Đây là ràng buộc chính khi chọn mô hình (mục 4). Việc quy tắc làm được (tra số hiệu, lọc, gộp trùng, hiệu lực) thì không đưa cho LLM.
 5. **Không fine-tune mô hình.** Kế hoạch 0.8 đã loại vì cần GPU thuê và khó kiểm chứng. Thay bằng: tìm tốt (đã có), khuôn đầu ra bắt buộc và kiểm tra tự động sau khi sinh (mục 5).
 6. **Đồ thị toàn kho hàng nghìn nút đẹp nhưng không đọc được.** Giá trị thật của "kiểu Obsidian" là backlinks theo loại quan hệ và đồ thị cục bộ 1–2 bước. Làm hai thứ đó trước; đồ thị toàn kho chỉ làm nếu dùng rồi vẫn thấy cần.
 7. **Không làm "hỏi về cả một văn bản dài" (vd. tóm tắt một luật 100 Điều) trong 1.0.** Đưa 30–50 nghìn token vào mô hình trên CPU mất nhiều phút. Chạy nền ban đêm cũng không chắc, vì máy văn phòng thường tắt app khi về. Thay bằng mục lục, Điều 1, và câu hỏi cụ thể kèm @văn bản.
@@ -87,19 +87,34 @@ Làm tuần tự một người: khoảng 16 tuần. P4 và nhánh độ chính 
 
 ---
 
-## 4. Chọn mô hình (16 GB, không card rời)
+## 4. Chọn mô hình (16 GB, không card rời, ≤ 45 giây)
 
-Yêu cầu của chủ dự án: nhỏ, đủ ngữ cảnh, ít ảo giác, phản biện và làm luật tốt, chạy CPU.
+Yêu cầu của chủ dự án: nhỏ, đủ ngữ cảnh, ít ảo giác, phản biện và làm luật tốt, chạy CPU; chọn theo benchmark công khai. Đầy đủ số liệu, nguồn và các mô hình đã loại: `bench/llm/CHON-MO-HINH.md` (tra 29/10/2026).
 
-| Mô hình | Phát hành | Giấy phép | Cỡ | Ngữ cảnh | Ghi chú |
-|---|---|---|---|---|---|
-| **Qwen3.5-4B** | Repo Hugging Face tạo 27/02/2026, công khai đầu 03/2026 | Apache-2.0 | 4,66 tỉ tham số kể cả bộ mã hoá ảnh. Kiến trúc lai: 32 lớp, cứ 3 lớp Gated DeltaNet thì 1 lớp attention | 262.144 token | Thẻ ghi 201 ngôn ngữ và phương ngữ, không liệt kê riêng tiếng Việt. Bật/tắt chế độ suy nghĩ bằng `enable_thinking`. Bộ nhớ KV nhỏ vì chỉ 8/32 lớp là attention (4 đầu KV × 256): ~32 KB/token, 16K token ≈ 0,5 GB (tính từ cấu hình, P0 đo lại). Thẻ trỏ tới bản GGUF cộng đồng cho llama.cpp |
-| Gemma 4 E4B | Repo tạo 02/03/2026; thẻ không ghi ngày phát hành (báo chí đưa tin 04/2026) | Apache 2.0 | 4,5 tỉ hiệu dụng, 8 tỉ kể cả embedding | 128K | Thẻ ghi huấn luyện trên 140+ ngôn ngữ, hỗ trợ sẵn 35+, không nói rõ tiếng Việt. Google có bản GGUF lượng tử hoá có huấn luyện (QAT Q4_0) chính hãng (repo tạo 01/05/2026). Đối thủ chính ở P0 |
-| Qwen3.5-9B | Repo tạo 27/02/2026 | Apache-2.0 | 9,65 tỉ | 262.144 token | Cùng kiến trúc với bản 4B (KV ~32 KB/token); mạnh hơn, chậm khoảng 2 lần. Dùng cho "Phân tích kỹ" nếu P0 đo thấy kịp |
-| Vi-Qwen2-7B-RAG (AITeamVN, cùng nhóm làm hai mô hình tìm kiếm đang dùng) | Repo tạo 01/10/2024 | Apache-2.0 | 7,62 tỉ, gốc Qwen2-7B-Instruct | 8.192 token (thẻ) | Tinh chỉnh cho hỏi đáp có ngữ cảnh tiếng Việt, biết từ chối khi ngữ cảnh không có câu trả lời. Điểm đánh giá trên thẻ chỉ có dạng ảnh biểu đồ, coi như chưa kiểm. Dùng làm mốc so sánh. Bản 3B: tên, số tham số và nội dung thẻ không khớp nhau, nên không dùng |
-| *Không chọn* | | | | | Mô hình MoE Gemma 4 26B-A4B (repo tạo 03/2026) và Qwen3.6-35B-A3B (repo tạo 04/2026, 36 tỉ tham số): sinh nhanh nhưng ở Q4 cần ~15–20 GB RAM, không vừa 16 GB khi Office đang mở. Mô hình 0,8–2B: quá yếu cho suy luận pháp lý |
+**Chọn: Qwen3-VL-4B-Instruct**, GGUF Q4_K_M chính hãng của Qwen (2,33 GiB), chạy như mô hình chữ (không cần file ảnh `mmproj`). **Dự phòng: Gemma 4 E4B**, GGUF QAT Q4_0 chính hãng của Google, tắt thinking.
 
-Thông số trên tra ngày 29/10/2026 từ thẻ mô hình và API Hugging Face; dùng lại thì tra lại. Chưa tìm thấy điểm chuẩn tiếng Việt công khai, đáng tin cho các mô hình này (tra cùng ngày), nên **phải tự đo trên kho của dự án** (P0).
+| | **Qwen3-VL-4B-Instruct** | Gemma 4 E4B | Qwen3.5-4B (đề xuất cũ) |
+|---|---|---|---|
+| Giấy phép, ngày | Apache-2.0; repo tạo 11/10/2025; llama.cpp hỗ trợ từ 30/10/2025 | Apache 2.0; repo tạo 02/03/2026, Google công bố 31/03–02/04/2026 | Apache-2.0; repo tạo 27/02/2026, công bố 02/03/2026 |
+| Chế độ chạy kịp 45 giây | không suy nghĩ (bản Instruct chỉ có chế độ này) | tắt thinking | tắt thinking |
+| SEA-HELM tiếng Việt, tổng | **64,2** | 62,8 | 52,2 |
+| Hỏi đáp trích từ đoạn văn (XQuAD-vi) | **77,5** | 44,7 | 75,0 |
+| Suy ra / mâu thuẫn (XNLI-vi) | **50,0** | 39,9 | 14,3 |
+| Làm theo chỉ dẫn tiếng Việt (SEA-IFEval) | 87,0 | 88,2 | 77,9 |
+| Ảo giác khi tóm tắt (Vectara), đo trên mô hình cùng họ | họ Qwen3: 4,8–5,7% | họ Gemma 4: 5,2–7,4% | họ Qwen3.5: 10,5–12,1% |
+| File GGUF Q4 | 2,33 GiB | 4,8 GiB (giữ mmap thì RAM ~3,4 GB) | 2,81 GiB |
+
+Nguồn: SEA-HELM của AI Singapore, phần tiếng Việt, cập nhật 18/09/2026, chế độ không suy nghĩ (trên trang phải bật "Non-reasoning variants" mới thấy các dòng này); bảng ảo giác Vectara cập nhật 22/10/2026 (không có đúng ba mô hình trên, chỉ có mô hình cùng họ). Các số trong bảng đã được đọc lại tại nguồn ngày 29/10/2026.
+
+**Vì sao chọn Qwen3-VL-4B:**
+
+- Hai bài gần việc của app nhất là hỏi đáp trích từ đoạn văn (chỉ trả lời từ tài liệu đưa vào) và suy ra/mâu thuẫn (chỉ ra tiền đề sai). Ở chế độ chạy kịp 45 giây, Qwen3-VL-4B cao nhất nhóm 4B ở cả hai.
+- Bật chế độ suy nghĩ thì Qwen3.5-4B mạnh hơn (tổng 69,0), nhưng chế độ đó sinh thêm hàng trăm token, không vừa 45 giây trên CPU.
+- File nhỏ nhất nhóm nên sinh chữ nhanh nhất; kiến trúc attention thường, llama.cpp hỗ trợ ổn định từ 10/2025.
+
+**Rủi ro:** chưa có số đo bám ngữ cảnh cho đúng mô hình này; kiến thức tiếng Việt thấp (43,4), nên khi ngữ cảnh thiếu căn cứ nó có thể điền bằng kiến thức sai, và cờ `du_can_cu` cùng bộ kiểm số liệu phải chặn được; có thể chèn chữ Trung hoặc Anh (kiểm tự động được).
+
+**Không chọn:** Qwen3.5-4B (tiếng Việt thấp nhất nhóm khi tắt suy nghĩ; họ Qwen3.5 ảo giác gấp đôi). Qwen3.5-9B và Vi-Qwen2-7B-RAG (ước tính 92–113 giây mỗi câu; 9B còn vượt trần RAM). Gemma 4 12B (file 7,65 GB). Mô hình 2B (vừa 45 giây nhưng tiếng Việt kém rõ, tổng ≤ 53,3). MoE 26B–35B (cần 15–20 GB RAM).
 
 **Ngân sách RAM trên máy 16 GB**
 
@@ -107,11 +122,10 @@ Thông số trên tra ngày 29/10/2026 từ thẻ mô hình và API Hugging Face
 |---|---|
 | Windows + Office + trình duyệt | 5–7 GB (ước tính máy văn phòng) |
 | App ở Advance (hai mô hình AITeamVN + ma trận vector 61 nghìn Điều) | ~2,2 GB (đã đo) |
-| LLM 4B Q4_K_M + KV 16K token | ~3–3,5 GB (ước tính, P0 đo) |
+| Qwen3-VL-4B Q4_K_M + KV cho 2–4 nghìn token | ~3,2–3,5 GB (ước tính, P0 đo) |
 | **Tổng app** | **~5,5–6 GB**, còn dư ≥ 3 GB |
-| Nếu dùng 9B Q4_K_M | thêm ~3 GB, tổng app ~8,5–9 GB: sát giới hạn khi Office nặng |
 
-**Tốc độ:** sinh chữ với 4B Q4_K_M trên DDR4-3200 hai kênh khoảng 12–15 token/giây (số công bố cho máy tương tự, cần đo lại); máy chỉ cắm một thanh RAM (một kênh) chậm gần gấp đôi ở phần này. Tốc độ đọc prompt của kiến trúc lai trên CPU chưa có số công bố: P0 phải đo. Để giữ nhanh, prompt giới hạn ~1.500–2.000 token và câu trả lời ≤ 250 token, dù mô hình nhận được ngữ cảnh dài hơn nhiều.
+**Thời gian (ước tính, chưa đo; P0 đo):** trên CPU AVX2 6 nhân, mô hình 4B đọc prompt khoảng 30–70 token/giây (trung tâm ~45) và sinh chữ ~12–15 token/giây với DDR4-3200 hai kênh. Với prompt 1.500 token, tổng ước tính ~53 giây, quá 45 giây. **Vì vậy đặt trần prompt ~1.000 token và tối đa 200 token ra**: tổng trung tâm ~42–45 giây. Để p95 cũng ≤ 45 giây, máy phải đọc prompt ≥ ~60 token/giây. Máy cắm một thanh RAM (một kênh) sinh chữ chậm gần gấp đôi. Nếu đo thấy chậm hơn, có ba cách, chủ dự án chọn: đưa 3 đoạn thay vì 5 và cắt sát khoản khớp; dùng mô hình 2B (yếu hơn rõ); hoặc nới thời gian chờ.
 
 **Xác nhận trên máy 16 GB (P0), chấm hoàn toàn bằng máy**
 
@@ -249,7 +263,7 @@ Chủ dự án không có người chấm pháp lý, nên mô hình được ch�
 
 1. Tìm như hiện nay (Advance trên máy 16 GB, theo phạm vi @/# nếu có). Kết quả gọn của P1 hiện ngay.
 2. **Chặn sớm:** không có kết quả, hoặc kết quả đầu chỉ khớp theo nghĩa (tầng 7) với điểm thấp, thì trả "Không tìm thấy căn cứ trong kho" kèm gợi ý, **không gọi mô hình**.
-3. **Dựng ngữ cảnh:** 3–5 Điều đầu sau reranker. Mỗi Điều cắt còn tên Điều, các khoản/điểm khớp và khoản liền kề; kèm số hiệu, ngày ban hành, hiệu lực, và quan hệ sửa đổi nếu P4 đã có. Ngân sách ~1.500–2.000 token. Mỗi đoạn mang mã [1]…[5].
+3. **Dựng ngữ cảnh:** 3–5 Điều đầu sau reranker. Mỗi Điều cắt còn tên Điều, các khoản/điểm khớp và khoản liền kề; kèm số hiệu, ngày ban hành, hiệu lực, và quan hệ sửa đổi nếu P4 đã có. Trần ~1.000 token để vừa 45 giây (mục 4); Điều dài thì chỉ đưa 3 đoạn. Mỗi đoạn mang mã [1]…[5].
 4. **Gọi `llama-server` với JSON schema:**
 
    ```json
@@ -263,14 +277,15 @@ Chủ dự án không có người chấm pháp lý, nên mô hình được ch�
    ```
 
    `nguon` là enum, chỉ gồm các mã đã đưa vào.
-5. **Kiểm tự động** (mục 5, điều 2–3): bỏ ý có nguồn sai hoặc số liệu không khớp. `tra_loi` chứa số không có trong nguồn thì thay bằng câu trả lời trích nguyên văn (đoạn đầu).
+5. **Kiểm tự động** (mục 5, điều 2–3): bỏ ý có nguồn sai hoặc số liệu không khớp. `tra_loi` chứa số không có trong nguồn, hoặc lẫn chữ Trung, thì thay bằng câu trả lời trích nguyên văn (đoạn đầu).
 6. **Hiển thị:** câu trả lời ngắn → các ý có chip [1][2] (bấm là mở trình đọc ở đúng đoạn, P1) → "Căn cứ": trích đoạn nguyên văn lấy từ kho, kèm huy hiệu hiệu lực → "Lưu ý" → các kết quả tìm khác (thu gọn). Không có ký hiệu Markdown nào hiện ra vì app tự dựng HTML từ JSON.
 7. Lưu vào cuộc trò chuyện (`answer_json`).
 
 **Chi tiết**
 
 - Mô hình chạy trong tiến trình con `llama-server`, chỉ nghe `127.0.0.1`, cổng ngẫu nhiên, `--api-key` ngẫu nhiên mỗi lần chạy (trang web khác trên máy không gọi được). Khởi động ở câu hỏi AI đầu tiên; tự tắt sau 20 phút không dùng để trả RAM; app tắt thì tắt theo.
-- Nhúng vector nền (`jobs.py`) tạm dừng khi đang sinh câu trả lời, để hai việc không tranh CPU.
+- Nhúng vector nền (`jobs.py`) tạm dừng khi đang sinh câu trả lời, để hai việc không tranh CPU. Khi trả lời, mô hình chạy 6 luồng; tối đa 200 token ra (`n_predict`).
+- Lúc mở app, gửi một câu hỏi mồi để phần lời nhắc cố định nằm sẵn trong bộ nhớ đệm, câu hỏi thật không phải đọc lại phần đó.
 - Chữ hiện dần (SSE): phần `tra_loi` hiện ngay khi đang sinh, có dòng "đang kiểm tra nguồn…" cho tới khi kiểm xong.
 - Một mức trả lời, không bật chế độ suy nghĩ (thinking), để vừa 45 giây. Phần phản biện (điều kiện áp dụng, ngoại lệ, văn bản mới/cũ, chỗ mâu thuẫn) nằm trong các trường `luu_y` và `tien_de_sai` của khuôn. Chế độ suy nghĩ hay mô hình lớn hơn chỉ thêm nếu đo thấy vẫn xong trong 45 giây.
 - Hỏi tiếp: câu ngắn hoặc thiếu chủ ngữ ("còn mức phạt thì sao?") được mô hình viết lại thành câu đầy đủ dựa trên câu trước. App hiện câu đã viết lại để người dùng thấy máy hiểu thế nào.
@@ -325,7 +340,7 @@ Chủ dự án không có người chấm pháp lý, nên mô hình được ch�
 - **Lần đầu mở app:** màn chào 3 bước (nạp văn bản → hỏi thử → mở đoạn); câu hỏi mẫu lấy từ chính kho.
 - **Thống nhất giao diện:** một bộ token màu và chữ (đã có `_style.html`). Mọi màn có trạng thái trống, đang tải, lỗi viết bằng lời thường. Kiểm tra độ tương phản, thao tác bằng bàn phím, trình đọc màn hình (`aria-live` cho câu trả lời đang hiện).
 - **Xuất Word câu trả lời và căn cứ** (báo cáo tra cứu có ngày, nguồn, hiệu lực), mở rộng `export_word.py`.
-- **Đóng gói:** bộ cài chính giữ ~840 MB. **Gói AI** riêng (`llama-server` + GGUF, ~3 GB) cài vào `models\llm\`; hoặc gộp thành một bộ cài ~4 GB (mục 9). `build.ps1` kiểm SHA-256 mô hình; NOTICE và giấy phép Apache-2.0/MIT đi kèm, như hai mô hình hiện tại.
+- **Đóng gói:** bộ cài chính giữ ~840 MB. **Gói AI** riêng (`llama-server` + GGUF Qwen3-VL-4B Q4_K_M, ~2,5 GB) cài vào `models\llm\`; hoặc gộp thành một bộ cài ~3,3 GB (mục 9). `build.ps1` kiểm SHA-256 mô hình; NOTICE và giấy phép Apache-2.0/MIT đi kèm, như hai mô hình hiện tại.
 - **Chữ ký số** cho bộ cài để hết cảnh báo SmartScreen (cần mua chứng thư, mục 9).
 - **Nghiệm thu** trên máy Windows sạch 16 GB, Office và trình duyệt đang mở: cài → nạp 21 văn bản thật → hỏi 20 câu → mở đoạn → gắn tag, ghi chú → xuất Word → sao lưu, khôi phục → gỡ cài. 0 kết nối ngoài `127.0.0.1`. Cập nhật `HUONG-DAN*.md` và `TAI-LIEU-KY-THUAT.md`.
 
