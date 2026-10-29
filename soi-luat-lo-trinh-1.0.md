@@ -23,6 +23,8 @@ Làm tuần tự một người: khoảng 16 tuần. P4 và nhánh độ chính 
 
 **Mô hình (chọn theo benchmark công khai, mục 4):** **Qwen3-VL-4B-Instruct** (Apache-2.0), GGUF Q4_K_M chính hãng, chạy bằng llama.cpp trên CPU; dự phòng **Gemma 4 E4B** (QAT Q4_0). Lý do chính: điểm tiếng Việt cao nhất nhóm 4B ở chế độ trả lời kịp 45 giây (bảng SEA-HELM), nhất là phần hỏi đáp trích từ đoạn văn. Tốc độ chưa đo: P0 xác nhận trên máy 16 GB.
 
+**Kho dữ liệu (mục 4b):** giữ SQLite + FTS5 làm kho duy nhất; vector tìm bằng NumPy như hiện tại, thêm USearch khi vượt ngưỡng RAM. Không dùng vector DB riêng hay đồ thị tri thức dựng bằng LLM kiểu Cognee, Graphiti (dựng mất nhiều tuần CPU); chỉ lấy ý tưởng quan hệ có thời hạn hiệu lực của Graphiti.
+
 ---
 
 ## 1. Phản hồi người dùng → việc cần làm
@@ -53,6 +55,7 @@ Làm tuần tự một người: khoảng 16 tuần. P4 và nhánh độ chính 
 6. **Đồ thị toàn kho hàng nghìn nút đẹp nhưng không đọc được.** Giá trị thật của "kiểu Obsidian" là backlinks theo loại quan hệ và đồ thị cục bộ 1–2 bước. Làm hai thứ đó trước; đồ thị toàn kho chỉ làm nếu dùng rồi vẫn thấy cần.
 7. **Không làm "hỏi về cả một văn bản dài" (vd. tóm tắt một luật 100 Điều) trong 1.0.** Đưa 30–50 nghìn token vào mô hình trên CPU mất nhiều phút. Chạy nền ban đêm cũng không chắc, vì máy văn phòng thường tắt app khi về. Thay bằng mục lục, Điều 1, và câu hỏi cụ thể kèm @văn bản.
 8. **Bớt "chế độ".** Trên máy 16 GB, Advance nên là mặc định. Màn hỏi chỉ còn một công tắc "Trả lời bằng AI"; Normal/Advance chuyển vào Cài đặt với tên "Chế độ nhẹ" cho máy yếu.
+9. **Không cần "vector DB" riêng hay đồ thị tri thức dựng bằng LLM (kiểu Cognee, Graphiti).** Phần phụ thuộc CSDL chỉ chiếm tối đa ~1 giây trong ~9 giây của một câu Advance (reranker chiếm ~5 giây). Độ chính xác nằm ở thuật toán (hai cột có dấu/không dấu, các tầng khớp BM25, mô hình nhúng, reranker), không nằm ở CSDL. Dựng đồ thị tri thức bằng LLM cho 61 nghìn Điều trên CPU ước tính mất 10–33 ngày chạy liên tục, riêng Graphiti 6–12 tháng; chính LightRAG ghi rằng chạy cục bộ cần tối thiểu mô hình cỡ Qwen3-30B-A3B. Lấy ý tưởng, không lấy framework (mục 4b).
 
 ---
 
@@ -82,6 +85,14 @@ Làm tuần tự một người: khoảng 16 tuần. P4 và nhánh độ chính 
 | Giữ FastAPI + Jinja + JavaScript thuần, tách JS/CSS ra `static/` | Không thêm công cụ build; test hiện có (TestClient) dùng tiếp; đóng gói như cũ | Phải tự viết @mention, ngăn kéo, đồ thị | **Chọn** |
 | SPA (React/Svelte) + Node | Có sẵn thư viện giao diện | Thêm chuỗi build Node (kế hoạch 0.8 đã loại); viết lại toàn bộ giao diện | |
 | Vỏ desktop (pywebview, Electron, Tauri) | Cửa sổ riêng | Thêm phụ thuộc lớn; Edge `--app` cho kết quả gần như vậy bằng một dòng lệnh | |
+
+**Kho dữ liệu cho phần truy hồi** (chi tiết mục 4b)
+
+| Cách | Được | Mất | Chọn |
+|---|---|---|---|
+| Giữ SQLite + FTS5 làm kho duy nhất; vector tìm vét cạn bằng NumPy như hiện tại, thêm USearch khi vượt ngưỡng RAM | Không thêm byte nào vào bộ cài; một file, một giao dịch, một cơ chế sao lưu; FTS5 đủ cụm từ, NEAR, trọng số cột; giữ nguyên các hệ số đã chỉnh trên bộ đo | Phần hợp kết quả tự viết (đã có) | **Chọn** |
+| Thêm kho thứ hai (LanceDB, Qdrant, DuckDB…) | Có sẵn tìm kết hợp, chỉ mục ANN | Hai kho phải đồng bộ; viết lại `search.py` và chỉnh lại BM25; LanceDB bỏ dấu mặc định; không làm câu trả lời đúng hơn | |
+| Framework đồ thị tri thức (Cognee, Graphiti, LightRAG, GraphRAG) | Đồ thị tự dựng, hỏi theo quan hệ | Dựng mất nhiều tuần tới nhiều tháng CPU; thêm lệnh LLM khi hỏi nên vượt 45 giây; cần mô hình lớn hơn; Graphiti cần Neo4j (GPL-3.0, JVM) | Không, chỉ lấy ý tưởng |
 
 **Đồ thị liên quan:** backlinks + đồ thị cục bộ vẽ bằng SVG, không thư viện (**chọn trước**); đồ thị toàn kho bằng thư viện nhúng sẵn, giấy phép MIT, vd. Cytoscape.js (chỉ khi cần, mục 9).
 
@@ -138,6 +149,33 @@ Chủ dự án không có người chấm pháp lý, nên mô hình được ch�
   - **Tiền đề sai:** câu bẫy sinh tự động từ các Điều có mức phạt (`units.fine_min`, `fine_max`), hỏi với mức tiền sai; mô hình có chỉ ra và nêu đúng mức trong nguồn không (kiểm bằng so số).
   - Mọi câu: JSON hợp lệ, nguồn hợp lệ, số liệu khớp nguồn, thời gian từ lúc bấm Enter tới khi xong.
 - Mô hình chính đạt cổng P0 thì giữ; không đạt thì thử mô hình dự phòng.
+
+---
+
+## 4b. Kho dữ liệu cho phần truy hồi
+
+Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loại "bộ nhớ AI / đồ thị tri thức" như Cognee, Graphiti. Đầy đủ so sánh (khoảng 30 lựa chọn), nguồn và số đo: `bench/llm/CHON-CSDL.md` (tra và đo ngày 29/10/2026). Số đo chạy trên máy ảo khác máy chuẩn, chỉ dùng để so tương đối.
+
+- **Giữ SQLite (WAL) + FTS5 làm kho duy nhất.** Mọi bảng mới của 1.0 (lịch sử chat, tag, ghi chú, quan hệ văn bản) nằm cùng file, cùng giao dịch, cùng sao lưu, cùng cascade khi xoá văn bản.
+- **Vector: giữ tìm vét cạn bằng NumPy như hiện tại.** Trên vector giả 1024 chiều, 1 luồng: 61 nghìn vector ~19 ms, 250 nghìn ~77 ms. Tốc độ không phải vấn đề; ràng buộc thật là RAM (ma trận float32: 252 MB ở 61 nghìn vector, ~977 MB ở 250 nghìn).
+- **Ngưỡng nâng cấp**, khi nhúng theo khoản (nhánh độ chính xác, mục 2) làm số vector tăng:
+
+  | Khi | Làm |
+  |---|---|
+  | Ma trận float32 > ~500 MB (≈ 125 nghìn vector), hoặc RAM đỉnh Advance > 2,5 GB | Giữ float16 trong RAM, tìm chính xác bằng USearch (Apache-2.0, wheel Windows 0,34 MB) |
+  | Ma trận float16 > ~500 MB (≈ 250 nghìn vector) | int8 + USearch lấy top-200, rồi chấm lại bằng float16 |
+  | Bước tìm vector > ~150 ms (p95) trên máy chuẩn | Chỉ mục HNSW của USearch, lưu file như bộ nhớ đệm, lệch với SQLite thì dựng lại |
+
+  Mỗi bước phải qua quy tắc giữ ở mục 5 (điều 7). USearch bản Windows phải đo trên máy chuẩn trước khi dùng.
+- **Không dùng:**
+  - sqlite-vec: bản ổn định chỉ quét toàn bộ, chậm hơn NumPy 6–7 lần trên vector giả; chỉ mục ANN mới ở bản alpha (05/2026).
+  - LanceDB, Qdrant, DuckDB, Chroma, Meilisearch…: là kho thứ hai, hoặc trái ràng buộc. Meilisearch bỏ dấu chữ Latin; tìm kết hợp của Chroma chỉ có trên bản Cloud; chỉ mục HNSW lưu đĩa của DuckDB còn thử nghiệm.
+  - Framework đồ thị tri thức dựng bằng LLM (mục 2, điều 9).
+  - Kho đồ thị: Neo4j (GPL-3.0, cần JVM), Kùzu (ngừng từ 10/10/2025), FalkorDB (SSPL), Memgraph và ArangoDB (BSL).
+- **Ý tưởng lấy từ Graphiti, Cognee mà không cần framework** (áp vào P2, P4):
+  - Mỗi quan hệ có hai trục thời gian: hiệu lực từ ngày–đến ngày, và ghi nhận lúc–xác nhận lúc. Quan hệ hết hiệu lực thì đánh dấu, không xoá; tra được "theo ngày X".
+  - Mỗi quan hệ nhớ nguồn: văn bản, đơn vị, đoạn trích.
+  - Cạnh "nội dung tương tự" dựng từ vector sẵn có (top-k và ngưỡng cosine, chạy nền vài phút), ghi rõ là tương tự chứ không phải quan hệ pháp lý.
 
 ---
 
@@ -315,7 +353,8 @@ Chủ dự án không có người chấm pháp lý, nên mô hình được ch�
 | thay thế, bãi bỏ | có một phần (`effect_hints`): mở rộng ngoài "Nghị định", ghi văn bản đích cho "bãi bỏ", giữ gợi ý đã duyệt khi nạp lại (P2) | |
 | dẫn chiếu | "theo quy định tại Điều n … số …" trong thân văn bản; mở rộng từ `links._target_doc`, hiện chỉ chạy cho Điều chế tài | |
 
-- Bảng `doc_relations(src_doc_id, src_unit_id, kind, target_so_hieu, target_doc_id, target_dieu, confirmed)`. `target_doc_id` tự nối khi văn bản đích được nạp sau.
+- Bảng `doc_relations(src_doc_id, src_unit_id, kind, target_so_hieu, target_doc_id, target_dieu, confirmed)`, thêm hai trục thời gian và đoạn trích nguồn theo mục 4b. `target_doc_id` tự nối khi văn bản đích được nạp sau. Đi đồ thị (backlinks, 1–2 bước) bằng `WITH RECURSIVE` của SQLite; không cần kho đồ thị.
+- Nếu cổng P4 cho thấy quy tắc bỏ sót nhiều quan hệ: tuỳ chọn cho LLM đọc **riêng phần mở đầu** của từng văn bản để gợi ý quan hệ vào hàng chờ duyệt (ước tính ~18 giờ CPU chạy nền cho 3.271 văn bản của kho Zalo). Không đọc toàn văn, không tự xác nhận.
 - Văn bản được nhắc tới nhưng chưa có trong kho hiện thành nút mờ "chưa có trong kho" (như liên kết chưa tạo của Obsidian), đồng thời là gợi ý nên nạp thêm văn bản nào.
 
 **4b. Sửa đổi theo Điều.** Văn bản sửa đổi ("Sửa đổi, bổ sung Điều 5 như sau: …") làm Điều 5 của văn bản gốc mang nhãn "Đã được sửa đổi bởi Khoản 3 Điều 1 Luật …"; trình đọc mở song song bản cũ và bản sửa. P3 đưa bản sửa vào ngữ cảnh trước bản gốc.
@@ -325,6 +364,7 @@ Chủ dự án không có người chấm pháp lý, nên mô hình được ch�
 - Bảng "Liên quan" trong trình đọc, nhóm theo loại: căn cứ, được hướng dẫn bởi, sửa đổi, bị sửa đổi bởi, thay thế, bị thay thế bởi, dẫn chiếu, được dẫn chiếu bởi. Đây là phần "backlinks".
 - Đồ thị cục bộ 1–2 bước (SVG tự vẽ): nút là văn bản, màu theo hiệu lực; cạnh theo loại quan hệ; bấm nút để mở văn bản; lọc theo loại cạnh.
 - Ghi chú (P2) có nhắc @văn bản cũng hiện trong "Liên quan", như Obsidian.
+- Nhóm riêng "Nội dung tương tự", dựng từ vector sẵn có (mục 4b), ghi rõ không phải quan hệ pháp lý.
 
 **4d. Gợi ý hiệu lực theo quan hệ.** Văn bản B (còn hiệu lực) thay thế A thì A được gợi ý "Hết hiệu lực"; quan hệ sửa đổi thì gợi ý ở cấp Điều. Người xác nhận bằng một bấm (2d).
 
@@ -351,7 +391,7 @@ Chủ dự án không có người chấm pháp lý, nên mô hình được ch�
 Câu trả lời AI chỉ đúng khi đoạn đúng nằm trong 5 đoạn đưa vào mô hình. Hiện Hit@5 của Advance khoảng 90% (Zalo 90,4%, tư vấn thật 89,8%): đó là trần độ đúng của P3.
 
 1. **Gộp Điều tương đương khi đo:** dùng chung khoá băm với phần gộp trùng của P1. Tài liệu kỹ thuật ước tính trần Hit@1 ~86–87% vì cùng nội dung nằm ở nhiều văn bản.
-2. **Điều dài:** mô hình nhúng chỉ đọc 128 token đầu (`semantic.MAXLEN`), nên Điều dài bị tụt hạng (văn bản thật, đo với mô hình nhúng trước đó cũng cắt 128 token: các Điều đúng bị tụt dài trung vị 1.399 token). Thử nhúng thêm theo khoản rồi lấy điểm cao nhất cho Điều, hoặc tăng `MAXLEN` lên 256/512. Máy 16 GB đủ RAM cho ma trận lớn hơn; nhúng lại chạy nền.
+2. **Điều dài:** mô hình nhúng chỉ đọc 128 token đầu (`semantic.MAXLEN`), nên Điều dài bị tụt hạng (văn bản thật, đo với mô hình nhúng trước đó cũng cắt 128 token: các Điều đúng bị tụt dài trung vị 1.399 token). Thử nhúng thêm theo khoản rồi lấy điểm cao nhất cho Điều, hoặc tăng `MAXLEN` lên 256/512. Máy 16 GB đủ RAM cho ma trận lớn hơn; nhúng lại chạy nền. Số vector vượt ~125 nghìn thì làm theo ngưỡng ở mục 4b.
 3. **Reranker nhiều luồng hơn (giúp vừa ngân sách 45 giây):** phần tìm Advance hiện ~9 giây ở 2 luồng, trong đó reranker ~5 giây; giây nào bớt được ở đây là thêm cho mô hình trả lời. Đo reranker ở 4–6 luồng trước. Reranker top-10 (đã đo +0,5–1,8 điểm Hit@1 nhưng chậm gấp đôi) chỉ thử nếu vẫn trong ngân sách.
 4. **Chỉnh `SURE_GAP`** trên lượt mở trích dẫn thật, ghi đúng câu hỏi từ P1, như `TAI-LIEU-KY-THUAT.md` mục 11 đã đề ra. `query_log.selected_unit` hiện có không đủ tin cậy vì luôn ghi vào dòng mới nhất.
 5. **Lưu toạ độ chữ khi nạp:** OCR giữ thêm toạ độ từ `image_to_data` vào `pages.bbox_json`, kèm dpi, góc khử nghiêng và góc xoay để quy đổi sang ảnh `/page`; PDF có lớp chữ lấy toạ độ từ pdfplumber. Dùng cho khung tô trên ảnh trang và ảnh cắt đoạn gốc (①). Kho đã nạp: tính khi mở trang lần đầu, lưu vào `page_regions`.
@@ -371,7 +411,8 @@ Câu trả lời AI chỉ đúng khi đoạn đúng nằm trong 5 đoạn đưa 
 | Bảng `doc_tags`, `user_notes`, `user_notes_fts` | P2 | Bảng mới |
 | Đánh dấu trường `documents` đã sửa tay | P2 | Để nạp lại không ghi đè; cách làm do builder quyết |
 | Chụp và gắn lại ghi chú cấp đoạn, gợi ý hiệu lực đã duyệt khi nạp lại | P2 | Theo mẫu `rebuild.snapshot_links` / `restore_links` |
-| Bảng `doc_relations` | P4 | Bảng mới; `effect_hints` giữ nguyên |
+| Bảng `doc_relations` | P4 | Bảng mới, có hai trục thời gian (hiệu lực; ghi nhận–xác nhận) và cột nguồn (mục 4b); `effect_hints` giữ nguyên |
+| Vector | nhánh chính xác | Lược đồ `unit_vectors` (float16) không đổi; chỉ đổi cách nạp vào RAM khi vượt ngưỡng ở mục 4b |
 | `pages.bbox_json`, `page_regions` | nhánh chính xác | Cột và bảng đã có, bắt đầu dùng; lưu kèm dpi và góc xoay của ảnh OCR |
 | Không đổi CHECK của `documents.hieu_luc` | P2 | Trạng thái mới tính ra lúc hiển thị. SQLite không sửa được CHECK nếu không dựng lại bảng |
 
@@ -412,7 +453,8 @@ Nguyên tắc: chỉ thêm, không xoá hay đổi cột; tự sao lưu trước
 ## 10. Không làm
 
 - Fine-tune hay huấn luyện mô hình; dùng GPU; dịch vụ đám mây; tự cập nhật qua mạng.
-- Dùng LLM để lập chỉ mục hay tóm tắt cả văn bản, chạy nền (mục 2, điều 2 và 7).
+- Dùng LLM để lập chỉ mục hay tóm tắt cả văn bản, chạy nền (mục 2, điều 2 và 7). Ngoại lệ có điều kiện duy nhất: đọc phần mở đầu để gợi ý quan hệ chờ duyệt (P4).
+- Framework đồ thị tri thức dựng bằng LLM (Cognee, Graphiti, LightRAG, GraphRAG…); kho vector hay kho đồ thị thứ hai cạnh SQLite (mục 4b).
 - Tự kết luận hiệu lực khi chưa có người xác nhận; tự sửa văn bản gốc.
 - Giao diện sửa ranh giới Điều, sửa chữ OCR (giữ quyết định của kế hoạch 0.8: sửa file nguồn rồi nạp lại).
 - Thay Tesseract bằng bộ OCR khác (chỉ xét lại nếu bộ đo cho thấy OCR là nguyên nhân sai).
