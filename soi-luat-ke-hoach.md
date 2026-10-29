@@ -7,7 +7,6 @@
 - **Trạng thái:** bản 0.8; thay thế 0.7. Giữ Q1–Q6, F1–F4. 0.8 là bản **đưa code khớp thực tế file văn phòng** sau demo đo hiệu năng (`bench/BAO-CAO-DEMO.md`): thêm Q7 (từ điển khởi tạo), Q8 (đầu vào mở rộng), Q9 (hỏi “mức phạt”), và quy ước địa chỉ đơn vị mới (mục 4.3.9). Không đổi phạm vi: vẫn không embedding/LLM.
 - **Checklist:** [soi-luat-checklist.md](soi-luat-checklist.md) **bản 0.8, có hiệu lực.** Không bám checklist 0.4–0.7 để tick việc.
 - **Thay thế:** bản 0.7, 0.6, 0.5, 0.4 Lite, 0.3 (Markdown) và các bản kế hoạch HTML trước đó
-- **Đề xuất 29/10/2026 (chờ duyệt):** [soi-luat-lo-trinh-1.0.md](soi-luat-lo-trinh-1.0.md) thay phạm vi “không LLM” ở mục 7 và 11 cho máy 16 GB; các mục khác giữ nguyên.
 
 Bản này là kế hoạch triển khai chính thức. Parser, FTS5, từ điển, OCR (Importer), thẻ, xuất Word và người duyệt liên kết/hiệu lực nằm trong sản phẩm. Embedding, vector, ONNX, RRF, LLM, RAG, Docker **không thuộc sản phẩm** — không ghi là bước sau.
 

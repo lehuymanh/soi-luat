@@ -4,7 +4,7 @@ Tra cứu nghị định/thông tư **trên máy văn phòng** (Windows, 8 GB, O
 
 **Một app duy nhất**, giao diện kiểu chat: gõ câu hỏi ở ô dưới; nút **Nạp file** ở góc trên bên trái (chọn nhiều file/thư mục hoặc kéo thả; OCR và nhúng vector chạy nền ngay trong app); nút **Cài đặt** ở góc trên bên phải (chế độ Normal/Advance, kiểm tra OCR, sao lưu, các trang duyệt).
 
-Bản **0.8**. Kế hoạch **0.8**: [soi-luat-ke-hoach.md](soi-luat-ke-hoach.md) · Checklist: [soi-luat-checklist.md](soi-luat-checklist.md) · Lộ trình **1.0** (đề xuất): [soi-luat-lo-trinh-1.0.md](soi-luat-lo-trinh-1.0.md)
+Bản **0.8**. Kế hoạch **0.8**: [soi-luat-ke-hoach.md](soi-luat-ke-hoach.md) · Checklist: [soi-luat-checklist.md](soi-luat-checklist.md)
 
 ## Cài
 
