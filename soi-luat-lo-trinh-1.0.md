@@ -3,7 +3,7 @@
 - **Ngày:** 29/10/2026 · **Trạng thái:** đề xuất. Chủ dự án đã chốt ba điểm ngày 29/10/2026 (mục 9): câu trả lời AI xong trong ≤ 45 giây; chọn mô hình theo benchmark công khai, không dùng người chấm pháp lý; có máy 16 GB để đo.
 - **Đầu vào:** phản hồi người dùng (ảnh chụp Telegram ngày 29/10/2026); mã nguồn 0.8 (`src/soiluat/`, 234 test đếm từ mã; khi soạn chưa chạy lại `pytest` vì môi trường soạn chưa cài thư viện); số đo trong `bench/*/KET-QUA.md`.
 - **Máy mục tiêu mới:** PC Windows **16 GB RAM, không card rời** (chủ dự án chốt 29/10/2026). Máy đo chuẩn giữ nguyên: Ryzen 5 5600GT (6 nhân/12 luồng, AVX2, DDR4).
-- **Quan hệ với kế hoạch 0.8:** giữ cách nạp, tách Điều, tìm kiếm và dựng thẻ **như mã 0.8 đang chạy** (mô tả ở `TAI-LIEU-KY-THUAT.md`). Mã đã lệch `soi-luat-ke-hoach.md` ở vài chỗ (thứ tự xếp thẻ mục 3.6, điều kiện chạy nhánh không dấu Q6); lộ trình lấy mã làm chuẩn. **Thay** phạm vi "không LLM" ở mục 7 và 11 của kế hoạch đó: bản 1.0 thêm mô hình sinh câu trả lời chạy ngay trên máy, theo các ràng buộc ở mục 5. Lý do đổi: máy mục tiêu lên 16 GB, và người dùng cần một câu trả lời dễ đọc thay vì một danh sách thẻ dài.
+- **Quan hệ với kế hoạch 0.8:** kế hoạch và checklist 0.8 (`soi-luat-ke-hoach.md`, `soi-luat-checklist.md`, `bench/KE-HOACH-SUA.md`) đã xoá khỏi repo ngày 29/10/2026; bản cuối nằm ở commit `904160d` trong lịch sử git. Lộ trình giữ cách nạp, tách Điều, tìm kiếm và dựng thẻ **như mã 0.8 đang chạy** (mô tả ở `TAI-LIEU-KY-THUAT.md`). Ở vài chỗ mã đã lệch kế hoạch cũ (thứ tự xếp thẻ, điều kiện chạy nhánh không dấu); lộ trình lấy mã làm chuẩn. Kế hoạch 0.8 loại LLM khỏi sản phẩm; bản 1.0 thêm mô hình sinh câu trả lời chạy ngay trên máy, theo các ràng buộc ở mục 5. Lý do đổi: máy mục tiêu lên 16 GB, và người dùng cần một câu trả lời dễ đọc thay vì một danh sách thẻ dài.
 
 ---
 
@@ -188,7 +188,7 @@ Chủ dự án không có người chấm pháp lý, nên mô hình được ch�
 - Mỗi mục: tên Điều và số hiệu; 1–3 câu trích quanh chỗ khớp, cắt theo khoản/điểm khớp chứ không đổ cả Điều; từ khớp tô đậm; nút "Mở tại đoạn này".
 - Gộp trùng: các Điều có nội dung chuẩn hoá giống nhau (băm chữ của Điều và các đơn vị con) ở nhiều file thành một mục, ghi "Cũng có ở: …"; mục đại diện ưu tiên văn bản còn hiệu lực, mới hơn.
 - Một văn bản có ≥ 2 mục trong nhóm đầu thì gom lại: "15/2020/NĐ-CP · 3 đoạn".
-- Bốn ô thống kê rủi ro thu thành một dòng nhỏ; nhãn kỹ thuật chuyển vào chú thích khi rê chuột. Giữ nguyên định nghĩa bốn hạng thẻ (Q1) và thứ tự xếp hiện tại của `cards.assemble_cards`.
+- Bốn ô thống kê rủi ro thu thành một dòng nhỏ; nhãn kỹ thuật chuyển vào chú thích khi rê chuột. Giữ nguyên bốn hạng thẻ (`cards.KIND_RANK1`–`KIND_RANK4`) và thứ tự xếp hiện tại của `cards.assemble_cards`.
 - Nhãn "Độ tin cậy cao / Chưa chắc chắn" giữ, viết lại bằng lời thường. Xuất Word giữ nguyên.
 
 **1c. Cuộc trò chuyện**
@@ -342,7 +342,7 @@ Chủ dự án không có người chấm pháp lý, nên mô hình được ch�
 - **Xuất Word câu trả lời và căn cứ** (báo cáo tra cứu có ngày, nguồn, hiệu lực), mở rộng `export_word.py`.
 - **Đóng gói:** bộ cài chính giữ ~840 MB. **Gói AI** riêng (`llama-server` + GGUF Qwen3-VL-4B Q4_K_M, ~2,5 GB) cài vào `models\llm\`; hoặc gộp thành một bộ cài ~3,3 GB (mục 9). `build.ps1` kiểm SHA-256 mô hình; NOTICE và giấy phép Apache-2.0/MIT đi kèm, như hai mô hình hiện tại.
 - **Chữ ký số** cho bộ cài để hết cảnh báo SmartScreen (cần mua chứng thư, mục 9).
-- **Nghiệm thu** trên máy Windows sạch 16 GB, Office và trình duyệt đang mở: cài → nạp 21 văn bản thật → hỏi 20 câu → mở đoạn → gắn tag, ghi chú → xuất Word → sao lưu, khôi phục → gỡ cài. 0 kết nối ngoài `127.0.0.1`. Cập nhật `HUONG-DAN*.md` và `TAI-LIEU-KY-THUAT.md`.
+- **Nghiệm thu** trên máy Windows sạch 16 GB, Office và trình duyệt đang mở: cài → nạp 21 văn bản thật → hỏi 20 câu → mở đoạn → gắn tag, ghi chú → xuất Word → sao lưu, khôi phục → gỡ cài. 0 kết nối ngoài `127.0.0.1`. Gộp `HUONG-DAN.md` và `HUONG-DAN-DON-GIAN.md` thành một hướng dẫn mới cho bản 1.0 (chủ dự án chốt 29/10/2026: hai file giữ nguyên tới P5 vì giao diện còn đổi); cập nhật `TAI-LIEU-KY-THUAT.md`.
 
 **Cổng P5:** nghiệm thu trên đạt hết; 5 người dùng thật dùng một tuần, không có lỗi chặn việc, điểm hài lòng ≥ 4/5.
 
@@ -414,7 +414,7 @@ Nguyên tắc: chỉ thêm, không xoá hay đổi cột; tự sao lưu trước
 - Fine-tune hay huấn luyện mô hình; dùng GPU; dịch vụ đám mây; tự cập nhật qua mạng.
 - Dùng LLM để lập chỉ mục hay tóm tắt cả văn bản, chạy nền (mục 2, điều 2 và 7).
 - Tự kết luận hiệu lực khi chưa có người xác nhận; tự sửa văn bản gốc.
-- Giao diện sửa ranh giới Điều, sửa chữ OCR (giữ Q4 của kế hoạch 0.8).
+- Giao diện sửa ranh giới Điều, sửa chữ OCR (giữ quyết định của kế hoạch 0.8: sửa file nguồn rồi nạp lại).
 - Thay Tesseract bằng bộ OCR khác (chỉ xét lại nếu bộ đo cho thấy OCR là nguyên nhân sai).
 - Nhiều người dùng, đăng nhập, đồng bộ giữa các máy.
 - SPA, Node, Electron.
