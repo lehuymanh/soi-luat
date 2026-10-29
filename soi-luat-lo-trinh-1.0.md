@@ -1,6 +1,6 @@
 # Lộ trình nâng cấp Soi Luật (0.8 → 1.0)
 
-- **Ngày:** 29/10/2026 · **Trạng thái:** đề xuất. Chủ dự án đã chốt ba điểm ngày 29/10/2026 (mục 9): câu trả lời AI xong trong ≤ 30 giây; chọn mô hình theo benchmark công khai, không dùng người chấm pháp lý; có máy 16 GB để đo.
+- **Ngày:** 29/10/2026 · **Trạng thái:** đề xuất. Chủ dự án đã chốt ba điểm ngày 29/10/2026 (mục 9): câu trả lời AI xong trong ≤ 45 giây; chọn mô hình theo benchmark công khai, không dùng người chấm pháp lý; có máy 16 GB để đo.
 - **Đầu vào:** phản hồi người dùng (ảnh chụp Telegram ngày 29/10/2026); mã nguồn 0.8 (`src/soiluat/`, 234 test đếm từ mã; khi soạn chưa chạy lại `pytest` vì môi trường soạn chưa cài thư viện); số đo trong `bench/*/KET-QUA.md`.
 - **Máy mục tiêu mới:** PC Windows **16 GB RAM, không card rời** (chủ dự án chốt 29/10/2026). Máy đo chuẩn giữ nguyên: Ryzen 5 5600GT (6 nhân/12 luồng, AVX2, DDR4).
 - **Quan hệ với kế hoạch 0.8:** giữ cách nạp, tách Điều, tìm kiếm và dựng thẻ **như mã 0.8 đang chạy** (mô tả ở `TAI-LIEU-KY-THUAT.md`). Mã đã lệch `soi-luat-ke-hoach.md` ở vài chỗ (thứ tự xếp thẻ mục 3.6, điều kiện chạy nhánh không dấu Q6); lộ trình lấy mã làm chuẩn. **Thay** phạm vi "không LLM" ở mục 7 và 11 của kế hoạch đó: bản 1.0 thêm mô hình sinh câu trả lời chạy ngay trên máy, theo các ràng buộc ở mục 5. Lý do đổi: máy mục tiêu lên 16 GB, và người dùng cần một câu trả lời dễ đọc thay vì một danh sách thẻ dài.
@@ -11,10 +11,10 @@
 
 | Phase | Nội dung | Phản hồi được giải quyết (mục 1) | Ước tính (1 người) | Xong khi |
 |---|---|---|---|---|
-| **P0** | Đo và chốt | nền cho mọi phase | 1 tuần | Mô hình chọn theo benchmark công khai được xác nhận trên máy 16 GB (xong ≤ 30 giây); có bộ đo câu trả lời chấm bằng máy; người dùng duyệt mẫu giao diện |
+| **P0** | Đo và chốt | nền cho mọi phase | 1 tuần | Mô hình chọn theo benchmark công khai được xác nhận trên máy 16 GB (xong ≤ 45 giây); có bộ đo câu trả lời chấm bằng máy; người dùng duyệt mẫu giao diện |
 | **P1** | Mở đúng đoạn, kết quả gọn, lịch sử chat | ① ③ ④ ⑦ | 3 tuần | Bấm trích dẫn là văn bản mở ngay trong app, cuộn tới và tô đúng đoạn; mỗi câu hỏi hiện sẵn tối đa 5 mục, không trùng; có "Cuộc trò chuyện mới" và lịch sử |
 | **P2** | Kho văn bản: tag, ghi chú, @, hiệu lực | ⑤ ⑥ ⑨ ⑩ | 3 tuần | Gõ @văn bản hoặc #tag để giới hạn phạm vi hỏi; gắn tag, viết ghi chú được; hiệu lực hiện ở mọi trích dẫn, kèm lý do |
-| **P3** | Trợ lý trả lời: LLM chạy CPU, có kiểm chứng | ② ⑥ ⑪ | 4 tuần | Câu trả lời 2–3 câu bằng lời thường, xong trong ≤ 30 giây, mỗi ý có nguồn bấm được; không có số liệu nào lệch nguồn; kho không có căn cứ thì nói không có |
+| **P3** | Trợ lý trả lời: LLM chạy CPU, có kiểm chứng | ② ⑥ ⑪ | 4 tuần | Câu trả lời 2–3 câu bằng lời thường, xong trong ≤ 45 giây, mỗi ý có nguồn bấm được; không có số liệu nào lệch nguồn; kho không có căn cứ thì nói không có |
 | **P4** | Liên kết văn bản kiểu Obsidian, hiệu lực theo Điều | ⑧ ⑨ | 3 tuần | Mỗi văn bản có bảng "Liên quan" (căn cứ, hướng dẫn, sửa đổi, thay thế, dẫn chiếu) và đồ thị cục bộ; Điều đã bị sửa đổi được đánh dấu |
 | **P5** | Chuyên nghiệp, chỉn chu, phát hành | tất cả | 2 tuần | Không còn cửa sổ đen; bộ cài và gói AI; người dùng thật dùng một tuần đạt cổng |
 | **Song song** | Độ chính xác tìm kiếm | nền cho P3 | xen kẽ P1–P3 | Thay đổi chỉ được giữ khi tốt hơn trên cả Zalo, gold và văn bản thật |
@@ -48,7 +48,7 @@ Làm tuần tự một người: khoảng 16 tuần. P4 và nhánh độ chính 
 1. **Không thay bộ OCR.** Số đo cho thấy OCR không phải chỗ yếu (98,5% ký tự đúng, trung vị 100%). Chỗ yếu từng là tách cấu trúc và siêu dữ liệu, đã sửa còn 3/344 Điều sai. Phần còn lại chủ yếu là chữ viết tay và ô chữ ký số: không bộ OCR nào đọc chắc được, nên cần người điền (P2). Toạ độ chữ để tô đoạn mới có một nửa: `ocr.ocr_data` đã gọi `image_to_data` (có toạ độ từng chữ) nhưng chỉ giữ chữ và độ tin cậy. Toạ độ đó đo trên ảnh đã khử nghiêng, có thể đã xoay, ở 150–300 dpi; ảnh `/page` thì không xoay và khác tỉ lệ; góc và dpi không được lưu. Muốn tô đúng phải lưu thêm các thông số này (nhánh chính xác).
 2. **"Mô hình tự lập index": chỉ mục đã có.** Cái còn thiếu là chỉ mục cấp văn bản, và làm được bằng quy tắc, không cần AI, nên không có ảo giác: trích yếu lấy từ trang đầu (`pages.raw_text`, vì parser bỏ phần mở đầu khỏi `units`); tóm tắt là nguyên văn Điều 1 "Phạm vi điều chỉnh"; từ khoá là các từ hay gặp trong văn bản nhưng hiếm trên toàn kho (đếm từ chữ của chính văn bản; độ hiếm lấy từ `units_vocab`, bảng này chỉ đếm âm tiết đơn trên toàn kho). Văn bản không có cấu trúc thì lấy đoạn đầu. Bản 1.0 không dùng LLM để lập chỉ mục.
 3. **"Còn hiệu lực không" chỉ trả lời được theo các văn bản đang có trong kho.** App không biết văn bản ngoài kho. Vì vậy huy hiệu luôn kèm bằng chứng ("bị thay thế bởi …, Điều …") và ngày kho được cập nhật. LLM không được tự kết luận hiệu lực; nó chỉ đọc trạng thái do app cung cấp.
-4. **LLM trên CPU chậm; chủ dự án chốt chờ tối đa 30 giây**, tính từ lúc bấm Enter tới khi câu trả lời xong. Trên CPU, điều đó có nghĩa: phần tìm phải xuống ~5 giây (reranker chạy nhiều luồng hơn), prompt ~1.000–1.500 token, câu trả lời ~150–200 token, và mô hình phải đủ nhanh. Đây là ràng buộc chính khi chọn mô hình (mục 4). Việc quy tắc làm được (tra số hiệu, lọc, gộp trùng, hiệu lực) thì không đưa cho LLM.
+4. **LLM trên CPU chậm; chủ dự án chốt chờ tối đa 45 giây**, tính từ lúc bấm Enter tới khi câu trả lời xong. Trên CPU, điều đó có nghĩa: phần tìm giữ ~5–9 giây (reranker chạy nhiều luồng hơn thì mô hình có thêm thời gian), prompt ~1.500 token, câu trả lời ~150–250 token, và mô hình phải đủ nhanh. Đây là ràng buộc chính khi chọn mô hình (mục 4). Việc quy tắc làm được (tra số hiệu, lọc, gộp trùng, hiệu lực) thì không đưa cho LLM.
 5. **Không fine-tune mô hình.** Kế hoạch 0.8 đã loại vì cần GPU thuê và khó kiểm chứng. Thay bằng: tìm tốt (đã có), khuôn đầu ra bắt buộc và kiểm tra tự động sau khi sinh (mục 5).
 6. **Đồ thị toàn kho hàng nghìn nút đẹp nhưng không đọc được.** Giá trị thật của "kiểu Obsidian" là backlinks theo loại quan hệ và đồ thị cục bộ 1–2 bước. Làm hai thứ đó trước; đồ thị toàn kho chỉ làm nếu dùng rồi vẫn thấy cần.
 7. **Không làm "hỏi về cả một văn bản dài" (vd. tóm tắt một luật 100 Điều) trong 1.0.** Đưa 30–50 nghìn token vào mô hình trên CPU mất nhiều phút. Chạy nền ban đêm cũng không chắc, vì máy văn phòng thường tắt app khi về. Thay bằng mục lục, Điều 1, và câu hỏi cụ thể kèm @văn bản.
@@ -152,7 +152,7 @@ Chủ dự án không có người chấm pháp lý, nên mô hình được ch�
 4. Gom ≥ 100 câu hỏi thật của văn phòng kèm Điều đúng (`bench/gold/README.md`, phần `van-phong`). Việc này của người dùng; phải có trước cổng P3.
 5. Làm mẫu giao diện bấm thử được (HTML tĩnh): màn chat có thanh lịch sử, câu trả lời gọn, trình đọc văn bản, @mention, trang Kho, bảng Liên quan. Người dùng góp ý trước khi code.
 
-**Cổng:** mô hình được chọn, trên máy 16 GB đang mở Office: trả lời xong ≤ 30 giây (p95, tính cả phần tìm); JSON hợp lệ ≥ 99%; dẫn đúng Điều ≥ 80% khi Điều đúng có trong ngữ cảnh; từ chối đúng ≥ 80% khi đã bỏ Điều đúng. Các ngưỡng chất lượng là đề xuất, chốt khi có số. Cả mô hình chính lẫn dự phòng đều không đạt thì dừng P3 và báo lại; P1, P2, P4 vẫn làm. Người dùng đồng ý với mẫu giao diện.
+**Cổng:** mô hình được chọn, trên máy 16 GB đang mở Office: trả lời xong ≤ 45 giây (p95, tính cả phần tìm); JSON hợp lệ ≥ 99%; dẫn đúng Điều ≥ 80% khi Điều đúng có trong ngữ cảnh; từ chối đúng ≥ 80% khi đã bỏ Điều đúng. Các ngưỡng chất lượng là đề xuất, chốt khi có số. Cả mô hình chính lẫn dự phòng đều không đạt thì dừng P3 và báo lại; P1, P2, P4 vẫn làm. Người dùng đồng ý với mẫu giao diện.
 
 ### P1 — Mở đúng đoạn, kết quả gọn, lịch sử chat (3 tuần)
 
@@ -272,7 +272,7 @@ Chủ dự án không có người chấm pháp lý, nên mô hình được ch�
 - Mô hình chạy trong tiến trình con `llama-server`, chỉ nghe `127.0.0.1`, cổng ngẫu nhiên, `--api-key` ngẫu nhiên mỗi lần chạy (trang web khác trên máy không gọi được). Khởi động ở câu hỏi AI đầu tiên; tự tắt sau 20 phút không dùng để trả RAM; app tắt thì tắt theo.
 - Nhúng vector nền (`jobs.py`) tạm dừng khi đang sinh câu trả lời, để hai việc không tranh CPU.
 - Chữ hiện dần (SSE): phần `tra_loi` hiện ngay khi đang sinh, có dòng "đang kiểm tra nguồn…" cho tới khi kiểm xong.
-- Một mức trả lời, không bật chế độ suy nghĩ (thinking), để vừa 30 giây. Phần phản biện (điều kiện áp dụng, ngoại lệ, văn bản mới/cũ, chỗ mâu thuẫn) nằm trong các trường `luu_y` và `tien_de_sai` của khuôn. Chế độ suy nghĩ hay mô hình lớn hơn chỉ thêm nếu đo thấy vẫn xong trong 30 giây.
+- Một mức trả lời, không bật chế độ suy nghĩ (thinking), để vừa 45 giây. Phần phản biện (điều kiện áp dụng, ngoại lệ, văn bản mới/cũ, chỗ mâu thuẫn) nằm trong các trường `luu_y` và `tien_de_sai` của khuôn. Chế độ suy nghĩ hay mô hình lớn hơn chỉ thêm nếu đo thấy vẫn xong trong 45 giây.
 - Hỏi tiếp: câu ngắn hoặc thiếu chủ ngữ ("còn mức phạt thì sao?") được mô hình viết lại thành câu đầy đủ dựa trên câu trước. App hiện câu đã viết lại để người dùng thấy máy hiểu thế nào.
 - Prompt tiếng Việt, cố định trong mã, có test. Nhiệt độ thấp; giá trị chốt ở P0.
 - Không có mô hình hoặc máy không đủ RAM: app chạy như P1, ẩn công tắc AI, Cài đặt báo rõ lý do.
@@ -283,7 +283,7 @@ Chủ dự án không có người chấm pháp lý, nên mô hình được ch�
 - Nguồn hợp lệ 100% và số liệu khớp nguồn 100% (bắt buộc bằng bộ kiểm tự động).
 - Dẫn đúng Điều không thấp hơn mức đạt ở P0; từ chối đúng ≥ 90% khi đã bỏ Điều đúng khỏi ngữ cảnh; chỉ ra tiền đề sai ≥ 80% trên câu bẫy mức phạt (đều chấm bằng máy, mục 4).
 - Trên ≥ 100 câu thật của văn phòng: người dùng chấm "dùng được" ≥ 80% (đánh giá độ hữu ích, không phải chấm pháp lý).
-- Trả lời xong ≤ 30 giây tính từ lúc bấm Enter (p95, máy 16 GB, Office đang mở; chủ dự án chốt 29/10/2026); kết quả tìm hiện trước, trong ~5 giây. RAM toàn app ≤ 6 GB. Máy thật của người dùng đo lại ở P5 (máy một kênh RAM sinh chữ chậm hơn).
+- Trả lời xong ≤ 45 giây tính từ lúc bấm Enter (p95, máy 16 GB, Office đang mở; chủ dự án chốt 29/10/2026); kết quả tìm hiện trước, trong ~5–9 giây. RAM toàn app ≤ 6 GB. Máy thật của người dùng đo lại ở P5 (máy một kênh RAM sinh chữ chậm hơn).
 - Tắt AI thì kết quả và độ trễ như P1.
 
 ### P4 — Liên kết văn bản kiểu Obsidian, hiệu lực theo Điều (3 tuần)
@@ -337,7 +337,7 @@ Câu trả lời AI chỉ đúng khi đoạn đúng nằm trong 5 đoạn đưa 
 
 1. **Gộp Điều tương đương khi đo:** dùng chung khoá băm với phần gộp trùng của P1. Tài liệu kỹ thuật ước tính trần Hit@1 ~86–87% vì cùng nội dung nằm ở nhiều văn bản.
 2. **Điều dài:** mô hình nhúng chỉ đọc 128 token đầu (`semantic.MAXLEN`), nên Điều dài bị tụt hạng (văn bản thật, đo với mô hình nhúng trước đó cũng cắt 128 token: các Điều đúng bị tụt dài trung vị 1.399 token). Thử nhúng thêm theo khoản rồi lấy điểm cao nhất cho Điều, hoặc tăng `MAXLEN` lên 256/512. Máy 16 GB đủ RAM cho ma trận lớn hơn; nhúng lại chạy nền.
-3. **Reranker nhiều luồng hơn (cần cho ngân sách 30 giây):** phần tìm Advance hiện ~9 giây ở 2 luồng, trong đó reranker ~5 giây; P3 cần phần tìm ~5 giây. Đo reranker ở 4–6 luồng trước. Reranker top-10 (đã đo +0,5–1,8 điểm Hit@1 nhưng chậm gấp đôi) chỉ thử nếu vẫn trong ngân sách.
+3. **Reranker nhiều luồng hơn (giúp vừa ngân sách 45 giây):** phần tìm Advance hiện ~9 giây ở 2 luồng, trong đó reranker ~5 giây; giây nào bớt được ở đây là thêm cho mô hình trả lời. Đo reranker ở 4–6 luồng trước. Reranker top-10 (đã đo +0,5–1,8 điểm Hit@1 nhưng chậm gấp đôi) chỉ thử nếu vẫn trong ngân sách.
 4. **Chỉnh `SURE_GAP`** trên lượt mở trích dẫn thật, ghi đúng câu hỏi từ P1, như `TAI-LIEU-KY-THUAT.md` mục 11 đã đề ra. `query_log.selected_unit` hiện có không đủ tin cậy vì luôn ghi vào dòng mới nhất.
 5. **Lưu toạ độ chữ khi nạp:** OCR giữ thêm toạ độ từ `image_to_data` vào `pages.bbox_json`, kèm dpi, góc khử nghiêng và góc xoay để quy đổi sang ảnh `/page`; PDF có lớp chữ lấy toạ độ từ pdfplumber. Dùng cho khung tô trên ảnh trang và ảnh cắt đoạn gốc (①). Kho đã nạp: tính khi mở trang lần đầu, lưu vào `page_regions`.
 6. **Từ điển viết tắt và đồng nghĩa:** lấy từ trang "Truy vấn bỏ sót", người duyệt.
@@ -368,7 +368,7 @@ Nguyên tắc: chỉ thêm, không xoá hay đổi cột; tự sao lưu trước
 
 - Đường chính: P0 → P1 → P2 → P3 → P5.
 - P4 làm sau P2 (cần trích yếu và trình đọc); có người thứ hai thì làm song song với P3.
-- Nhánh độ chính xác xen kẽ; nên xong mục 1–3 trước cổng P3, nhưng đó không phải điều kiện cứng. Riêng mục 3 (reranker nhiều luồng) quyết định P3 có vừa 30 giây không, nên làm sớm.
+- Nhánh độ chính xác xen kẽ; nên xong mục 1–3 trước cổng P3, nhưng đó không phải điều kiện cứng. Riêng mục 3 (reranker nhiều luồng) ảnh hưởng trực tiếp tới việc P3 có vừa 45 giây không, nên làm sớm.
 - Mỗi phase kết thúc bằng một bản chạy được giao người dùng thử (0.9, 0.10, …), không dồn tới cuối.
 - Sau khi lộ trình được duyệt: mỗi phase có kế hoạch triển khai chi tiết riêng (việc nhỏ, file cụ thể, test trước) trước khi viết mã.
 
@@ -378,7 +378,7 @@ Nguyên tắc: chỉ thêm, không xoá hay đổi cột; tự sao lưu trước
 
 **Đã chốt (29/10/2026)**
 
-- **Thời gian chờ:** câu trả lời AI xong trong ≤ 30 giây, tính từ lúc bấm Enter tới khi câu trả lời xong (không phải tới khi chữ đầu hiện).
+- **Thời gian chờ:** câu trả lời AI xong trong ≤ 45 giây, tính từ lúc bấm Enter tới khi câu trả lời xong (không phải tới khi chữ đầu hiện). Ban đầu chốt 30 giây, nâng lên 45 giây cùng ngày.
 - **Chấm chất lượng:** không có người chấm pháp lý. Chọn mô hình theo benchmark công khai, rồi kiểm trên kho bằng máy chấm có đáp án sẵn (mục 4, P0).
 - **Máy đo:** có máy 16 GB.
 
