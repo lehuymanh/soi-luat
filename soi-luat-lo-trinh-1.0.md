@@ -1,6 +1,6 @@
 # Lộ trình nâng cấp Soi Luật (0.8 → 1.0)
 
-- **Ngày:** 29/10/2026 · **Trạng thái:** đề xuất. Chủ dự án đã chốt ba điểm ngày 29/10/2026 (mục 9): câu trả lời AI xong trong ≤ 45 giây; chọn mô hình theo benchmark công khai, không dùng người chấm pháp lý; có máy 16 GB để đo.
+- **Ngày:** 29/10/2026, cập nhật 30/10/2026 · **Trạng thái:** đang làm P0 (tiến độ và số đo ở mục 6, P0). Chủ dự án đã chốt ba điểm ngày 29/10/2026 (mục 9): câu trả lời AI xong trong ≤ 45 giây; chọn mô hình theo benchmark công khai, không dùng người chấm pháp lý; có máy 16 GB để đo.
 - **Đầu vào:** phản hồi người dùng (ảnh chụp Telegram ngày 29/10/2026); mã nguồn 0.8 (`src/soiluat/`, 234 test đếm từ mã; khi soạn chưa chạy lại `pytest` vì môi trường soạn chưa cài thư viện); số đo trong `bench/*/KET-QUA.md`.
 - **Máy mục tiêu mới:** PC Windows **16 GB RAM, không card rời** (chủ dự án chốt 29/10/2026). Máy đo chuẩn giữ nguyên: Ryzen 5 5600GT (6 nhân/12 luồng, AVX2, DDR4).
 - **Quan hệ với kế hoạch 0.8:** kế hoạch và checklist 0.8 (`soi-luat-ke-hoach.md`, `soi-luat-checklist.md`, `bench/KE-HOACH-SUA.md`) đã xoá khỏi repo ngày 29/10/2026; bản cuối nằm ở commit `904160d` trong lịch sử git. Lộ trình giữ cách nạp, tách Điều, tìm kiếm và dựng thẻ **như mã 0.8 đang chạy** (mô tả ở `TAI-LIEU-KY-THUAT.md`). Ở vài chỗ mã đã lệch kế hoạch cũ (thứ tự xếp thẻ, điều kiện chạy nhánh không dấu); lộ trình lấy mã làm chuẩn. Kế hoạch 0.8 loại LLM khỏi sản phẩm; bản 1.0 thêm mô hình sinh câu trả lời chạy ngay trên máy, theo các ràng buộc ở mục 5. Lý do đổi: máy mục tiêu lên 16 GB, và người dùng cần một câu trả lời dễ đọc thay vì một danh sách thẻ dài.
@@ -54,7 +54,7 @@ Làm tuần tự một người: khoảng 16 tuần. P4 và nhánh độ chính 
 5. **Không fine-tune mô hình.** Kế hoạch 0.8 đã loại vì cần GPU thuê và khó kiểm chứng. Thay bằng: tìm tốt (đã có), khuôn đầu ra bắt buộc và kiểm tra tự động sau khi sinh (mục 5).
 6. **Đồ thị toàn kho hàng nghìn nút đẹp nhưng không đọc được.** Giá trị thật của "kiểu Obsidian" là backlinks theo loại quan hệ và đồ thị cục bộ 1–2 bước. Làm hai thứ đó trước; đồ thị toàn kho chỉ làm nếu dùng rồi vẫn thấy cần.
 7. **Không làm "hỏi về cả một văn bản dài" (vd. tóm tắt một luật 100 Điều) trong 1.0.** Đưa 30–50 nghìn token vào mô hình trên CPU mất nhiều phút. Chạy nền ban đêm cũng không chắc, vì máy văn phòng thường tắt app khi về. Thay bằng mục lục, Điều 1, và câu hỏi cụ thể kèm @văn bản.
-8. **Bớt "chế độ".** Trên máy 16 GB, Advance nên là mặc định. Màn hỏi chỉ còn một công tắc "Trả lời bằng AI"; Normal/Advance chuyển vào Cài đặt với tên "Chế độ nhẹ" cho máy yếu.
+8. **Bớt "chế độ".** Màn hỏi chỉ còn một công tắc "Trả lời bằng AI"; Normal/Advance chuyển vào Cài đặt với tên "Chế độ nhẹ" cho máy yếu. Đề xuất ban đầu là để Advance làm mặc định trên máy 16 GB. **Số đo P0 (30/10/2026) không ủng hộ đề xuất này:** trên 21 văn bản thật, Advance có Hit@1 72,6%, Normal 83,3% (`bench/van-ban-that/KET-QUA.md`). Vì vậy giữ Normal làm mặc định cho tới khi nhánh độ chính xác sửa xong bước hợp (mục 6, nhánh song song, điều 0); quyết định cuối ở mục 9.
 9. **Không cần "vector DB" riêng hay đồ thị tri thức dựng bằng LLM (kiểu Cognee, Graphiti).** Phần phụ thuộc CSDL chỉ chiếm tối đa ~1 giây trong ~9 giây của một câu Advance (reranker chiếm ~5 giây). Độ chính xác nằm ở thuật toán (hai cột có dấu/không dấu, các tầng khớp BM25, mô hình nhúng, reranker), không nằm ở CSDL. Dựng đồ thị tri thức bằng LLM cho 61 nghìn Điều trên CPU ước tính mất 10–33 ngày chạy liên tục, riêng Graphiti 6–12 tháng; chính LightRAG ghi rằng chạy cục bộ cần tối thiểu mô hình cỡ Qwen3-30B-A3B. Lấy ý tưởng, không lấy framework (mục 4b).
 
 ---
@@ -390,6 +390,7 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 
 Câu trả lời AI chỉ đúng khi đoạn đúng nằm trong 5 đoạn đưa vào mô hình. Hiện Hit@5 của Advance khoảng 90% (Zalo 90,4%, tư vấn thật 89,8%): đó là trần độ đúng của P3.
 
+0. **Hợp BM25 với vector làm tụt hạng 1 trên văn bản thật** (đo ở P0, 30/10/2026; `bench/van-ban-that/KET-QUA.md`). Trên 84 câu của 21 văn bản 2026, Hit@1 là 83,3% với Normal, 67,9% với BM25 + vector (chưa reranker), 72,6% với Advance đủ bước. Ở @10 thì Advance hơn (97,6% so với 96,4%). Các hệ số hợp (`semantic.TOP`, `DENSE_K`, `RRF_K`, `W = 2`) được chọn trên kho Zalo 61 nghìn Điều, có thể không hợp kho nhỏ gồm văn bản mới. Việc cần thử: giảm `W`, chỉ cho vector chen vào sau top-k của BM25, hoặc chỉ dùng reranker. Đo theo quy tắc giữ ở mục 5 (điều 7): phải không tụt trên Zalo và gold. Làm trước các mục dưới, vì nó quyết định chế độ mặc định (mục 2, điều 8).
 1. **Gộp Điều tương đương khi đo:** dùng chung khoá băm với phần gộp trùng của P1. Tài liệu kỹ thuật ước tính trần Hit@1 ~86–87% vì cùng nội dung nằm ở nhiều văn bản.
 2. **Điều dài:** mô hình nhúng chỉ đọc 128 token đầu (`semantic.MAXLEN`), nên Điều dài bị tụt hạng (văn bản thật, đo với mô hình nhúng trước đó cũng cắt 128 token: các Điều đúng bị tụt dài trung vị 1.399 token). Thử nhúng thêm theo khoản rồi lấy điểm cao nhất cho Điều, hoặc tăng `MAXLEN` lên 256/512. Máy 16 GB đủ RAM cho ma trận lớn hơn; nhúng lại chạy nền. Số vector vượt ~125 nghìn thì làm theo ngưỡng ở mục 4b.
 3. **Reranker nhiều luồng hơn (giúp vừa ngân sách 45 giây):** phần tìm Advance hiện ~9 giây ở 2 luồng, trong đó reranker ~5 giây; giây nào bớt được ở đây là thêm cho mô hình trả lời. Đo reranker ở 4–6 luồng trước. Reranker top-10 (đã đo +0,5–1,8 điểm Hit@1 nhưng chậm gấp đôi) chỉ thử nếu vẫn trong ngân sách.
@@ -447,6 +448,8 @@ Nguyên tắc: chỉ thêm, không xoá hay đổi cột; tự sao lưu trước
 5. **Có mua chứng thư ký số cho bộ cài không** (để bỏ cảnh báo "Windows protected your PC").
 6. **Ai duyệt hiệu lực và quan hệ văn bản, bao nhiêu giờ mỗi tuần** (đã hỏi từ 0.8, chưa có câu trả lời).
 7. **Có cần đồ thị toàn kho không:** quyết sau khi dùng đồ thị cục bộ ở P4.
+8. **Chế độ tìm mặc định trên máy 16 GB: Normal hay Advance.** Đề xuất (theo số đo P0): giữ Normal cho tới khi nhánh độ chính xác (điều 0) đưa Advance lên không thấp hơn Normal ở Hit@1 trên văn bản thật. Phần trả lời AI (P3) vẫn dùng được với Normal: ngữ cảnh là 5 Điều đầu.
+9. **Duyệt mẫu giao diện** (`mau/giao-dien-1.0.html`): cổng P0, cần trước khi viết mã P1.
 
 ---
 
