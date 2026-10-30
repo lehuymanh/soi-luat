@@ -53,6 +53,8 @@ Advance), **JSON hợp lệ ≥ 99%**, **dẫn đúng ≥ 80%**, **từ chối �
 
    Mô hình dự phòng Gemma 4 E4B: thay `-m` bằng `gemma-4-E4B_q4_0-it.gguf` (5,15 GB, repo Hugging Face
    `google/gemma-4-E4B-it-qat-q4_0-gguf`) rồi chạy lại ba lệnh trên, đổi tên tệp `--out`.
+   Trên máy ảo (vòng 2, `KET-QUA.md`) Gemma 4 E4B và Nemotron-3.5-Bolt-E4B đều không hơn Qwen3-VL-4B, nên trên
+   máy 16 GB chỉ cần đo Qwen; Gemma chỉ để so RAM và tốc độ nếu có thời gian.
 
    Mỗi câu hỏi gọi mô hình hai lần (`dan`, `tu_choi`); mỗi câu bẫy một lần. Với ~45 giây một lần gọi, 100 câu + 50
    câu bẫy mất khoảng 3 giờ. Kết quả ghi dần vào tệp `--out` (dừng giữa chừng vẫn còn phần đã chạy); bảng tổng in ra
