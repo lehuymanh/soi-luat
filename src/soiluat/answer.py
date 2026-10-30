@@ -100,10 +100,14 @@ def _words(text: str) -> list[str]:
 
 def _sentences(lines: list[tuple[str, str]]) -> list[tuple[str, str]]:
     """Tách dòng dài theo câu (sau '.', ';', ':' đứng sau chữ, không tách '2. ' đầu khoản). Câu đầu giữ đường dẫn của
-    dòng, các câu sau là con của nó ('D5.K2.~1'): giữ một câu thì giữ cả câu dẫn."""
+    dòng, các câu sau là con của nó ('D5.K2.~1'): giữ một câu thì giữ cả câu dẫn. Câu giữa dòng kết thúc bằng ':' là
+    nhãn ('b) Đối với tổ chức:'), gộp với câu sau để nhãn đi cùng mức phạt của nó."""
     out = []
     for p, t in lines:
         parts = [x for x in re.split(r"(?<=[^\s\d][.;:])\s+", t) if x] if len(t) > LONG_LINE else [t]
+        for k in range(len(parts) - 2, 0, -1):
+            if parts[k].endswith(":"):
+                parts[k:k + 2] = [parts[k] + " " + parts[k + 1]]
         out.append((p, parts[0]))
         out += [(f"{p}.~{k}", x) for k, x in enumerate(parts[1:], 1)]
     return out
@@ -119,6 +123,16 @@ def _scores(texts: list[str], query: str) -> list[float]:
     idf = {w: math.log(1 + (len(texts) - df[w] + 0.5) / (df[w] + 0.5)) for w in qs}
     return [sum(idf[w] for w in qs.intersection(x)) + sum((idf[a] + idf[b]) / 2 for a, b in qb.intersection(zip(x, x[1:])))
             for x in ws]
+
+
+def _window(text: str, query: str, size: int) -> str:
+    """Khúc ≤ `size` ký tự của một câu quá dài, chứa nhiều từ câu hỏi nhất; '…' đánh dấu chỗ cắt."""
+    qs = set(_words(query))
+    hits = [(m.start(), w) for m in re.finditer(r"\w+", text) if (w := fold_search(m.group())) in qs]
+    size -= 2
+    starts = [max(0, min(h - size // 4, len(text) - size)) for h, _ in hits] or [0]
+    a = max(starts, key=lambda b: (len({w for h, w in hits if b <= h < b + size}), -b))
+    return ("…" if a else "") + text[a:a + size] + ("…" if a + size < len(text) else "")
 
 
 def _pick(lines: list[tuple[str, str]], query: str, budget: int) -> str:
@@ -154,8 +168,10 @@ def _pick(lines: list[tuple[str, str]], query: str, budget: int) -> str:
                 if group and used + cost <= budget:
                     keep.update(group)
                     used += cost
-    if not keep:  # một dòng đã dài hơn ngân sách: cắt dòng khớp nhất
-        return texts[ranked[0]][: max(budget - 1, 0)] + "…"
+    best = ranked[0]
+    if best not in keep and (budget - used > 80 or not keep):  # câu khớp nhất dài hơn phần còn lại: lấy khúc quanh chỗ khớp
+        texts[best] = _window(texts[best], query, max(budget - used - 1, 3))
+        keep.add(best)
     out, prev = [], None
     for j in sorted(keep):
         if prev is not None and j > prev + 1:
@@ -217,6 +233,9 @@ def messages(passages: list[Passage], question: str) -> list[dict]:
 _TEXT_CHAR = rf'([^"\\\x00-\x1F\x7F{_CJK}]|\\["\\/bfnrt])'
 
 
+CAPS = {"tien_de_sai": 150, "tra_loi": 240, "y": 160, "luu_y": 140}  # ký tự; ~p95 độ dài đo trên train, hai cái đầu thấp hơn
+
+
 def _text(n: int) -> dict:
     """Chuỗi ≤ n ký tự, không có chữ CJK. llama.cpp bỏ qua maxLength khi có pattern nên độ dài ghi cả trong pattern."""
     return {"type": "string", "maxLength": n, "pattern": f"^{_TEXT_CHAR}{{0,{n}}}$"}
@@ -231,18 +250,18 @@ def schema(n: int) -> dict:
     src = {"type": "integer", "enum": list(range(1, n + 1))}
     y = {
         "type": "object",
-        "properties": {"y": _text(160), "nguon": {"type": "array", "items": src, "minItems": 1, "maxItems": n}},
+        "properties": {"y": _text(CAPS["y"]), "nguon": {"type": "array", "items": src, "minItems": 1, "maxItems": n}},
         "required": ["y", "nguon"],
         "additionalProperties": False,
     }
 
     def branch(ok: bool) -> dict:
         props = {
-            "tien_de_sai": _text(150),
+            "tien_de_sai": _text(CAPS["tien_de_sai"]),
             "du_can_cu": {"const": ok},
-            "tra_loi": _text(240),
+            "tra_loi": _text(CAPS["tra_loi"]),
             "cac_y": {"type": "array", "items": y, "minItems": 1, "maxItems": 2} if ok else {"type": "array", "items": y, "maxItems": 0},
-            "luu_y": {"type": "array", "maxItems": 1, "items": _text(140)},
+            "luu_y": {"type": "array", "maxItems": 1, "items": _text(CAPS["luu_y"])},
         }
         return {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
 
@@ -305,7 +324,8 @@ _MO_HO = {"một", "năm", "không", "tư", "lăm", "mốt", "linh", "lẻ", "tr
 
 def _doc_so_chu(words: list[str]) -> list[int]:
     """Giá trị của một chuỗi số viết bằng chữ: 'mười lăm' → [15], 'hai trăm năm mươi nghìn' → [250000]; hai chữ số
-    liền nhau là hai số ('hai năm' → [2, 5])."""
+    liền nhau là hai số. 'năm' giữa số chỉ là 5 khi đứng sau 'linh'/'lẻ' hay trước 'mươi'/'trăm'/hàng nghìn; còn lại
+    là danh từ 'năm': 'mười năm' → [10] (số 15 viết 'mười lăm'), 'hai năm' → [2]."""
     out: list[int] = []
     total = group = 0
     d: int | None = None
@@ -318,7 +338,11 @@ def _doc_so_chu(words: list[str]) -> list[int]:
         total = group = 0
         d, seen = None, False
 
-    for w in words:
+    for i, w in enumerate(words):
+        nxt = words[i + 1] if i + 1 < len(words) else ""
+        if w == "năm" and seen and words[i - 1] not in ("linh", "lẻ") and nxt not in ("mươi", "trăm", *_MULT):
+            flush()
+            continue
         if w in _CHU_SO:
             if d is not None:
                 flush()
@@ -359,7 +383,7 @@ def numbers(text: str, *, lenient: bool = False) -> set:
     text = _SO_HIEU.sub(" ", text)
     for m in _REF.finditer(text):
         kind = fold_search(m.group(1))
-        for x in re.findall(r"\d+[a-z]?|[a-zđ]\b", m.group(2), re.IGNORECASE):
+        for x in re.split(r"\s*(?:,|và|hoặc)\s*", m.group(2), flags=re.IGNORECASE):  # tách theo dấu nối: 'hoặc' không thành 'c'
             out.add(f"{'diem' if x.isalpha() else kind}:{x.lower()}")
     text = _REF.sub(" ", text)
     for m in _DATE.finditer(text):
@@ -432,6 +456,12 @@ def _salvage(s: str) -> dict | None:
             continue
         return a if isinstance(a, dict) else None
     return None
+
+
+def _claimed(text: str, cap: str) -> set:
+    """Số trong một chuỗi của câu trả lời. Chuỗi chạm trần độ dài bị grammar cắt giữa chừng: bỏ chữ cuối đang viết dở
+    ('Nghị định 155/20') thay vì coi phần còn lại là số lạ."""
+    return numbers(re.sub(r"\S*$", "", text) if len(text) >= CAPS[cap] else text)
 
 
 def _covered(claim: set, allowed: set) -> bool:
@@ -510,7 +540,7 @@ def check(content: str, passages: list[Passage], question: str) -> Checked:
             out.dropped.append("cac_y:nguon")
         elif CJK.search(y["y"]):
             out.dropped.append("cac_y:cjk")
-        elif not _covered(numbers(y["y"]), set().union(*(src_nums[n] for n in cited))):
+        elif not _covered(_claimed(y["y"], "y"), set().union(*(src_nums[n] for n in cited))):
             out.dropped.append("cac_y:so")
         else:
             ys.append(y)
@@ -518,18 +548,18 @@ def check(content: str, passages: list[Passage], question: str) -> Checked:
 
     luu = []
     for x in a["luu_y"]:
-        if CJK.search(x) or not _covered(numbers(x), all_nums):
+        if CJK.search(x) or not _covered(_claimed(x, "luu_y"), all_nums):
             out.dropped.append("luu_y:cjk" if CJK.search(x) else "luu_y:so")
         else:
             luu.append(x)
     out.answer["luu_y"] = luu
 
     tds = a["tien_de_sai"]
-    if CJK.search(tds) or not _covered(numbers(tds), all_nums | q_nums):
+    if CJK.search(tds) or not _covered(_claimed(tds, "tien_de_sai"), all_nums | q_nums):
         out.dropped.append("tien_de_sai:cjk" if CJK.search(tds) else "tien_de_sai:so")
         out.answer["tien_de_sai"] = ""
 
-    if CJK.search(a["tra_loi"]) or not _covered(numbers(a["tra_loi"]), all_nums | q_nums):
+    if CJK.search(a["tra_loi"]) or not _covered(_claimed(a["tra_loi"], "tra_loi"), all_nums | q_nums):
         out.dropped.append("tra_loi:cjk" if CJK.search(a["tra_loi"]) else "tra_loi:so")
         out.answer["tra_loi"] = extractive(passages)
         out.answer["trich_nguyen_van"] = True

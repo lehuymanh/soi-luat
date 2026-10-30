@@ -272,3 +272,45 @@ def test_content_sig_keeps_different_titles_apart(db, tmp_path):
                  "Điều 2. Ưu tiên trong tuyển dụng công chức\n1. Con liệt sĩ.\n", encoding="utf-8")
     ingest_path(db, p, tmp_path)
     assert answer.content_sig(db, _root(db, "D1")) != answer.content_sig(db, _root(db, "D2"))
+
+
+def test_review_round2_number_words_and_reference_lists():
+    n = answer.numbers
+    # 'năm' sau mười/mươi hay sau một chữ số là danh từ 'năm' (thời gian), không phải số 5
+    assert n("phạt tù từ mười năm đến hai mươi năm", lenient=True) == {Decimal(10), Decimal(20)}
+    assert n("thời hạn hai năm", lenient=True) == {Decimal(2)} and n("năm năm", lenient=True) == {Decimal(5)}
+    assert n("hai trăm năm mươi nghìn; một trăm linh năm", lenient=True) == {Decimal(250_000), Decimal(105)}
+    p = answer.Passage(1, 1, 1, "", "Điều 9. Hình phạt", "1. Phạt tù từ mười năm đến hai mươi năm.")
+
+    def kept(y, src=p):
+        return answer.check(_reply(cac_y=[{"y": y, "nguon": [1]}]), [src], "q").answer["cac_y"] != []
+
+    assert kept("Phạt tù từ 10 năm đến 20 năm.") and not kept("Phạt tù từ 15 năm đến 25 năm.")
+    # chữ cuối của 'hoặc' không thành 'điểm c'
+    assert n("điểm a hoặc b khoản 1") == {"diem:a", "diem:b", "khoan:1"} and n("khoản 1 hoặc 2") == {"khoan:1", "khoan:2"}
+    ab = answer.Passage(1, 1, 1, "", "Điều 5. Vi phạm", "1. Vi phạm một trong các hành vi sau:\na) Xả rác.\nb) Đổ chất thải.")
+    assert kept("Vi phạm điểm a hoặc b khoản 1 bị phạt.", ab) and not kept("Vi phạm điểm c khoản 1.", ab)
+
+
+def test_review_round2_string_cut_at_its_cap_ignores_the_partial_last_token(db, doc):
+    ps = _ps(db)  # [1] Điều 5 của 100/2019/NĐ-CP
+    y = "Phạt 1.000.000 đồng đến 2.000.000 đồng theo Nghị định 100/20"
+    y = " " * (160 - len(y)) + y  # đúng trần 160 ký tự: trần độ dài cắt giữa số hiệu
+    assert answer.check(_reply(cac_y=[{"y": y, "nguon": [1]}]), ps, "q").answer["cac_y"] != []
+    short = "Phạt 1.000.000 đồng theo Nghị định 100/20"  # chưa chạm trần: '20' là số lạ thật
+    assert answer.check(_reply(cac_y=[{"y": short, "nguon": [1]}]), ps, "q").answer["cac_y"] == []
+
+
+def test_review_round2_oversize_piece_still_gives_a_window_and_colon_keeps_label_with_amount():
+    body = ", ".join(f"{i}) nội dung thứ {i} gồm nhiều chữ " + "x" * 60 for i in range(1, 9))
+    line = "Các khoản sau đây. " + body + ", 9) thời hạn lưu chiểu là ít nhất 10 ngày trước khi phát hành " + "y" * 200
+    out = answer._pick([("D3", line)], "thời hạn lưu chiểu ít nhất bao nhiêu ngày", 400)
+    assert "thời hạn lưu chiểu là ít nhất 10 ngày" in out and len(out) <= 420
+
+    line = ("2. Mức phạt tiền đối với hành vi quy định tại Điều này như sau: a) Đối với cá nhân: phạt từ 1.000.000 đồng "
+            "đến 2.000.000 đồng; b) Đối với tổ chức: phạt từ 2.000.000 đồng đến 4.000.000 đồng; c) Tái phạm thì phạt "
+            "gấp đôi. " + "Câu bổ sung về thủ tục nộp phạt và cơ quan có thẩm quyền xử lý. " * 4)
+    label_and_amount = "b) Đối với tổ chức: phạt từ 2.000.000 đồng đến 4.000.000 đồng;"
+    assert label_and_amount in [t for _, t in answer._sentences([("D7.K2", line)])]  # không tách ở dấu hai chấm
+    out = answer._pick([("D7.K1", "1. Phạm vi."), ("D7.K2", line)], "mức phạt đối với tổ chức", 220)
+    assert label_and_amount in out
