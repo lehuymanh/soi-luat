@@ -15,8 +15,10 @@ Chọn mô hình: [CHON-MO-HINH.md](CHON-MO-HINH.md). Kết quả đo: [KET-QUA.
 | `tu_choi` (từ chối đúng) | Cùng câu hỏi, bỏ Điều đúng và mọi Điều cùng nội dung ở văn bản khác | `du_can_cu = false` |
 | `bay` (tiền đề sai) | Câu sinh từ một điểm có mức phạt (`units.fine_min/fine_max`), hỏi với mức tiền gấp 3; Điều chứa điểm đó luôn có trong ngữ cảnh | `tien_de_sai` khác rỗng và câu trả lời nêu đúng một mức trong nguồn (so số) |
 
-Mọi lần gọi còn được đo: JSON hợp lệ, số liệu khớp đoạn được dẫn (`so_khop`), có chữ Trung/Nhật/Hàn, câu trả lời quá
-3 câu, phải thay bằng trích nguyên văn, thời gian tìm + thời gian mô hình, số token.
+Mọi lần gọi còn được đo: JSON hợp lệ, bị cắt ở trần token (`bi_cat`) và cứu được hay không, số liệu khớp đoạn được
+dẫn (`so_khop`), có chữ Trung/Nhật/Hàn, câu trả lời quá 3 câu, phải thay bằng trích nguyên văn, thời gian tìm + thời
+gian mô hình, số token. Bộ có câu trích bằng chứng (`queries.json` của văn bản thật, trường `evidence`) đo thêm câu
+trích đó còn bao nhiêu trong đoạn sau khi cắt (`dan_bang_chung_con`), để tách lỗi dựng ngữ cảnh khỏi lỗi mô hình.
 
 Cổng P0 (lộ trình mục 6): trên máy 16 GB đang mở Office, **p95 tổng ≤ 45 giây** (`tong_p95_s`, tính cả phần tìm ở
 Advance), **JSON hợp lệ ≥ 99%**, **dẫn đúng ≥ 80%**, **từ chối đúng ≥ 80%**. Ngưỡng chất lượng là đề xuất, chốt khi có số.
@@ -49,12 +51,16 @@ Advance), **JSON hợp lệ ≥ 99%**, **dẫn đúng ≥ 80%**, **từ chối �
    python bench/llm/run.py <realdocs>\data\soiluat.db <realdocs>\queries.json --n 84 --bay 0 --out real_llm.json
    ```
 
+   Mô hình dự phòng Gemma 4 E4B: thay `-m` bằng `gemma-4-E4B_q4_0-it.gguf` (5,15 GB, repo Hugging Face
+   `google/gemma-4-E4B-it-qat-q4_0-gguf`) rồi chạy lại ba lệnh trên, đổi tên tệp `--out`.
+
    Mỗi câu hỏi gọi mô hình hai lần (`dan`, `tu_choi`); mỗi câu bẫy một lần. Với ~45 giây một lần gọi, 100 câu + 50
    câu bẫy mất khoảng 3 giờ. Kết quả ghi dần vào tệp `--out` (dừng giữa chừng vẫn còn phần đã chạy); bảng tổng in ra
    cuối cùng và nằm ở khoá `tong`.
 
 Tuỳ chọn: `--mode normal` (tìm BM25, khi kho chưa nhúng vector), `--passages 3` (đưa 3 đoạn thay vì 5 nếu chậm),
-`--temp`, `--url` / `--api-key` (hoặc biến `SOILUAT_LLM_URL`, `SOILUAT_LLM_KEY`).
+`--skip K` (bỏ K câu đầu của mẫu: với bộ không có tập train như văn bản thật, chỉnh trên phần sau K câu, chấm trên
+K câu đầu), `--temp`, `--url` / `--api-key` (hoặc biến `SOILUAT_LLM_URL`, `SOILUAT_LLM_KEY`).
 
 Câu hỏi gold `vle` lấy từ ViLegalExperts, chưa ghi giấy phép: chỉ giữ trên máy, không commit (`bench/gold/README.md`).
 
@@ -62,7 +68,10 @@ Câu hỏi gold `vle` lấy từ ViLegalExperts, chưa ghi giấy phép: chỉ g
 
 - Các tỉ lệ chất lượng không phụ thuộc máy (cùng tệp GGUF, cùng nhiệt độ và seed thì gần như lặp lại), nên số đo trên
   máy khác dùng được để chọn lời nhắc và mô hình. **Thời gian thì phải đo trên máy 16 GB**: máy khác chỉ để so tương đối.
+- `json_hop_le` là JSON đọc được ngay; `json_dung_duoc` tính cả câu bị cắt ở trần token mà bộ kiểm cứu được (giữ các
+  ý đã viết xong, bỏ ý đang viết dở; khoá `cut` của từng câu). `bi_cat` là tỉ lệ câu sinh chạm trần token.
 - `dan_dung_sau_kiem` là tỉ lệ còn dẫn đúng sau khi bộ kiểm bỏ các ý có số liệu không khớp nguồn.
 - `dan_dieu_dung_do_tim_ra` là tỉ lệ câu mà Điều đúng do chính tìm kiếm đưa vào top 5 (phần còn lại được chèn để đo).
-- Xem từng câu trong khoá `tung_cau`: `content` là chữ mô hình sinh, `checked` là câu trả lời sau khi kiểm,
+- Xem từng câu trong khoá `tung_cau`: `ctx` là các đoạn đã đưa vào mô hình, `content` là chữ mô hình sinh, `checked`
+  là câu trả lời sau khi kiểm,
   `dropped` là phần bị bỏ và lý do (`cac_y:so` = ý có số không có trong đoạn được dẫn).
