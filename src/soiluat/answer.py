@@ -19,7 +19,7 @@ from soiluat import semantic
 from soiluat.fold import fold_search
 
 MAX_PASSAGES = 5
-CTX_CHARS = 3000  # thân đoạn; cộng tiêu đề, câu hỏi ≈ 1.000 token Qwen3-VL mới mỗi câu (đo trên Zalo, bench/llm)
+CTX_CHARS = 2600  # thân đoạn; cộng tiêu đề, câu hỏi ≈ 1.000 token Qwen3-VL mới mỗi câu (đo ~3,1 ký tự/token, bench/llm)
 N_PREDICT = 200
 TEMPERATURE = 0.1  # thấp cho bám đoạn; chốt ở P0
 SEED = 2026
