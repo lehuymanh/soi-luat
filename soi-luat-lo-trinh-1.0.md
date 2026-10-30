@@ -54,7 +54,7 @@ Làm tuần tự một người: khoảng 16 tuần. P4 và nhánh độ chính 
 5. **Không fine-tune mô hình.** Kế hoạch 0.8 đã loại vì cần GPU thuê và khó kiểm chứng. Thay bằng: tìm tốt (đã có), khuôn đầu ra bắt buộc và kiểm tra tự động sau khi sinh (mục 5).
 6. **Đồ thị toàn kho hàng nghìn nút đẹp nhưng không đọc được.** Giá trị thật của "kiểu Obsidian" là backlinks theo loại quan hệ và đồ thị cục bộ 1–2 bước. Làm hai thứ đó trước; đồ thị toàn kho chỉ làm nếu dùng rồi vẫn thấy cần.
 7. **Không làm "hỏi về cả một văn bản dài" (vd. tóm tắt một luật 100 Điều) trong 1.0.** Đưa 30–50 nghìn token vào mô hình trên CPU mất nhiều phút. Chạy nền ban đêm cũng không chắc, vì máy văn phòng thường tắt app khi về. Thay bằng mục lục, Điều 1, và câu hỏi cụ thể kèm @văn bản.
-8. **Bớt "chế độ".** Màn hỏi chỉ còn một công tắc "Trả lời bằng AI"; Normal/Advance chuyển vào Cài đặt với tên "Chế độ nhẹ" cho máy yếu. Đề xuất ban đầu là để Advance làm mặc định trên máy 16 GB. **Số đo P0 (30/10/2026) không ủng hộ đề xuất này:** trên 21 văn bản thật, Advance có Hit@1 72,6%, Normal 83,3% (`bench/van-ban-that/KET-QUA.md`). Vì vậy giữ Normal làm mặc định cho tới khi nhánh độ chính xác sửa xong bước hợp (mục 6, nhánh song song, điều 0); quyết định cuối ở mục 9.
+8. **Bớt "chế độ".** Màn hỏi chỉ còn một công tắc "Trả lời bằng AI"; Normal/Advance chuyển vào Cài đặt với tên "Chế độ nhẹ" cho máy yếu. Đề xuất ban đầu là để Advance làm mặc định trên máy 16 GB. **Số đo P0 (30/10/2026) không ủng hộ đề xuất này:** trên 21 văn bản thật, Advance có Hit@1 72,6%, Normal 83,3% (tính rộng; tính chặt theo số Điều: 69,0% và 78,6%; `bench/van-ban-that/KET-QUA.md`). Vì vậy giữ Normal làm mặc định cho tới khi nhánh độ chính xác sửa xong bước hợp (mục 6, nhánh song song, điều 0); quyết định cuối ở mục 9.
 9. **Không cần "vector DB" riêng hay đồ thị tri thức dựng bằng LLM (kiểu Cognee, Graphiti).** Phần phụ thuộc CSDL chỉ chiếm tối đa ~1 giây trong ~9 giây của một câu Advance (reranker chiếm ~5 giây). Độ chính xác nằm ở thuật toán (hai cột có dấu/không dấu, các tầng khớp BM25, mô hình nhúng, reranker), không nằm ở CSDL. Dựng đồ thị tri thức bằng LLM cho 61 nghìn Điều trên CPU ước tính mất 10–33 ngày chạy liên tục, riêng Graphiti 6–12 tháng; chính LightRAG ghi rằng chạy cục bộ cần tối thiểu mô hình cỡ Qwen3-30B-A3B. Lấy ý tưởng, không lấy framework (mục 4b).
 
 ---
@@ -123,7 +123,7 @@ Nguồn: SEA-HELM của AI Singapore, phần tiếng Việt, cập nhật 18/09/
 - Bật chế độ suy nghĩ thì Qwen3.5-4B mạnh hơn (tổng 69,0), nhưng chế độ đó sinh thêm hàng trăm token, không vừa 45 giây trên CPU.
 - File nhỏ nhất nhóm nên sinh chữ nhanh nhất; kiến trúc attention thường, llama.cpp hỗ trợ ổn định từ 10/2025.
 
-**Rủi ro:** chưa có số đo bám ngữ cảnh cho đúng mô hình này; kiến thức tiếng Việt thấp (43,4), nên khi ngữ cảnh thiếu căn cứ nó có thể điền bằng kiến thức sai, và cờ `du_can_cu` cùng bộ kiểm số liệu phải chặn được; có thể chèn chữ Trung hoặc Anh (kiểm tự động được).
+**Rủi ro** (đo vòng 1 ở P0, `bench/llm/KET-QUA.md`: chèn chữ Trung ở 0–10% câu trả lời; khi đã bỏ Điều đúng vẫn nói đủ căn cứ ở 33–73% số câu, nhóm lớn nhất là khái quát quá phạm vi đoạn): chưa có số đo bám ngữ cảnh công khai cho đúng mô hình này; kiến thức tiếng Việt thấp (43,4), nên khi ngữ cảnh thiếu căn cứ nó có thể điền bằng kiến thức sai, và cờ `du_can_cu` cùng bộ kiểm số liệu phải chặn được; có thể chèn chữ Trung hoặc Anh (kiểm tự động được).
 
 **Không chọn:** Qwen3.5-4B (tiếng Việt thấp nhất nhóm khi tắt suy nghĩ; họ Qwen3.5 ảo giác gấp đôi). Qwen3.5-9B và Vi-Qwen2-7B-RAG (ước tính 92–113 giây mỗi câu; 9B còn vượt trần RAM). Gemma 4 12B (file 7,65 GB). Mô hình 2B (vừa 45 giây nhưng tiếng Việt kém rõ, tổng ≤ 53,3). MoE 26B–35B (cần 15–20 GB RAM).
 
@@ -205,6 +205,16 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 5. Làm mẫu giao diện bấm thử được (HTML tĩnh): màn chat có thanh lịch sử, câu trả lời gọn, trình đọc văn bản, @mention, trang Kho, bảng Liên quan. Người dùng góp ý trước khi code.
 
 **Cổng:** mô hình được chọn, trên máy 16 GB đang mở Office: trả lời xong ≤ 45 giây (p95, tính cả phần tìm); JSON hợp lệ ≥ 99%; dẫn đúng Điều ≥ 80% khi Điều đúng có trong ngữ cảnh; từ chối đúng ≥ 80% khi đã bỏ Điều đúng. Các ngưỡng chất lượng là đề xuất, chốt khi có số. Cả mô hình chính lẫn dự phòng đều không đạt thì dừng P3 và báo lại; P1, P2, P4 vẫn làm. Người dùng đồng ý với mẫu giao diện.
+
+**Trạng thái P0 (30/10/2026)**
+
+| Bước | Trạng thái |
+|---|---|
+| 1. Xác nhận mô hình | **Vòng 1 trên máy ảo 4 nhân, chưa đạt cổng chất lượng.** Qwen3-VL-4B trên tập test: JSON hợp lệ 87,5 / 92,5 / 96,7%, dẫn đúng Điều 66,7 / 70,0 / 46,7%, từ chối đúng 26,7 / 35,0 / 66,7% (Zalo / gold / văn bản thật). Mọi JSON hỏng đều do bị cắt ở 200 token; trên văn bản thật, 5/7 câu dẫn sai (JSON hợp lệ) có dòng đáp án đã bị cắt khỏi ngữ cảnh; nhóm lỗi từ chối lớn nhất là khái quát quá phạm vi đoạn. Chi tiết và 7 việc sửa: `bench/llm/KET-QUA.md`. Còn lại: sửa trên tập train rồi chấm lại; thử Gemma 4 E4B; đo tốc độ, RAM, p95 45 giây trên máy 16 GB |
+| 2. Bộ đo câu trả lời | **Xong.** `bench/llm/run.py` (dẫn đúng, từ chối, tiền đề sai, JSON, số liệu, chữ CJK, thời gian) dùng chung mã với app: `src/soiluat/answer.py` (ngữ cảnh, lời nhắc, khuôn JSON, bộ kiểm số liệu) |
+| 3. Mốc tìm kiếm trên văn bản thật | **Xong.** Hit@1 (rộng) Normal 83,3%, Advance 72,6%; ~40 thẻ mỗi câu (`bench/van-ban-that/KET-QUA.md`); xem mục 2 điều 8 |
+| 4. ≥ 100 câu hỏi thật của văn phòng | Chưa (người dùng) |
+| 5. Mẫu giao diện | **Xong**, chờ người dùng duyệt: `mau/giao-dien-1.0.html` |
 
 ### P1 — Mở đúng đoạn, kết quả gọn, lịch sử chat (3 tuần)
 
@@ -390,7 +400,7 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 
 Câu trả lời AI chỉ đúng khi đoạn đúng nằm trong 5 đoạn đưa vào mô hình. Hiện Hit@5 của Advance khoảng 90% (Zalo 90,4%, tư vấn thật 89,8%): đó là trần độ đúng của P3.
 
-0. **Hợp BM25 với vector làm tụt hạng 1 trên văn bản thật** (đo ở P0, 30/10/2026; `bench/van-ban-that/KET-QUA.md`). Trên 84 câu của 21 văn bản 2026, Hit@1 là 83,3% với Normal, 67,9% với BM25 + vector (chưa reranker), 72,6% với Advance đủ bước. Ở @10 thì Advance hơn (97,6% so với 96,4%). Các hệ số hợp (`semantic.TOP`, `DENSE_K`, `RRF_K`, `W = 2`) được chọn trên kho Zalo 61 nghìn Điều, có thể không hợp kho nhỏ gồm văn bản mới. Việc cần thử: giảm `W`, chỉ cho vector chen vào sau top-k của BM25, hoặc chỉ dùng reranker. Đo theo quy tắc giữ ở mục 5 (điều 7): phải không tụt trên Zalo và gold. Làm trước các mục dưới, vì nó quyết định chế độ mặc định (mục 2, điều 8).
+0. **Hợp BM25 với vector làm tụt hạng 1 trên văn bản thật** (đo ở P0, 30/10/2026; `bench/van-ban-that/KET-QUA.md`). Trên 84 câu của 21 văn bản 2026, Hit@1 là 83,3% với Normal, 67,9% với BM25 + vector (chưa reranker), 72,6% với Advance đủ bước. Ở @10 Advance hơn 1 câu trên 84 (97,6% so với 96,4%). Các hệ số hợp (`semantic.TOP`, `DENSE_K`, `RRF_K`, `W = 2`) được chọn trên kho Zalo 61 nghìn Điều, có thể không hợp kho nhỏ gồm văn bản mới. Việc cần thử: giảm `W`, chỉ cho vector chen vào sau top-k của BM25, hoặc chỉ dùng reranker. Đo theo quy tắc giữ ở mục 5 (điều 7): phải không tụt trên Zalo và gold. Làm trước các mục dưới, vì nó quyết định chế độ mặc định (mục 2, điều 8).
 1. **Gộp Điều tương đương khi đo:** dùng chung khoá băm với phần gộp trùng của P1. Tài liệu kỹ thuật ước tính trần Hit@1 ~86–87% vì cùng nội dung nằm ở nhiều văn bản.
 2. **Điều dài:** mô hình nhúng chỉ đọc 128 token đầu (`semantic.MAXLEN`), nên Điều dài bị tụt hạng (văn bản thật, đo với mô hình nhúng trước đó cũng cắt 128 token: các Điều đúng bị tụt dài trung vị 1.399 token). Thử nhúng thêm theo khoản rồi lấy điểm cao nhất cho Điều, hoặc tăng `MAXLEN` lên 256/512. Máy 16 GB đủ RAM cho ma trận lớn hơn; nhúng lại chạy nền. Số vector vượt ~125 nghìn thì làm theo ngưỡng ở mục 4b.
 3. **Reranker nhiều luồng hơn (giúp vừa ngân sách 45 giây):** phần tìm Advance hiện ~9 giây ở 2 luồng, trong đó reranker ~5 giây; giây nào bớt được ở đây là thêm cho mô hình trả lời. Đo reranker ở 4–6 luồng trước. Reranker top-10 (đã đo +0,5–1,8 điểm Hit@1 nhưng chậm gấp đôi) chỉ thử nếu vẫn trong ngân sách.
