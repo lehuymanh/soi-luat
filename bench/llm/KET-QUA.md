@@ -57,7 +57,31 @@ Chọn biến thể cuối vì ít câu khẳng định sai nhất, và đây l�
 
 (cột "JSON đọc được": tính cả câu bị cắt đã cứu; trong ngoặc là đọc được ngay. Thời gian không so được giữa hai vòng: máy ảo dùng chung, tải khác nhau.)
 
-**Gemma 4 E4B và Nemotron-3.5-Bolt-E4B:** đang chạy trên cùng ba bộ, sẽ điền vào đây.
+**Qwen3-VL-4B so với Gemma 4 E4B (QAT Q4_0), cùng mã vòng 2, cùng mẫu câu:**
+
+| Chỉ số | Zalo: Qwen | Zalo: Gemma | Zalo: Bolt | Gold `vle`: Qwen | Gold `vle`: Gemma | Văn bản thật: Qwen | Văn bản thật: Gemma |
+|---|---|---|---|---|---|---|---|
+| JSON đọc được (chưa cứu) | 100,0% (78,8%) | 100,0% (63,8%) | 100,0% (100,0%) | 100,0% (95,0%) | 100,0% (82,5%) | 100,0% (96,7%) | 100,0% (96,7%) |
+| Bị cắt ở trần 200 token | 21,2% | 38,8% | 0,0% | 5,0% | 17,5% | 3,3% | 3,3% |
+| Dẫn đúng Điều | 83,3% | 63,3% | 100,0% | 75,0% | 85,0% | 86,7% | 80,0% |
+| Dẫn đúng sau bộ kiểm | 80,0% | 63,3% | 100,0% | 75,0% | 85,0% | 86,7% | 80,0% |
+| Từ chối hẳn (`du_can_cu = false`) | 16,7% | 46,7% | — | 20,0% | 55,0% | 60,0% | 73,3% |
+| Từ chối hoặc nêu phạm vi hẹp hơn | 73,3% | 66,7% | — | 60,0% | 60,0% | 86,7% | 93,3% |
+| Khẳng định như đủ căn cứ khi đã bỏ Điều đúng | 26,7% | 33,3% | — | 40,0% | 40,0% | 13,3% | 6,7% |
+| Có Điều đúng mà bị gắn "hẹp hơn"/"khác" | 26,7% | 26,7% | 0,0% | 10,0% | 10,0% | 40,0% | 20,0% |
+| Chỉ ra tiền đề sai (bẫy) | 85,0% | 95,0% | — | — | — | — | — |
+| Số liệu khớp nguồn | 98,8% | 100,0% | 100,0% | 100,0% | 100,0% | 100,0% | 100,0% |
+| Có chữ Trung/Nhật/Hàn | 0,0% | 0,0% | 0,0% | 0,0% | 0,0% | 0,0% | 0,0% |
+| Phải thay bằng trích nguyên văn | 0,0% | 0,0% | 0,0% | 0,0% | 0,0% | 0,0% | 0,0% |
+| Token sinh ra, trung bình | 155 | 170 | 141 | 137 | 164 | 118 | 138 |
+| Mô hình p50 / p95 trên máy ảo (s) | 57 / 72 | 73 / 89 | 64 / 64 | 53 / 71 | 69 / 83 | 49 / 68 | 67 / 80 |
+
+- **Không mô hình nào thắng hẳn.** Dẫn đúng gộp ba bộ: Qwen 53/65, Gemma 48/65. Gemma hơn ở gold (85% so với 75%), kém ở Zalo (63,3% so với 83,3%). Ở Zalo, 5/11 câu Gemma dẫn sai là từ chối dù có Điều đúng (4 câu gắn "khác"), 3 câu bị cắt mất ý.
+- **Gemma từ chối hẳn nhiều hơn** (gộp 36/65 so với 18/65), gần cách tính cổng cũ hơn. Nhưng số câu khẳng định như đủ căn cứ khi đã bỏ Điều đúng gần như bằng nhau (19/65 và 18/65): Gemma cũng không sửa được lỗi phạm vi.
+- **Gemma viết dài hơn** (164–170 token ở Zalo và gold) nên bị cắt nhiều hơn (38,8% ở Zalo, có cả câu thường), và chậm hơn ~25–30% trên máy ảo. Bẫy tiền đề sai: Gemma 95%, Qwen 85%.
+- Giữ Qwen3-VL-4B làm mô hình chính: nhanh hơn, ngắn hơn, dẫn đúng nhiều hơn khi gộp, bằng Gemma ở lỗi phạm vi.
+
+**Nemotron-3.5-Bolt-E4B** (ứng viên mới, `CHON-MO-HINH.md` mục 7): đang chạy trên cùng ba bộ, sẽ điền vào đây.
 
 **Đọc kết quả (Qwen):**
 
