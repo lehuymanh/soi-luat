@@ -186,3 +186,20 @@ Câu đổi hạng trong 84 câu: 24/2026 "khí cười N2O" 22 → **5**; 27/20
 Hạn chế: ghi chú và câu hỏi do người đo tự viết, chỉ 6 câu; ghi chú tìm ra nhưng ở hạng 7–21, chưa phải đầu. Trên bộ Zalo (788 câu, kho nhúng đủ 61 nghìn Điều): Hit@1/3/5 không đổi, Hit@10 91,9 → 92,5%; xem `bench/zalo/KET-QUA.md`.
 
 Sau đó thêm ngưỡng cosine 0,50 cho Điều thêm từ vector (câu vô nghĩa không còn nhận 20 thẻ bịa; lý do và số đo ở `bench/zalo/KET-QUA.md`). Đo lại trên kho này: 84 câu y như bảng trên (rộng 73,8 / 96,4 / 97,6 / 97,6%), số thẻ trung bình 48,8 → 40,5; ghi chú tìm ra **5 / 6** (hạng 7, 8, 8, 8, 21) — ghi chú học bạ (cosine < 0,50) không còn, và 27/2026 với câu giàn giáo lại không ra. Xuất Word thẻ "tìm theo nghĩa": tạo file bình thường; Word không ghi mức khớp của thẻ nào (kể cả đồng nghĩa), chỉ nội dung quy định. Kịch bản: `realtools/notes_exp2.py`, `run_k.py` trong scratchpad của phiên đo (không đưa vào dự án).
+
+## Mốc P0 của lộ trình 1.0: Advance AITeamVN trên văn bản thật (30/10/2026)
+
+Lộ trình 1.0 (P0 bước 3) cần mốc của bản Advance hiện tại (AITeamVN embedding + reranker top-5) trên 84 câu này, vì cổng P1 so với nó. Chưa lần đo nào trước đây dùng bản này: các bảng ở trên là Advance với mô hình nhúng cũ.
+
+**Kho:** dựng lại từ 21 PDF theo `manifest.json` trên máy ảo Linux (Tesseract 5.3.4, gói `vie` của Ubuntu), mã nguồn hiện tại. Kết quả: 21/21 file nạp được; 321/344 Điều khớp theo `cau_truc.py` (thấp hơn bản chuẩn trên Windows, 341/344, chủ yếu do 391/2026 chỉ khớp 49/65 Điều, nghi do bộ chữ `vie` khác bản). Mô hình xuất bằng `pack/export_models.py`, nhúng 327 Điều gốc. Normal và Advance đo trên **cùng kho này**, nên so sánh giữa hai chế độ là hợp lệ. Normal ở đây gần như trùng lần đo 23/10 (rộng @1 83,3% so với 82,1%).
+
+| 84 câu | Rộng @1 / @3 / @5 / @10 | Chặt @1 / @10 | Từ khoá @1 | Câu hỏi @1 | Đúng file ở hạng 1 | Thẻ TB |
+|---|---|---|---|---|---|---|
+| Normal (BM25) | **83,3** / 94,0 / 96,4 / 96,4 | **78,6** / 94,0 | **90,5** | **76,2** | **94,0** | 39,5 |
+| BM25 + vector, không reranker | 67,9 / 89,3 / 95,2 / 97,6 | 63,1 / 95,2 | 71,4 | 64,3 | 85,7 | 40,1 |
+| **Advance** (BM25 + vector + reranker top-5) | 72,6 / 90,5 / 95,2 / **97,6** | 69,0 / **95,2** | 76,2 | 69,0 | 89,3 | 40,1 |
+
+Kết luận cho lộ trình:
+- **Trên văn bản thật, Advance làm tụt hạng 1 khoảng 10 điểm so với Normal**, dù hơn ở @10 (thêm 1 câu). Bước gây tụt là **hợp BM25 với vector** (−15 điểm @1); reranker gỡ lại được ~5 điểm. Cùng chiều với các lần đo bằng mô hình nhúng cũ ở trên (Advance 73,8–75,0% so với Normal 81–82%). Trên Zalo và gold, Advance hơn Normal rõ (`bench/zalo/KET-QUA.md`), nên hệ số hợp (`semantic.TOP`, `DENSE_K`, `RRF_K`, `W = 2`) chọn trên kho lớn 61 nghìn Điều có thể không hợp kho nhỏ, văn bản mới. Lộ trình mục 2 (điều 8) đề xuất để Advance làm mặc định trên máy 16 GB; mốc này cho thấy cần sửa phần hợp trước (nhánh độ chính xác, đo theo quy tắc ở lộ trình mục 5, điều 7) hoặc giữ Normal làm mặc định.
+- **Số thẻ trung bình ~40 mỗi câu** ở cả hai chế độ: đây là mốc "số mục hiện sẵn" mà cổng P1 hạ xuống ≤ 5.
+- Độ trễ đo ở lần này không dùng được: máy ảo 4 nhân đang chạy song song mô hình sinh câu trả lời.
