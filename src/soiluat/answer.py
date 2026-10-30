@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import sqlite3
 import urllib.request
+from collections import Counter
 from dataclasses import dataclass, field
 from decimal import Decimal
 
@@ -19,10 +21,14 @@ from soiluat import semantic
 from soiluat.fold import fold_search
 
 MAX_PASSAGES = 5
-CTX_CHARS = 2600  # thân đoạn; cộng tiêu đề, câu hỏi ≈ 1.000 token Qwen3-VL mới mỗi câu (đo ~3,1 ký tự/token, bench/llm)
+# Thân đoạn. Cộng tiêu đề, câu hỏi ≈ 1.000 token Qwen3-VL mới mỗi câu (đo ~3,1 ký tự/token, bench/llm). Từ 2.600 hạ còn
+# 2.400 khi tách câu dòng dài: ngữ cảnh đầy hơn, độ dài sau khi dựng về lại mức cũ.
+CTX_CHARS = 2400
+LONG_LINE = 300  # dòng dài hơn thì tách theo câu: bản OCR hay dính nhiều khoản/điểm thành một dòng 1.500–10.000 ký tự
 N_PREDICT = 200
 TEMPERATURE = 0.1  # thấp cho bám đoạn; chốt ở P0
 SEED = 2026
+_CJK = r"⺀-鿿ꥠ-꥿가-힯豈-﫿︰-﹏＀-￯\U00020000-\U0003FFFF"  # Trung/Nhật/Hàn
 
 SYSTEM = """Bạn là trợ lý tra cứu văn bản pháp luật Việt Nam. Người hỏi là nhân viên văn phòng, không phải luật sư.
 Chỉ dùng các đoạn [1], [2]… trong tin nhắn; không dùng kiến thức bên ngoài, không đoán.
@@ -92,6 +98,29 @@ def _words(text: str) -> list[str]:
     return [w for w in re.findall(r"\w+", fold_search(text)) if w not in STOP]
 
 
+def _sentences(lines: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Tách dòng dài theo câu (sau '.', ';', ':' đứng sau chữ, không tách '2. ' đầu khoản). Câu đầu giữ đường dẫn của
+    dòng, các câu sau là con của nó ('D5.K2.~1'): giữ một câu thì giữ cả câu dẫn."""
+    out = []
+    for p, t in lines:
+        parts = [x for x in re.split(r"(?<=[^\s\d][.;:])\s+", t) if x] if len(t) > LONG_LINE else [t]
+        out.append((p, parts[0]))
+        out += [(f"{p}.~{k}", x) for k, x in enumerate(parts[1:], 1)]
+    return out
+
+
+def _scores(texts: list[str], query: str) -> list[float]:
+    """Điểm mỗi dòng: tổng độ hiếm trong Điều (IDF, mỗi dòng là một tài liệu) của từ và cặp từ câu hỏi có trong dòng.
+    Từ lặp ở nhiều dòng ('thí điểm cơ chế' ở 7/22 dòng) nhẹ; từ chỉ dòng đáp án có ('thời gian') nặng."""
+    q = _words(query)
+    qs, qb = set(q), set(zip(q, q[1:]))
+    ws = [_words(t) for t in texts]
+    df = Counter(w for x in ws for w in set(x) & qs)
+    idf = {w: math.log(1 + (len(texts) - df[w] + 0.5) / (df[w] + 0.5)) for w in qs}
+    return [sum(idf[w] for w in qs.intersection(x)) + sum((idf[a] + idf[b]) / 2 for a, b in qb.intersection(zip(x, x[1:])))
+            for x in ws]
+
+
 def _pick(lines: list[tuple[str, str]], query: str, budget: int) -> str:
     """Giữ dòng khớp câu hỏi nhất và dòng liền kề, theo thứ tự gốc, trong `budget` ký tự. Dòng nào được giữ thì giữ cả
     câu dẫn của nó (điểm 'b) Làm giả…' kéo theo khoản '2. Phạt tiền từ … đối với các hành vi sau'): mất câu dẫn là mất
@@ -99,13 +128,9 @@ def _pick(lines: list[tuple[str, str]], query: str, budget: int) -> str:
     texts = [t for _, t in lines]
     if sum(len(t) + 1 for t in texts) <= budget:
         return "\n".join(texts)
-    q = _words(query)
-    qs, qb = set(q), set(zip(q, q[1:]))
-
-    def score(line: str) -> int:
-        w = _words(line)
-        return len(qs & set(w)) + 2 * len(qb & set(zip(w, w[1:])))
-
+    lines = _sentences(lines)
+    texts = [t for _, t in lines]
+    scores = _scores(texts, query)
     at = {p: i for i, (p, _) in enumerate(lines)}
     keep: set[int] = set()
 
@@ -117,7 +142,7 @@ def _pick(lines: list[tuple[str, str]], query: str, budget: int) -> str:
                 out.append(at[p])
         return [j for j in out if j not in keep]
 
-    ranked = sorted(range(len(texts)), key=lambda i: (-score(texts[i]), i))
+    ranked = sorted(range(len(texts)), key=lambda i: (-scores[i], i))
     used = 0
     for i in ranked:
         for j in (i, i - 1, i + 1):
@@ -188,29 +213,36 @@ def messages(passages: list[Passage], question: str) -> list[dict]:
     return [{"role": "system", "content": SYSTEM}, {"role": "user", "content": f"Các đoạn:\n\n{ctx}\n\nCâu hỏi: {question}"}]
 
 
+# Một ký tự chuỗi JSON trừ chữ Trung/Nhật/Hàn (và trừ \uXXXX, lối viết CJK bằng mã): mô hình 4B thỉnh thoảng chêm chữ Hán.
+_TEXT_CHAR = rf'([^"\\\x00-\x1F\x7F{_CJK}]|\\["\\/bfnrt])'
+
+
+def _text(n: int) -> dict:
+    """Chuỗi ≤ n ký tự, không có chữ CJK. llama.cpp bỏ qua maxLength khi có pattern nên độ dài ghi cả trong pattern."""
+    return {"type": "string", "maxLength": n, "pattern": f"^{_TEXT_CHAR}{{0,{n}}}$"}
+
+
 def schema(n: int) -> dict:
     """Khuôn trả lời; `nguon` là enum gồm đúng các mã đã đưa vào. Hai nhánh theo cờ: đủ căn cứ thì phải có 1–2 ý có
     nguồn, không đủ thì không có ý nào. Thứ tự thuộc tính là thứ tự sinh: tiền đề sai rồi mới đến cờ (đo trên tập train
-    Zalo: hỏi với mức phạt sai thì mô hình vẫn đặt đủ căn cứ và dẫn nguồn), cả hai trước câu trả lời. Độ dài có trần để
-    vừa N_PREDICT token: không có trần thì ~9% câu bị cắt giữa chừng thành JSON hỏng."""
+    Zalo: hỏi với mức phạt sai thì mô hình vẫn đặt đủ căn cứ và dẫn nguồn), cả hai trước câu trả lời. Độ dài có trần
+    (~p95 độ dài đo trên train, tiền đề sai và câu trả lời thấp hơn) cho đuôi ngắn lại; phần vẫn bị cắt ở N_PREDICT thì
+    `check` giữ các ý đã đủ."""
     src = {"type": "integer", "enum": list(range(1, n + 1))}
     y = {
         "type": "object",
-        "properties": {
-            "y": {"type": "string", "maxLength": 160},
-            "nguon": {"type": "array", "items": src, "minItems": 1, "maxItems": n},
-        },
+        "properties": {"y": _text(160), "nguon": {"type": "array", "items": src, "minItems": 1, "maxItems": n}},
         "required": ["y", "nguon"],
         "additionalProperties": False,
     }
 
     def branch(ok: bool) -> dict:
         props = {
-            "tien_de_sai": {"type": "string", "maxLength": 200},
+            "tien_de_sai": _text(150),
             "du_can_cu": {"const": ok},
-            "tra_loi": {"type": "string", "maxLength": 320},
+            "tra_loi": _text(240),
             "cac_y": {"type": "array", "items": y, "minItems": 1, "maxItems": 2} if ok else {"type": "array", "items": y, "maxItems": 0},
-            "luu_y": {"type": "array", "maxItems": 1, "items": {"type": "string", "maxLength": 160}},
+            "luu_y": {"type": "array", "maxItems": 1, "items": _text(140)},
         }
         return {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
 
@@ -246,7 +278,7 @@ def chat(
 
 # --- Kiểm số liệu -------------------------------------------------------------------------------------------------
 
-CJK = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\uf900-\ufaff]")
+CJK = re.compile(f"[{_CJK}]")
 _SO_HIEU = re.compile(r"\b\d+(?:/\d{4})?/[A-Za-zĐđ][\wĐđ]*(?:-[\wĐđ]+)*")
 _DATE = re.compile(
     r"\b(\d{1,2})[/.](\d{1,2})[/.](\d{4})\b|ngày\s+(\d{1,2})\s+tháng\s+(\d{1,2})\s+năm\s+(\d{4})|\b(\d{4})-(\d{2})-(\d{2})\b",
@@ -264,14 +296,60 @@ _NUM = re.compile(
 )
 _RANGE_GAP = re.compile(r"\s*(?:-|–|—|đến|tới)\s*", re.IGNORECASE)
 _MULT = {"nghìn": 10**3, "ngàn": 10**3, "triệu": 10**6, "tỷ": 10**9, "tỉ": 10**9}
+_CHU_SO = {"không": 0, "một": 1, "mốt": 1, "hai": 2, "ba": 3, "bốn": 4, "tư": 4, "năm": 5, "lăm": 5, "sáu": 6, "bảy": 7,
+           "tám": 8, "chín": 9}
+_SO_CHU = re.compile(r"\b(?:{w})(?:\s+(?:{w}))*\b".format(w="|".join([*_CHU_SO, "mười", "mươi", "trăm", "linh", "lẻ", *_MULT])),
+                     re.IGNORECASE)
+_MO_HO = {"một", "năm", "không", "tư", "lăm", "mốt", "linh", "lẻ", "trăm", *_MULT}  # đứng một mình thường không phải số
+
+
+def _doc_so_chu(words: list[str]) -> list[int]:
+    """Giá trị của một chuỗi số viết bằng chữ: 'mười lăm' → [15], 'hai trăm năm mươi nghìn' → [250000]; hai chữ số
+    liền nhau là hai số ('hai năm' → [2, 5])."""
+    out: list[int] = []
+    total = group = 0
+    d: int | None = None
+    seen = False
+
+    def flush() -> None:
+        nonlocal total, group, d, seen
+        if seen:
+            out.append(total + group + (d or 0))
+        total = group = 0
+        d, seen = None, False
+
+    for w in words:
+        if w in _CHU_SO:
+            if d is not None:
+                flush()
+            d, seen = _CHU_SO[w], True
+        elif w == "mười":
+            if d is not None or group % 100:
+                flush()
+            group, seen = group + 10, True
+        elif w in ("mươi", "trăm"):
+            if d is None:
+                flush()
+                continue
+            group += d * (10 if w == "mươi" else 100)
+            d = None
+        elif w in _MULT:
+            if not seen:
+                continue
+            total += (group + (d or 0)) * _MULT[w]
+            group, d = 0, None
+    flush()
+    return out
 
 
 def numbers(text: str, *, lenient: bool = False) -> set:
     """Các con số trong câu theo giá trị: '5.000.000 đồng' = '5 triệu đồng' = '5.0 triệu'; '1–2 triệu' = {1e6, 2e6};
     ngày viết số hay viết chữ như nhau; số hiệu so sau khi bỏ dấu; 'khoản 2 Điều 5' thành nhãn 'khoan:2', 'dieu:5'
     (không thành số 2, 5, để 'trong 5 ngày' không khớp nhờ tên Điều). `lenient` (phía nguồn) thêm số trần của khoảng
-    và các số của số hiệu, để câu trả lời viết '1 đến 2 triệu' hay 'Nghị định 15 năm 2020' vẫn khớp.
-    shortcut: số viết bằng chữ ('ba mươi ngày') không bắt; nâng cấp nếu bộ đo thấy mô hình hay viết vậy."""
+    và các số của số hiệu, để câu trả lời viết '1 đến 2 triệu' hay 'Nghị định 15 năm 2020' vẫn khớp, và số viết bằng
+    chữ ('dưới mười lăm tuổi' cho phép '15'). Chữ cái luôn là điểm: 'khoản a' = 'điểm a'.
+    shortcut: phía câu trả lời không đọc số viết bằng chữ ('một trong các' không thành số 1); nâng cấp nếu bộ đo thấy
+    mô hình viết số bằng chữ mà số đó không có trong đoạn."""
     out: set = set()
     text = _PASSAGE_REF.sub(" ", text)
     for m in _SO_HIEU.finditer(text):
@@ -281,7 +359,8 @@ def numbers(text: str, *, lenient: bool = False) -> set:
     text = _SO_HIEU.sub(" ", text)
     for m in _REF.finditer(text):
         kind = fold_search(m.group(1))
-        out.update(f"{kind}:{x.lower()}" for x in re.findall(r"\d+[a-z]?|[a-zđ]\b", m.group(2), re.IGNORECASE))
+        for x in re.findall(r"\d+[a-z]?|[a-zđ]\b", m.group(2), re.IGNORECASE):
+            out.add(f"{'diem' if x.isalpha() else kind}:{x.lower()}")
     text = _REF.sub(" ", text)
     for m in _DATE.finditer(text):
         if m.group(7):
@@ -290,6 +369,11 @@ def numbers(text: str, *, lenient: bool = False) -> set:
             d, mo, y = (int(x) for x in (m.group(1, 2, 3) if m.group(1) else m.group(4, 5, 6)))
         out.add(f"{d}/{mo}/{y}")
     text = _DATE.sub(" ", text)
+    if lenient:
+        for m in _SO_CHU.finditer(text):
+            words = m.group(0).lower().split()
+            if len(words) > 1 or words[0] not in _MO_HO:
+                out.update(Decimal(v) for v in _doc_so_chu(words))
     found = list(_NUM.finditer(text))
     for i, m in enumerate(found):
         g = m.group(1)
@@ -309,9 +393,55 @@ def numbers(text: str, *, lenient: bool = False) -> set:
 @dataclass
 class Checked:
     answer: dict  # câu trả lời đã kiểm: bỏ ý sai nguồn/số, thay câu trả lời khi có số lạ
-    json_ok: bool
+    json_ok: bool  # đọc được JSON (kể cả khi phải cứu phần bị cắt)
     dropped: list[str] = field(default_factory=list)  # mỗi phần không qua kiểm: 'cac_y:so', 'tra_loi:cjk'…
     replaced: bool = False  # tra_loi đã thay bằng trích nguyên văn
+    raw: dict = field(default_factory=dict)  # JSON mô hình trả, trước khi kiểm
+    cut: bool = False  # JSON bị cắt giữa chừng, đã cứu các phần đã đủ
+
+
+def _salvage(s: str) -> dict | None:
+    """JSON bị cắt ở N_PREDICT: lùi về chỗ cuối cùng vừa xong một giá trị (trước dấu phẩy, sau dấu đóng ngoặc) rồi đóng
+    các ngoặc còn mở. Giá trị đang viết dở (một ý, một chuỗi) bị bỏ cả, không giữ nửa câu."""
+    stack: list[str] = []
+    cuts: list[tuple[int, str]] = []
+    in_str = esc = False
+    for i, ch in enumerate(s):
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch in "{[":
+            stack.append("}" if ch == "{" else "]")
+        elif ch in "}]":
+            if not stack:
+                return None
+            stack.pop()
+            cuts.append((i + 1, "".join(reversed(stack))))
+        elif ch == ",":
+            cuts.append((i, "".join(reversed(stack))))
+    for end, close in reversed(cuts):
+        try:
+            a = json.loads(s[:end] + close)
+        except json.JSONDecodeError:
+            continue
+        return a if isinstance(a, dict) else None
+    return None
+
+
+def _covered(claim: set, allowed: set) -> bool:
+    """claim ⊆ allowed, trừ số hiệu bị trần độ dài cắt cụt ('155/2020/nd'): khớp số hiệu đầy đủ có cùng phần đầu."""
+    return all(
+        x in allowed
+        or (isinstance(x, str) and "/" in x and re.search("[a-z]", x)
+            and any(isinstance(s, str) and s.startswith(x) for s in allowed))
+        for x in claim
+    )
 
 
 def _shape_ok(a) -> bool:
@@ -354,18 +484,24 @@ def extractive(passages: list[Passage]) -> str:
 def check(content: str, passages: list[Passage], question: str) -> Checked:
     """Kiểm câu trả lời của mô hình theo lộ trình mục 5 (điều 2–3). Số người dùng tự nêu trong câu hỏi được phép
     nhắc lại ở `tra_loi` và `tien_de_sai` (để bác tiền đề sai), không được dùng làm căn cứ trong `cac_y`."""
+    cut = False
     try:
         a = json.loads(content)
     except (json.JSONDecodeError, TypeError):
-        a = None
+        a = _salvage(content) if isinstance(content, str) else None
+        if a is not None:  # các phần sau chỗ cắt coi như rỗng; ý đang viết dở (thiếu nguồn) bỏ
+            cut = True
+            a = {"cac_y": [], "luu_y": [], **a}
+            if isinstance(a["cac_y"], list):
+                a["cac_y"] = [y for y in a["cac_y"] if not isinstance(y, dict) or "nguon" in y]
     if not _shape_ok(a):
         return Checked({"du_can_cu": None, "tien_de_sai": "", "tra_loi": extractive(passages), "cac_y": [],
-                        "luu_y": [], "trich_nguyen_van": True}, json_ok=False, replaced=True)
+                        "luu_y": [], "trich_nguyen_van": True}, json_ok=False, replaced=True, cut=cut)
     by_n = {p.n: p for p in passages}
     src_nums = {p.n: source_numbers(p) for p in passages}
     all_nums = set().union(*src_nums.values()) if src_nums else set()
     q_nums = numbers(question)
-    out = Checked(dict(a), json_ok=True)
+    out = Checked(dict(a), json_ok=True, raw=a, cut=cut)
 
     ys = []
     for y in a["cac_y"]:
@@ -374,7 +510,7 @@ def check(content: str, passages: list[Passage], question: str) -> Checked:
             out.dropped.append("cac_y:nguon")
         elif CJK.search(y["y"]):
             out.dropped.append("cac_y:cjk")
-        elif not numbers(y["y"]) <= set().union(*(src_nums[n] for n in cited)):
+        elif not _covered(numbers(y["y"]), set().union(*(src_nums[n] for n in cited))):
             out.dropped.append("cac_y:so")
         else:
             ys.append(y)
@@ -382,18 +518,18 @@ def check(content: str, passages: list[Passage], question: str) -> Checked:
 
     luu = []
     for x in a["luu_y"]:
-        if CJK.search(x) or not numbers(x) <= all_nums:
+        if CJK.search(x) or not _covered(numbers(x), all_nums):
             out.dropped.append("luu_y:cjk" if CJK.search(x) else "luu_y:so")
         else:
             luu.append(x)
     out.answer["luu_y"] = luu
 
     tds = a["tien_de_sai"]
-    if CJK.search(tds) or not numbers(tds) <= all_nums | q_nums:
+    if CJK.search(tds) or not _covered(numbers(tds), all_nums | q_nums):
         out.dropped.append("tien_de_sai:cjk" if CJK.search(tds) else "tien_de_sai:so")
         out.answer["tien_de_sai"] = ""
 
-    if CJK.search(a["tra_loi"]) or not numbers(a["tra_loi"]) <= all_nums | q_nums:
+    if CJK.search(a["tra_loi"]) or not _covered(numbers(a["tra_loi"]), all_nums | q_nums):
         out.dropped.append("tra_loi:cjk" if CJK.search(a["tra_loi"]) else "tra_loi:so")
         out.answer["tra_loi"] = extractive(passages)
         out.answer["trich_nguyen_van"] = True

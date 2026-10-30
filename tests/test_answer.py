@@ -205,6 +205,67 @@ def test_pick_does_not_spend_budget_beside_a_line_that_did_not_fit():
     assert "4. Xe máy đi vào khu vực cấm" in out and "Mở đầu" not in out
 
 
+def test_reference_checker_cases_from_round_one():
+    n = answer.numbers
+    assert n("khoản a Điều 5") == n("điểm a Điều 5") == {"diem:a", "dieu:5"}  # chữ cái luôn là điểm
+    assert n("khoản 2a") == {"khoan:2a"}
+    assert Decimal(15) in n("người dưới mười lăm tuổi", lenient=True) and n("mười lăm tuổi") == set()
+    assert Decimal(250_000) in n("hai trăm năm mươi nghìn đồng", lenient=True)
+    assert {Decimal(25), Decimal(30), Decimal(1005)} <= n("hai mươi lăm, ba mươi, một nghìn không trăm linh năm", lenient=True)
+    assert n("một trong các hành vi; đầu tư; không quá 05 năm", lenient=True) == {Decimal(5)}  # chữ một mình mơ hồ
+    p = answer.Passage(1, 1, 1, "155/2020/NĐ-CP", "Điều 3. Độ tuổi", "1. Trẻ em gồm:\na) Người dưới mười lăm tuổi.")
+
+    def kept(y):
+        return answer.check(_reply(cac_y=[{"y": y, "nguon": [1]}]), [p], "q").answer["cac_y"] != []
+
+    assert kept("Theo Nghị định 155/2020/NĐ-")  # số hiệu bị trần độ dài cắt cụt
+    assert kept("Người dưới 15 tuổi, theo khoản a.")
+    assert not kept("Theo Nghị định 156/2020/NĐ-") and not kept("Người dưới 16 tuổi.")
+
+
+def test_salvage_keeps_finished_points_of_a_cut_reply(db, doc):
+    ps = _ps(db)
+    head = '{"tien_de_sai": "", "du_can_cu": true, "tra_loi": "Phạt từ 1 đến 2 triệu đồng.", "cac_y": ['
+    one = '{"y": "Phạt 1.000.000 đồng đến 2.000.000 đồng.", "nguon": [1]}'
+    r = answer.check(head + one + ', {"y": "Mức phạt áp dụng cho người điều khi', ps, "q")
+    assert r.json_ok and r.cut and not r.replaced and r.answer["cac_y"] == [json.loads(one)] and r.answer["luu_y"] == []
+    r = answer.check(head + '{"y": "Phạt 1.000.000 đồng.", "nguon": [1, ', ps, "q")  # cắt giữa danh sách nguồn
+    assert r.cut and [y["nguon"] for y in r.answer["cac_y"]] == [[1]]
+    r = answer.check(head + '{"y": "Phạt 1.000.000 đồng đến', ps, "q")  # ý đầu chưa xong: đủ căn cứ mà không có ý
+    assert r.cut and r.answer["cac_y"] == [] and r.answer["tra_loi"].startswith("Phạt")
+    r = answer.check('{"tien_de_sai": "", "du_can_cu": true, "tra_loi": "Phạt từ 1 đến', ps, "q")  # câu trả lời dở
+    assert not r.json_ok and r.replaced
+
+
+def test_schema_strings_block_cjk_and_cap_length():
+    import re
+
+    pat = answer.schema(2)["anyOf"][0]["properties"]["tra_loi"]["pattern"]
+    body = re.compile(pat[1:-1])  # cùng cú pháp regex mà llama.cpp dịch sang grammar
+    assert body.fullmatch('Phạt 1.000.000 đồng – “đúng” theo điểm a) \\"khoản 2\\".')
+    assert not body.fullmatch("Bị phạt 罚款.") and not body.fullmatch("Phạt ｘ") and not body.fullmatch("\\u4e00")
+    assert body.fullmatch("x" * 240) and not body.fullmatch("x" * 241)
+    assert answer.CJK.search("thẩm权") and not answer.CJK.search("Điều 5, khoản 2 – “đ”")
+
+
+def test_pick_weights_words_rare_in_the_dieu_and_splits_long_ocr_lines():
+    # Vòng 1, văn bản thật: 7/22 dòng có 'thí điểm cơ chế', dòng đáp án chỉ khác ở 'thời gian' và bị cắt
+    lines = [(f"D8.K{i}", f"{i}. Thí điểm cơ chế, chính sách đặc thù về lĩnh vực số {i} " + "y" * 60) for i in range(1, 8)]
+    lines.append(("D8.K8", "8. Thời gian thí điểm không quá 05 năm."))
+    out = answer._pick(lines, "thời gian thí điểm cơ chế chính sách", 120)
+    assert "Thời gian thí điểm không quá 05 năm" in out
+
+    # bản OCR: một dòng 2.000 ký tự dính nhiều điểm; câu đáp án nằm sâu bên trong
+    filler = " ".join(f"{c}) Hồ sơ thứ {c} gồm giấy tờ " + "z" * 80 + ";" for c in "abcdefghiklmnopq")
+    long = f"2. Doanh nghiệp phải nộp hồ sơ sau: {filler} r) Thời hạn lưu chiểu ít nhất 10 ngày trước khi phát hành."
+    assert len(long) > answer.LONG_LINE * 5
+    out = answer._pick([("D3.K1", "1. Phạm vi áp dụng."), ("D3.K2", long)], "lưu chiểu trước khi phát hành ít nhất", 260)
+    assert "r) Thời hạn lưu chiểu ít nhất 10 ngày" in out and out.count("\n") >= 1
+    assert "2. Doanh nghiệp phải nộp hồ sơ sau:" in out  # câu dẫn của dòng đi theo câu được giữ
+    assert [p for p, _ in answer._sentences([("D3.K2", long)])][:2] == ["D3.K2", "D3.K2.~1"]
+    assert answer._sentences([("K", "2. " + "x" * 400)]) == [("K", "2. " + "x" * 400)]  # không tách sau số khoản
+
+
 def test_content_sig_keeps_different_titles_apart(db, tmp_path):
     p = tmp_path / "hai.txt"
     p.write_text("Nghị định số 7/2020/NĐ-CP\nĐiều 1. Ưu tiên trong tuyển dụng viên chức\n1. Con liệt sĩ.\n"

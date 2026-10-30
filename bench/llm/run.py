@@ -1,6 +1,6 @@
 """Đo phần trả lời bằng LLM (lộ trình 1.0, P0): chấm hoàn toàn bằng máy, đáp án là Điều đúng có sẵn trong bộ đo.
 
-python bench/llm/run.py DB QUERIES [--split test] [--url http://127.0.0.1:8080] [--n 50] [--bay 30]
+python bench/llm/run.py DB QUERIES [--split test] [--url http://127.0.0.1:8080] [--n 50] [--skip 0] [--bay 30]
                         [--mode normal|advance] [--passages 5] [--out ket_qua.json]
 
 DB: soiluat.db của kho chứa văn bản nguồn (kho Zalo cho Zalo và gold vle; realdocs/data/soiluat.db cho văn bản thật).
@@ -48,7 +48,8 @@ def load_queries(path: Path, split: str) -> tuple[list[dict], str]:
         out = []
         for i, q in enumerate(json.load(open(path, encoding="utf-8"))):
             ok = {str(x) for x in [q["dieu_doc"], q.get("dieu_quoted"), *q.get("also_ok", [])] if x}
-            out.append({"id": str(i), "q": q["q"], "gold": {f"{q['file']}+{d}".lower() for d in ok}})
+            out.append({"id": str(i), "q": q["q"], "gold": {f"{q['file']}+{d}".lower() for d in ok},
+                        "evidence": q.get("evidence") or ""})
         return out, "name"
     qs = {d["_id"]: d["text"] for d in map(json.loads, open(path / "queries.jsonl", encoding="utf-8"))}
     rel = path / f"qrels_{split}.jsonl"
@@ -76,10 +77,14 @@ NEAR = 0.7  # ≥ 70% bộ 3-từ của Điều dài hơn trùng với Điều k
 # ngắn hơn thì gộp nhầm các Điều khác nhau của cùng một nghị định (Điều 5, 6, 7 NĐ 100/2019)
 
 
+def tri(text: str) -> set:
+    w = fold_search(text).split()
+    return {tuple(w[i:i + 3]) for i in range(max(len(w) - 2, 1))}
+
+
 def shingles(conn, rid: int) -> set:
     head, lines = semantic.root_lines(conn, rid)
-    w = fold_search(" ".join(t for _, t in lines) or head).split()
-    return {tuple(w[i:i + 3]) for i in range(max(len(w) - 2, 1))}
+    return tri(" ".join(t for _, t in lines) or head)
 
 
 class Same:
@@ -149,12 +154,14 @@ def ask(conn, args, roots: list[int], q: str) -> dict:
     usage, tim = res.get("usage") or {}, res.get("timings") or {}
     return {
         "passages": [p.root_id for p in ps],
+        "ctx": [p.render() for p in ps],
         "ctx_chars": sum(len(p.render()) for p in ps),
         "content": content,
-        "raw": json.loads(content) if chk.json_ok else {},
+        "raw": chk.raw,
         "checked": chk.answer,
         "dropped": chk.dropped,
         "json_ok": chk.json_ok,
+        "cut": chk.cut,
         "llm_s": round(llm_s, 2),
         "prompt_tokens": usage.get("prompt_tokens"),
         "completion_tokens": usage.get("completion_tokens"),
@@ -183,11 +190,14 @@ def summary(recs: list[dict], meta: dict) -> dict:
     return {
         **meta,
         "so_lan_goi": len(recs),
-        "json_hop_le": pct(r["json_ok"] for r in recs),
+        "json_hop_le": pct(r["json_ok"] and not r["cut"] for r in recs),
+        "json_dung_duoc": pct(r["json_ok"] for r in recs),
+        "bi_cat": pct((r["completion_tokens"] or 0) >= answer.N_PREDICT for r in recs),
         "dan_dung": pct(r["ok"] for r in by["dan"]),
         "dan_dung_sau_kiem": pct(bool(cited(r["checked"]) & set(r["gold_n"])) for r in by["dan"]),
         "dan_tien_de_sai_thua": pct((r["raw"].get("tien_de_sai") or "").strip() for r in by["dan"]),
         "dan_dieu_dung_do_tim_ra": pct(r["natural"] for r in by["dan"]),
+        "dan_bang_chung_con": pct(r["bang_chung"] >= 0.5 for r in by["dan"] if r.get("bang_chung") is not None),
         "tu_choi_dung": pct(r["ok"] for r in by["tu_choi"]),
         "bay_dung": pct(r["ok"] for r in by["bay"]),
         "bay_co_tien_de_sai": pct((r["raw"].get("tien_de_sai") or "").strip() for r in by["bay"]),
@@ -216,6 +226,8 @@ def main() -> None:
     ap.add_argument("--url", default=os.environ.get("SOILUAT_LLM_URL", "http://127.0.0.1:8080"))
     ap.add_argument("--api-key", default=os.environ.get("SOILUAT_LLM_KEY", ""))
     ap.add_argument("--n", type=int, default=50, help="số câu hỏi (mỗi câu hai lần gọi: dan, tu_choi)")
+    ap.add_argument("--skip", type=int, default=0, help="bỏ K câu đầu của mẫu (bộ không có tập train: chỉnh trên "
+                    "phần còn lại, chấm trên K câu đầu)")
     ap.add_argument("--bay", type=int, default=30, help="số câu bẫy tiền đề sai")
     ap.add_argument("--mode", choices=semantic.MODES, default="advance")
     ap.add_argument("--passages", type=int, default=answer.MAX_PASSAGES)
@@ -236,11 +248,12 @@ def main() -> None:
     for rid, k in keys.items():
         by_key[k].append(rid)
     qs = [q for q in qs if any(k in by_key for k in q["gold"])]
-    sample = random.Random(SEED).sample(qs, min(args.n, len(qs)))
+    sample = random.Random(SEED).sample(qs, min(args.skip + args.n, len(qs)))[args.skip:]
     jobs = [("dan", q) for q in sample] + [("tu_choi", q) for q in sample] + [("bay", t) for t in traps(conn, args.bay)]
     random.Random(SEED).shuffle(jobs)  # xen kẽ ba phép: máy nóng/nguội không lệch về một phép
     meta = {"model": model_id(args.url), "db": str(args.db), "queries": str(args.queries), "mode": args.mode,
             "passages": args.passages, "temp": args.temp, "ctx_chars": answer.CTX_CHARS, "n": len(sample),
+            "skip": args.skip,
             "cpu": os.cpu_count()}
     n_ctx = args.passages
 
@@ -267,6 +280,9 @@ def main() -> None:
             ctx = top if natural else top[: n_ctx - 1] + [gold[0]]
         r = ask(conn, args, ctx, q["q"])
         gold_n = [k for k, rid in enumerate(r["passages"], 1) if same(rid)]
+        if q.get("evidence") and kind == "dan":  # câu trích đáp án còn bao nhiêu trong đoạn: tách lỗi cắt khỏi lỗi mô hình
+            ev = tri(q["evidence"])
+            r["bang_chung"] = round(max((len(ev & tri(r["ctx"][k - 1])) / len(ev) for k in gold_n), default=0.0), 2)
         a = r["raw"]
         if kind == "dan":
             ok = a.get("du_can_cu") is True and bool(cited(a) & set(gold_n))
