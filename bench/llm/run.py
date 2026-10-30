@@ -209,6 +209,8 @@ def summary(recs: list[dict], meta: dict) -> dict:
         "dan_dieu_dung_do_tim_ra": pct(r["natural"] for r in by["dan"]),
         "dan_bang_chung_con": pct(r["bang_chung"] >= 0.5 for r in by["dan"] if r.get("bang_chung") is not None),
         "tu_choi_dung": pct(r["ok"] for r in by["tu_choi"]),
+        "tu_choi_hoac_neu_hep": pct(r["ok"] or r["raw"].get("pham_vi") in ("hẹp hơn", "khác") for r in by["tu_choi"]),
+        "dan_pham_vi_khong_dung": pct(r["raw"].get("pham_vi") not in (None, "đúng") for r in by["dan"]),
         "bay_dung": pct(r["ok"] for r in by["bay"]),
         "bay_co_tien_de_sai": pct((r["raw"].get("tien_de_sai") or "").strip() for r in by["bay"]),
         "so_khop": pct(not any(d.endswith(":so") for d in r["dropped"]) for r in ok_json),

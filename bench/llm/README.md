@@ -12,7 +12,7 @@ Chọn mô hình: [CHON-MO-HINH.md](CHON-MO-HINH.md). Kết quả đo: [KET-QUA.
 | Phép | Ngữ cảnh đưa vào mô hình | Đúng khi |
 |---|---|---|
 | `dan` (dẫn đúng Điều) | 5 Điều đầu do tìm kiếm của app xếp; Điều đúng giữ chỗ tìm kiếm xếp, nằm ngoài top 5 thì thay đoạn cuối | `du_can_cu = true` và có ý dẫn đúng đoạn chứa Điều đó |
-| `tu_choi` (từ chối đúng) | Cùng câu hỏi, bỏ Điều đúng và mọi Điều cùng nội dung ở văn bản khác | `du_can_cu = false` |
+| `tu_choi` (từ chối đúng) | Cùng câu hỏi, bỏ Điều đúng và mọi Điều cùng nội dung ở văn bản khác | `du_can_cu = false` (`tu_choi_dung`); tính cả câu trả lời có `pham_vi` là "hẹp hơn"/"khác", tức không khẳng định như đủ căn cứ: `tu_choi_hoac_neu_hep` |
 | `bay` (tiền đề sai) | Câu sinh từ một điểm có mức phạt (`units.fine_min/fine_max`), hỏi với mức tiền gấp 3; Điều chứa điểm đó luôn có trong ngữ cảnh | `tien_de_sai` khác rỗng và câu trả lời nêu đúng một mức trong nguồn (so số) |
 
 Mọi lần gọi còn được đo: JSON hợp lệ, bị cắt ở trần token (`bi_cat`) và cứu được hay không, số liệu khớp đoạn được

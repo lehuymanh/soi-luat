@@ -35,8 +35,9 @@ Chỉ dùng các đoạn [1], [2]… trong tin nhắn; không dùng kiến thứ
 
 Trả về JSON:
 - "tien_de_sai": câu hỏi nêu sai so với đoạn (sai mức phạt, sai thời hạn, sai đối tượng…) thì ghi điều đúng theo đoạn, ví dụ "Mức phạt là từ 1.000.000 đồng đến 2.000.000 đồng, không phải 5.000.000 đồng."; câu hỏi không nêu chi tiết nào sai (phần lớn câu hỏi) thì "".
-- "du_can_cu": true nếu có đoạn nói về đúng điều được hỏi, kể cả khi câu hỏi nêu sai một chi tiết; false nếu không đoạn nào nói về điều đó.
-- "tra_loi": tối đa 3 câu, lời thường, trả lời thẳng câu hỏi. Khi du_can_cu là false: nói các đoạn không có căn cứ.
+- "pham_vi": so điều được hỏi (ai, việc gì, ở đâu, khi nào) với đoạn gần nhất: "đúng" nếu đoạn nói đúng đối tượng và đúng trường hợp được hỏi; "hẹp hơn" nếu đoạn chỉ nói một trường hợp riêng của điều được hỏi (chỉ trong khu vực biên giới, chỉ với người dưới 18 tuổi, chỉ một loại giấy phép); "khác" nếu đoạn nói đối tượng hay việc khác (doanh nghiệp khi hỏi hộ kinh doanh, mua bán khi hỏi cho thuê).
+- "du_can_cu": true nếu pham_vi là "đúng" hoặc "hẹp hơn", kể cả khi câu hỏi nêu sai một chi tiết; false nếu pham_vi là "khác" hoặc không đoạn nào nói về điều được hỏi.
+- "tra_loi": tối đa 3 câu, lời thường, trả lời thẳng câu hỏi. Khi pham_vi là "hẹp hơn": nói rõ đoạn chỉ quy định cho trường hợp nào. Khi du_can_cu là false: nói các đoạn không có căn cứ.
 - "cac_y": khi du_can_cu là true, 1–2 ý, mỗi ý một câu ngắn không chép lại "tra_loi"; "nguon" của mỗi ý là số thứ tự các đoạn làm căn cứ. Khi false thì [].
 - "luu_y": ngoại lệ, điều kiện áp dụng, chỗ các đoạn nói khác nhau; không có thì [].
 
@@ -244,7 +245,10 @@ def _text(n: int) -> dict:
 def schema(n: int) -> dict:
     """Khuôn trả lời; `nguon` là enum gồm đúng các mã đã đưa vào. Hai nhánh theo cờ: đủ căn cứ thì phải có 1–2 ý có
     nguồn, không đủ thì không có ý nào. Thứ tự thuộc tính là thứ tự sinh: tiền đề sai rồi mới đến cờ (đo trên tập train
-    Zalo: hỏi với mức phạt sai thì mô hình vẫn đặt đủ căn cứ và dẫn nguồn), cả hai trước câu trả lời. Độ dài có trần
+    Zalo: hỏi với mức phạt sai thì mô hình vẫn đặt đủ căn cứ và dẫn nguồn), cả hai trước câu trả lời. `pham_vi` (đoạn nói
+    đúng/hẹp hơn/khác điều được hỏi) cũng đứng trước cờ: 'hẹp hơn' vẫn được trả lời kèm phạm vi, giao diện phải hiện
+    cảnh báo (A/B trên train Zalo: ít câu khẳng định như đủ căn cứ khi đã bỏ Điều đúng nhất, 5/12 so với 7/12 khi 'hẹp
+    hơn' buộc từ chối và 8/12 khi không có trường này). Độ dài có trần
     (~p95 độ dài đo trên train, tiền đề sai và câu trả lời thấp hơn) cho đuôi ngắn lại; phần vẫn bị cắt ở N_PREDICT thì
     `check` giữ các ý đã đủ."""
     src = {"type": "integer", "enum": list(range(1, n + 1))}
@@ -258,6 +262,7 @@ def schema(n: int) -> dict:
     def branch(ok: bool) -> dict:
         props = {
             "tien_de_sai": _text(CAPS["tien_de_sai"]),
+            "pham_vi": {"enum": ["đúng", "hẹp hơn"] if ok else ["đúng", "hẹp hơn", "khác"]},
             "du_can_cu": {"const": ok},
             "tra_loi": _text(CAPS["tra_loi"]),
             "cac_y": {"type": "array", "items": y, "minItems": 1, "maxItems": 2} if ok else {"type": "array", "items": y, "maxItems": 0},

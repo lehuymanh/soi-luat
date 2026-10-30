@@ -84,8 +84,9 @@ def test_schema_enum_is_exactly_the_passages_and_branches_on_the_flag():
     assert co["properties"]["du_can_cu"] == {"const": True} and khong["properties"]["du_can_cu"] == {"const": False}
     assert co["properties"]["cac_y"]["items"]["properties"]["nguon"]["items"]["enum"] == [1, 2, 3]
     assert co["properties"]["cac_y"]["minItems"] == 1 and khong["properties"]["cac_y"]["maxItems"] == 0
+    assert co["properties"]["pham_vi"]["enum"] == ["đúng", "hẹp hơn"] and "khác" in khong["properties"]["pham_vi"]["enum"]
     for b in (co, khong):
-        assert list(b["properties"])[:3] == ["tien_de_sai", "du_can_cu", "tra_loi"]
+        assert list(b["properties"])[:4] == ["tien_de_sai", "pham_vi", "du_can_cu", "tra_loi"]  # kiểm trước khi đặt cờ
         assert all(v.get("maxLength") for k, v in b["properties"].items() if v.get("type") == "string")
         assert set(b["required"]) == set(b["properties"])
 
