@@ -123,7 +123,7 @@ Nguồn: SEA-HELM của AI Singapore, phần tiếng Việt, cập nhật 18/09/
 - Bật chế độ suy nghĩ thì Qwen3.5-4B mạnh hơn (tổng 69,0), nhưng chế độ đó sinh thêm hàng trăm token, không vừa 45 giây trên CPU.
 - File nhỏ nhất nhóm nên sinh chữ nhanh nhất; kiến trúc attention thường, llama.cpp hỗ trợ ổn định từ 10/2025.
 
-**Rủi ro** (đo vòng 1 ở P0, `bench/llm/KET-QUA.md`: chèn chữ Trung ở 0–10% câu trả lời; khi đã bỏ Điều đúng vẫn nói đủ căn cứ ở 33–73% số câu, nhóm lớn nhất là khái quát quá phạm vi đoạn): chưa có số đo bám ngữ cảnh công khai cho đúng mô hình này; kiến thức tiếng Việt thấp (43,4), nên khi ngữ cảnh thiếu căn cứ nó có thể điền bằng kiến thức sai, và cờ `du_can_cu` cùng bộ kiểm số liệu phải chặn được; có thể chèn chữ Trung hoặc Anh (kiểm tự động được).
+**Rủi ro** (đo ở P0, `bench/llm/KET-QUA.md`: vòng 1 chèn chữ Trung ở 0–10% câu trả lời và khi đã bỏ Điều đúng vẫn nói đủ căn cứ ở 33–73% số câu, nhóm lớn nhất là khái quát quá phạm vi đoạn; vòng 2 chặn được chữ Trung bằng grammar, còn khẳng định như đủ căn cứ ở 13–40%): chưa có số đo bám ngữ cảnh công khai cho đúng mô hình này; kiến thức tiếng Việt thấp (43,4), nên khi ngữ cảnh thiếu căn cứ nó có thể điền bằng kiến thức sai, và cờ `du_can_cu` cùng bộ kiểm số liệu phải chặn được; có thể chèn chữ Trung hoặc Anh (kiểm tự động được).
 
 **Không chọn:** Qwen3.5-4B (tiếng Việt thấp nhất nhóm khi tắt suy nghĩ; họ Qwen3.5 ảo giác gấp đôi). Qwen3.5-9B và Vi-Qwen2-7B-RAG (ước tính 92–113 giây mỗi câu; 9B còn vượt trần RAM). Gemma 4 12B (file 7,65 GB). Mô hình 2B (vừa 45 giây nhưng tiếng Việt kém rõ, tổng ≤ 53,3). MoE 26B–35B (cần 15–20 GB RAM).
 
@@ -210,7 +210,7 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 
 | Bước | Trạng thái |
 |---|---|
-| 1. Xác nhận mô hình | **Vòng 1 trên máy ảo 4 nhân, chưa đạt cổng chất lượng.** Qwen3-VL-4B trên tập test: JSON hợp lệ 87,5 / 92,5 / 96,7%, dẫn đúng Điều 66,7 / 70,0 / 46,7%, từ chối đúng 26,7 / 35,0 / 66,7% (Zalo / gold / văn bản thật). Mọi JSON hỏng đều do bị cắt ở 200 token; trên văn bản thật, 5/7 câu dẫn sai (JSON hợp lệ) có dòng đáp án đã bị cắt khỏi ngữ cảnh; nhóm lỗi từ chối lớn nhất là khái quát quá phạm vi đoạn. Chi tiết và 7 việc sửa: `bench/llm/KET-QUA.md`. Còn lại: sửa trên tập train rồi chấm lại; thử Gemma 4 E4B; đo tốc độ, RAM, p95 45 giây trên máy 16 GB |
+| 1. Xác nhận mô hình | **Vòng 2 trên máy ảo (sau 7 việc sửa), Qwen3-VL-4B, tập test:** dẫn đúng Điều 83,3 / 75,0 / 86,7% (vòng 1: 66,7 / 70,0 / 46,7%; Zalo / gold / văn bản thật); JSON dùng được 100% ở cả ba bộ (đọc ngay 78,8 / 95,0 / 96,7%: câu bẫy dài chạm trần 200 token); khẳng định như đủ căn cứ khi đã bỏ Điều đúng 26,7 / 40 / 13,3% (vòng 1: 66,7 / 65 / 33,3%); từ chối hẳn 16,7 / 20 / 60%, tính cả câu nêu phạm vi hẹp hơn 73,3 / 60 / 86,7%; chữ Trung 0%. **Cổng chưa đạt trọn:** dẫn đúng đạt 2/3 bộ; JSON và từ chối đạt hay không tùy cách tính (mục 9, điều 10). Gemma 4 E4B và Nemotron-3.5-Bolt-E4B đang đo trên cùng bộ. Chi tiết: `bench/llm/KET-QUA.md`. Còn lại: đo tốc độ, RAM, p95 45 giây trên máy 16 GB |
 | 2. Bộ đo câu trả lời | **Xong.** `bench/llm/run.py` (dẫn đúng, từ chối, tiền đề sai, JSON, số liệu, chữ CJK, thời gian) dùng chung mã với app: `src/soiluat/answer.py` (ngữ cảnh, lời nhắc, khuôn JSON, bộ kiểm số liệu) |
 | 3. Mốc tìm kiếm trên văn bản thật | **Xong.** Hit@1 (rộng) Normal 83,3%, Advance 72,6%; ~40 thẻ mỗi câu (`bench/van-ban-that/KET-QUA.md`); xem mục 2 điều 8 |
 | 4. ≥ 100 câu hỏi thật của văn phòng | Chưa (người dùng) |
@@ -311,22 +311,23 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 
 1. Tìm như hiện nay (Advance trên máy 16 GB, theo phạm vi @/# nếu có). Kết quả gọn của P1 hiện ngay.
 2. **Chặn sớm:** không có kết quả, hoặc kết quả đầu chỉ khớp theo nghĩa (tầng 7) với điểm thấp, thì trả "Không tìm thấy căn cứ trong kho" kèm gợi ý, **không gọi mô hình**.
-3. **Dựng ngữ cảnh:** 3–5 Điều đầu sau reranker. Mỗi Điều cắt còn tên Điều, các khoản/điểm khớp và khoản liền kề; kèm số hiệu, ngày ban hành, hiệu lực, và quan hệ sửa đổi nếu P4 đã có. Trần ~1.000 token để vừa 45 giây (mục 4); Điều dài thì chỉ đưa 3 đoạn. Mỗi đoạn mang mã [1]…[5].
+3. **Dựng ngữ cảnh:** 3–5 Điều đầu sau reranker. Mỗi Điều cắt còn tên Điều, các khoản/điểm khớp và khoản liền kề; kèm số hiệu, ngày ban hành, hiệu lực, và quan hệ sửa đổi nếu P4 đã có. Trần ~1.000 token để vừa 45 giây (mục 4). Dòng dài (bản OCR dính nhiều khoản/điểm) tách theo câu, câu đầu dòng là câu dẫn đi theo mọi câu được giữ; dòng chọn theo độ hiếm trong Điều của từ câu hỏi (P0 vòng 2: câu trích bằng chứng còn trong đoạn từ 53% lên 80% câu văn bản thật; đưa 3 đoạn thay 5 không thêm gì). Mỗi đoạn mang mã [1]…[5].
 4. **Gọi `llama-server` với JSON schema:**
 
    ```json
    {
+     "tien_de_sai": "câu hỏi giả định sai thì chỉ ra, không thì để trống",
+     "pham_vi": "đúng | hẹp hơn | khác",
+     "du_can_cu": true,
      "tra_loi": "tối đa 3 câu, lời thường",
      "cac_y": [{"y": "…", "nguon": [1, 3]}],
-     "luu_y": ["ngoại lệ, điều kiện áp dụng, chỗ các văn bản nói khác nhau"],
-     "tien_de_sai": "câu hỏi giả định sai thì chỉ ra, không thì để trống",
-     "du_can_cu": true
+     "luu_y": ["ngoại lệ, điều kiện áp dụng, chỗ các văn bản nói khác nhau"]
    }
    ```
 
-   `nguon` là enum, chỉ gồm các mã đã đưa vào.
-5. **Kiểm tự động** (mục 5, điều 2–3): bỏ ý có nguồn sai hoặc số liệu không khớp. `tra_loi` chứa số không có trong nguồn, hoặc lẫn chữ Trung, thì thay bằng câu trả lời trích nguyên văn (đoạn đầu).
-6. **Hiển thị:** câu trả lời ngắn → các ý có chip [1][2] (bấm là mở trình đọc ở đúng đoạn, P1) → "Căn cứ": trích đoạn nguyên văn lấy từ kho, kèm huy hiệu hiệu lực → "Lưu ý" → các kết quả tìm khác (thu gọn). Không có ký hiệu Markdown nào hiện ra vì app tự dựng HTML từ JSON.
+   Thứ tự trường là thứ tự sinh: kiểm tiền đề và phạm vi trước khi đặt cờ (đo ở P0). `nguon` là enum, chỉ gồm các mã đã đưa vào. Mọi chuỗi có trần độ dài và không cho sinh chữ Trung/Nhật/Hàn (grammar).
+5. **Kiểm tự động** (mục 5, điều 2–3): bỏ ý có nguồn sai hoặc số liệu không khớp. `tra_loi` chứa số không có trong nguồn, hoặc lẫn chữ Trung, thì thay bằng câu trả lời trích nguyên văn (đoạn đầu). Câu bị cắt ở trần token thì giữ các ý đã viết xong.
+6. **Hiển thị:** `pham_vi` là "hẹp hơn" thì câu trả lời mang dải cảnh báo "Chỉ tìm thấy quy định cho trường hợp hẹp hơn câu hỏi", không hiện như câu trả lời đủ căn cứ. Câu trả lời ngắn → các ý có chip [1][2] (bấm là mở trình đọc ở đúng đoạn, P1) → "Căn cứ": trích đoạn nguyên văn lấy từ kho, kèm huy hiệu hiệu lực → "Lưu ý" → các kết quả tìm khác (thu gọn). Không có ký hiệu Markdown nào hiện ra vì app tự dựng HTML từ JSON.
 7. Lưu vào cuộc trò chuyện (`answer_json`).
 
 **Chi tiết**
@@ -460,6 +461,7 @@ Nguyên tắc: chỉ thêm, không xoá hay đổi cột; tự sao lưu trước
 7. **Có cần đồ thị toàn kho không:** quyết sau khi dùng đồ thị cục bộ ở P4.
 8. **Chế độ tìm mặc định trên máy 16 GB: Normal hay Advance.** Đề xuất (theo số đo P0): giữ Normal cho tới khi nhánh độ chính xác (điều 0) đưa Advance lên không thấp hơn Normal ở Hit@1 trên văn bản thật. Phần trả lời AI (P3) vẫn dùng được với Normal: ngữ cảnh là 5 Điều đầu.
 9. **Duyệt mẫu giao diện** (`mau/giao-dien-1.0.html`): cổng P0, cần trước khi viết mã P1.
+10. **Cách tính cổng P0 cho câu trả lời AI** (`bench/llm/KET-QUA.md`, vòng 2). (a) JSON: tính câu bị cắt ở trần token mà app cứu được các ý đã viết xong (đề xuất: tính, vì người dùng vẫn nhận câu trả lời có nguồn), hay chỉ tính JSON đọc được ngay. (b) Từ chối: chỉ tính `du_can_cu = false`, hay tính cả câu trả lời gắn `pham_vi` "hẹp hơn" kèm dải cảnh báo trên giao diện (đề xuất: tính cả, vì cách này ít khẳng định sai nhất trên train và test).
 
 ---
 
