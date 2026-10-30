@@ -56,6 +56,7 @@ Một tiến trình duy nhất: tìm kiếm chạy trong luồng request, nạp 
 | `semantic.py` | Embedding AITeamVN, hợp RRF toàn kho |
 | `crossrank.py` | Reranker AITeamVN top-5 và độ tin cậy |
 | `cards.py` | Gom đơn vị thành thẻ, gắn chế tài, nhãn rủi ro, ghi chú |
+| `answer.py` | Trợ lý trả lời 1.0 (chưa gắn vào giao diện): dựng ngữ cảnh 3–5 Điều, lời nhắc, JSON schema, gọi `llama-server`, kiểm nguồn và số liệu; đo bằng `bench/llm/run.py` |
 | `labels.py`, `links.py` | Nhãn (NGHIA_VU, CAM, THOI_HAN, DIEU_KIEN, QUYEN, CHE_TAI, DINH_NGHIA) và liên kết nghĩa vụ–chế tài (chờ người duyệt) |
 | `jobs.py` | Hàng đợi nạp file và nhúng vector nền |
 | `importer.py`, `health.py` | Dòng lệnh nạp/nhúng; khám sức khoẻ kho (CSV) |

@@ -161,21 +161,27 @@ def _marker(path: str) -> str:
     return seg[1:] + "." if seg.startswith("K") else seg[1:] + ")" if seg.startswith("Đ") else ""
 
 
-def root_parts(conn: sqlite3.Connection, root_id: int) -> tuple[str, str]:
-    """(tiêu đề, nội dung) của Điều gốc theo dạng văn bản luật mà mô hình đã được đo: 'Điều 3. Tên Điều' rồi từng khoản,
-    điểm kèm số/chữ ('1.', 'a)') mỗi dòng một đơn vị. App tách số điều và số khoản khỏi chữ, nên dựng lại ở đây."""
+def root_lines(conn: sqlite3.Connection, root_id: int) -> tuple[str, list[tuple[str, str]]]:
+    """(tiêu đề, [(đường dẫn, dòng)]) của Điều gốc theo dạng văn bản luật mà mô hình đã được đo: 'Điều 3. Tên Điều' rồi
+    từng khoản, điểm kèm số/chữ ('1.', 'a)') mỗi dòng một đơn vị. App tách số điều và số khoản khỏi chữ, nên dựng lại ở đây."""
     r = conn.execute("SELECT doc_id, path, level, title, COALESCE(reviewed_text, normalized_text) FROM units WHERE id = ?",
                      (root_id,)).fetchone()
     title = (r[3] or "").strip()
     m = re.match(r"^D(\d+[a-z]?)$", r[1] or "", re.I) if r[2] == "dieu" else None
     head = f"Điều {m.group(1)}. {title}" if m else title
-    lines = [f"{_marker(p)} {t}".strip() for p, t in conn.execute(
+    lines = [(p, f"{_marker(p)} {t}".strip()) for p, t in conn.execute(
         "SELECT path, COALESCE(reviewed_text, normalized_text) FROM units WHERE doc_id = ? AND path LIKE ? ORDER BY id",
         (r[0], r[1] + ".%")) if t]
     own = (r[4] or "").strip()
     if own and own != title:  # Điều có nội dung ngay dưới tên (đoạn mở đầu, hoặc không chia khoản)
-        lines.insert(0, own)
-    return head, "\n".join(lines)
+        lines.insert(0, (r[1], own))
+    return head, lines
+
+
+def root_parts(conn: sqlite3.Connection, root_id: int) -> tuple[str, str]:
+    """(tiêu đề, nội dung) của Điều gốc: như `root_lines`, các dòng nối bằng xuống dòng."""
+    head, lines = root_lines(conn, root_id)
+    return head, "\n".join(t for _, t in lines)
 
 
 def root_text(conn: sqlite3.Connection, root_id: int) -> str:
