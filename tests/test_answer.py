@@ -85,7 +85,8 @@ def test_schema_enum_is_exactly_the_passages_and_branches_on_the_flag():
     assert co["properties"]["cac_y"]["items"]["properties"]["nguon"]["items"]["enum"] == [1, 2, 3]
     assert co["properties"]["cac_y"]["minItems"] == 1 and khong["properties"]["cac_y"]["maxItems"] == 0
     for b in (co, khong):
-        assert list(b["properties"])[:3] == ["du_can_cu", "tien_de_sai", "tra_loi"]
+        assert list(b["properties"])[:3] == ["tien_de_sai", "du_can_cu", "tra_loi"]
+        assert all(v.get("maxLength") for k, v in b["properties"].items() if v.get("type") == "string")
         assert set(b["required"]) == set(b["properties"])
 
 

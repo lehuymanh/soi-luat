@@ -28,10 +28,10 @@ SYSTEM = """Bạn là trợ lý tra cứu văn bản pháp luật Việt Nam. Ng
 Chỉ dùng các đoạn [1], [2]… trong tin nhắn; không dùng kiến thức bên ngoài, không đoán.
 
 Trả về JSON:
-- "du_can_cu": true nếu có đoạn nói về đúng điều được hỏi, kể cả khi câu hỏi nêu sai một chi tiết; false nếu không đoạn nào nói về điều đó.
 - "tien_de_sai": câu hỏi nêu sai so với đoạn (sai mức phạt, sai thời hạn, sai đối tượng…) thì ghi điều đúng theo đoạn, ví dụ "Mức phạt là từ 1.000.000 đồng đến 2.000.000 đồng, không phải 5.000.000 đồng."; câu hỏi không nêu chi tiết nào sai (phần lớn câu hỏi) thì "".
+- "du_can_cu": true nếu có đoạn nói về đúng điều được hỏi, kể cả khi câu hỏi nêu sai một chi tiết; false nếu không đoạn nào nói về điều đó.
 - "tra_loi": tối đa 3 câu, lời thường, trả lời thẳng câu hỏi. Khi du_can_cu là false: nói các đoạn không có căn cứ.
-- "cac_y": khi du_can_cu là true, 1–3 ý ngắn; "nguon" của mỗi ý là số thứ tự các đoạn làm căn cứ. Khi false thì [].
+- "cac_y": khi du_can_cu là true, 1–2 ý, mỗi ý một câu ngắn không chép lại "tra_loi"; "nguon" của mỗi ý là số thứ tự các đoạn làm căn cứ. Khi false thì [].
 - "luu_y": ngoại lệ, điều kiện áp dụng, chỗ các đoạn nói khác nhau; không có thì [].
 
 Con số (số tiền, số ngày, tỉ lệ, ngày tháng, số Điều, khoản) chép đúng như trong đoạn. Không tự kết luận văn bản còn hay hết hiệu lực. Chỉ viết tiếng Việt."""
@@ -189,24 +189,28 @@ def messages(passages: list[Passage], question: str) -> list[dict]:
 
 
 def schema(n: int) -> dict:
-    """Khuôn trả lời; `nguon` là enum gồm đúng các mã đã đưa vào. Hai nhánh theo cờ: đủ căn cứ thì phải có 1–3 ý có
-    nguồn, không đủ thì không có ý nào. Cờ và tiền đề sai đứng trước câu trả lời để mô hình quyết định trước khi viết
-    (thứ tự thuộc tính là thứ tự sinh)."""
+    """Khuôn trả lời; `nguon` là enum gồm đúng các mã đã đưa vào. Hai nhánh theo cờ: đủ căn cứ thì phải có 1–2 ý có
+    nguồn, không đủ thì không có ý nào. Thứ tự thuộc tính là thứ tự sinh: tiền đề sai rồi mới đến cờ (đo trên tập train
+    Zalo: hỏi với mức phạt sai thì mô hình vẫn đặt đủ căn cứ và dẫn nguồn), cả hai trước câu trả lời. Độ dài có trần để
+    vừa N_PREDICT token: không có trần thì ~9% câu bị cắt giữa chừng thành JSON hỏng."""
     src = {"type": "integer", "enum": list(range(1, n + 1))}
     y = {
         "type": "object",
-        "properties": {"y": {"type": "string"}, "nguon": {"type": "array", "items": src, "minItems": 1, "maxItems": n}},
+        "properties": {
+            "y": {"type": "string", "maxLength": 160},
+            "nguon": {"type": "array", "items": src, "minItems": 1, "maxItems": n},
+        },
         "required": ["y", "nguon"],
         "additionalProperties": False,
     }
 
     def branch(ok: bool) -> dict:
         props = {
+            "tien_de_sai": {"type": "string", "maxLength": 200},
             "du_can_cu": {"const": ok},
-            "tien_de_sai": {"type": "string"},
-            "tra_loi": {"type": "string"},
-            "cac_y": {"type": "array", "items": y, "minItems": 1, "maxItems": 3} if ok else {"type": "array", "items": y, "maxItems": 0},
-            "luu_y": {"type": "array", "maxItems": 2, "items": {"type": "string"}},
+            "tra_loi": {"type": "string", "maxLength": 320},
+            "cac_y": {"type": "array", "items": y, "minItems": 1, "maxItems": 2} if ok else {"type": "array", "items": y, "maxItems": 0},
+            "luu_y": {"type": "array", "maxItems": 1, "items": {"type": "string", "maxLength": 160}},
         }
         return {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
 
