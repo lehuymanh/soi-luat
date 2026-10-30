@@ -65,10 +65,12 @@ def roots_in_order(conn: sqlite3.Connection, unit_ids: list[int]) -> list[int]:
 
 
 def content_sig(conn: sqlite3.Connection, root_id: int) -> str:
-    """Khoá nội dung của Điều (chữ các khoản/điểm, bỏ dấu, không kèm số Điều): cùng khoá là cùng nội dung, kể cả ở hai
-    văn bản khác nhau (lộ trình P1, gộp trùng)."""
+    """Khoá nội dung của Điều (tên Điều và chữ các khoản/điểm, bỏ dấu, không kèm số Điều): cùng khoá là cùng nội dung,
+    kể cả ở hai văn bản khác nhau (lộ trình P1, gộp trùng). Tên phải vào khoá: 'Ưu tiên trong tuyển dụng viên chức' và
+    '… công chức' có khoản giống hệt nhau."""
     head, lines = semantic.root_lines(conn, root_id)
-    body = " ".join(t for _, t in lines) or head
+    title = re.sub(r"^Điều \w+\.\s*", "", head)
+    body = " ".join([title] + [t for _, t in lines])
     return hashlib.sha1(" ".join(fold_search(body).split()).encode()).hexdigest()
 
 
@@ -119,6 +121,8 @@ def _pick(lines: list[tuple[str, str]], query: str, budget: int) -> str:
     used = 0
     for i in ranked:
         for j in (i, i - 1, i + 1):
+            if j != i and i not in keep:
+                break  # dòng khớp không vừa thì không tiêu ngân sách cho dòng bên cạnh nó
             if 0 <= j < len(texts):
                 group = with_parents(j)
                 cost = sum(len(texts[k]) + 1 for k in group)
@@ -241,25 +245,40 @@ def chat(
 CJK = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\uf900-\ufaff]")
 _SO_HIEU = re.compile(r"\b\d+(?:/\d{4})?/[A-Za-zĐđ][\wĐđ]*(?:-[\wĐđ]+)*")
 _DATE = re.compile(
-    r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b|ngày\s+(\d{1,2})\s+tháng\s+(\d{1,2})\s+năm\s+(\d{4})|\b(\d{4})-(\d{2})-(\d{2})\b",
+    r"\b(\d{1,2})[/.](\d{1,2})[/.](\d{4})\b|ngày\s+(\d{1,2})\s+tháng\s+(\d{1,2})\s+năm\s+(\d{4})|\b(\d{4})-(\d{2})-(\d{2})\b",
     re.IGNORECASE,
 )
-_NUM = re.compile(r"(?<![\w.,])(\d{1,3}(?:\.\d{3})+(?!\.?\d)|\d+)(?:,(\d+))?(?:\s*(nghìn|ngàn|triệu|tỷ|tỉ)(?!\w))?", re.IGNORECASE)
+_PASSAGE_REF = re.compile(r"\[\d+(?:\s*[,;]\s*\d+)*\]|\bđoạn\s+\d+\b", re.IGNORECASE)  # mã đoạn: đã kiểm bằng `nguon`
+_REF = re.compile(
+    r"\b(điều|khoản|điểm)\s+((?:\d+[a-z]?|[a-zđ])\b(?:\s*(?:,|và|hoặc)\s*(?:\d+[a-z]?|[a-zđ])\b)*)", re.IGNORECASE
+)
+_LEAD = re.compile(r"^\s*(?:(\d+[a-z]?)\.|([a-zđ])\))\s+")  # số khoản / chữ điểm đầu dòng do root_lines dựng lại
+_THOUSANDS = re.compile(r"\d{1,3}(?:\.\d{3})+")
+_NUM = re.compile(
+    r"(?<![\w.,])(\d{1,3}(?:\.\d{3})+(?!\.?\d)|\d+\.\d{1,2}(?!\d)|\d+)(?:,(\d+))?(?:\s*(nghìn|ngàn|triệu|tỷ|tỉ)(?!\w))?",
+    re.IGNORECASE,
+)
 _RANGE_GAP = re.compile(r"\s*(?:-|–|—|đến|tới)\s*", re.IGNORECASE)
 _MULT = {"nghìn": 10**3, "ngàn": 10**3, "triệu": 10**6, "tỷ": 10**9, "tỉ": 10**9}
 
 
 def numbers(text: str, *, lenient: bool = False) -> set:
-    """Các con số trong câu theo giá trị: '5.000.000 đồng' = '5 triệu đồng'; '1–2 triệu' = {1e6, 2e6}; ngày viết số
-    hay viết chữ như nhau; số hiệu so sau khi bỏ dấu. `lenient` (phía nguồn) thêm cả số trần của khoảng và các số trong
-    số hiệu, để câu trả lời viết '1 đến 2 triệu' hay 'Nghị định 15 năm 2020' vẫn khớp.
+    """Các con số trong câu theo giá trị: '5.000.000 đồng' = '5 triệu đồng' = '5.0 triệu'; '1–2 triệu' = {1e6, 2e6};
+    ngày viết số hay viết chữ như nhau; số hiệu so sau khi bỏ dấu; 'khoản 2 Điều 5' thành nhãn 'khoan:2', 'dieu:5'
+    (không thành số 2, 5, để 'trong 5 ngày' không khớp nhờ tên Điều). `lenient` (phía nguồn) thêm số trần của khoảng
+    và các số của số hiệu, để câu trả lời viết '1 đến 2 triệu' hay 'Nghị định 15 năm 2020' vẫn khớp.
     shortcut: số viết bằng chữ ('ba mươi ngày') không bắt; nâng cấp nếu bộ đo thấy mô hình hay viết vậy."""
     out: set = set()
+    text = _PASSAGE_REF.sub(" ", text)
     for m in _SO_HIEU.finditer(text):
         out.add(fold_search(m.group(0)))
-        if lenient:
-            out.update(Decimal(x) for x in re.findall(r"\d+", m.group(0)))
+        if lenient:  # '64/2025/QH15' → 64, 2025; không lấy 15 trong 'QH15'
+            out.update(Decimal(x) for x in re.findall(r"(?<![A-Za-zĐđ])\d+", m.group(0)))
     text = _SO_HIEU.sub(" ", text)
+    for m in _REF.finditer(text):
+        kind = fold_search(m.group(1))
+        out.update(f"{kind}:{x.lower()}" for x in re.findall(r"\d+[a-z]?|[a-zđ]\b", m.group(2), re.IGNORECASE))
+    text = _REF.sub(" ", text)
     for m in _DATE.finditer(text):
         if m.group(7):
             y, mo, d = (int(x) for x in m.group(7, 8, 9))
@@ -269,9 +288,12 @@ def numbers(text: str, *, lenient: bool = False) -> set:
     text = _DATE.sub(" ", text)
     found = list(_NUM.finditer(text))
     for i, m in enumerate(found):
-        v = Decimal(m.group(1).replace(".", "") + ("." + m.group(2) if m.group(2) else ""))
+        g = m.group(1)
+        whole = g.replace(".", "") if _THOUSANDS.fullmatch(g) else g
+        v = Decimal(whole + ("." + m.group(2) if m.group(2) and "." not in whole else ""))
         unit = (m.group(3) or "").lower()
-        if not unit and i + 1 < len(found) and found[i + 1].group(3):
+        # '1 đến 2 triệu': số đầu mượn đơn vị số sau; '500.000 đến 1 triệu' thì không (số đầu đã là số tiền đủ)
+        if not unit and v < 1000 and not _THOUSANDS.fullmatch(g) and i + 1 < len(found) and found[i + 1].group(3):
             if _RANGE_GAP.fullmatch(text[m.end() : found[i + 1].start()]):
                 if lenient:
                     out.add(v)
@@ -303,6 +325,20 @@ def _shape_ok(a) -> bool:
     )
 
 
+def source_numbers(p: Passage) -> set:
+    """Số và nhãn đoạn `p` cho phép câu trả lời dùng: chữ đoạn, tên Điều (nhãn 'dieu:n'), số khoản/chữ điểm đầu dòng
+    (nhãn 'khoan:n', 'diem:x'), số hiệu, ngày. Không lấy mã [n] và tên file: các số đó không phải nội dung."""
+    tags, body = set(), []
+    for line in p.text.split("\n"):
+        m = _LEAD.match(line)
+        if m:
+            tags.add(f"khoan:{m.group(1).lower()}" if m.group(1) else f"diem:{m.group(2).lower()}")
+            line = line[m.end():]
+        body.append(line)
+    label = p.label if _SO_HIEU.search(p.label) else ""
+    return tags | numbers("\n".join([label, p.head, p.meta, *body]), lenient=True)
+
+
 def extractive(passages: list[Passage]) -> str:
     """Câu thay thế khi không tin được chữ mô hình: câu đầu của đoạn [1], nguyên văn."""
     if not passages:
@@ -322,7 +358,7 @@ def check(content: str, passages: list[Passage], question: str) -> Checked:
         return Checked({"du_can_cu": None, "tien_de_sai": "", "tra_loi": extractive(passages), "cac_y": [],
                         "luu_y": [], "trich_nguyen_van": True}, json_ok=False, replaced=True)
     by_n = {p.n: p for p in passages}
-    src_nums = {p.n: numbers(p.render(), lenient=True) for p in passages}
+    src_nums = {p.n: source_numbers(p) for p in passages}
     all_nums = set().union(*src_nums.values()) if src_nums else set()
     q_nums = numbers(question)
     out = Checked(dict(a), json_ok=True)

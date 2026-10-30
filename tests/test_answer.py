@@ -172,3 +172,41 @@ def test_chat_posts_schema_to_local_server_without_proxy(db, doc, monkeypatch):
     assert body["max_tokens"] == answer.N_PREDICT and body["messages"][0]["content"] == answer.SYSTEM
     assert "[2] 100/2019/NĐ-CP — Điều 6." in body["messages"][1]["content"]
     assert answer.check(res["choices"][0]["message"]["content"], ps, "Hỏi?").json_ok
+
+
+def test_review_number_cases():
+    n = answer.numbers
+    assert n("Phạt từ 500.000 đến 1 triệu đồng") == {Decimal(500_000), Decimal(1_000_000)}  # không mượn 'triệu'
+    assert n("1.5 triệu đồng") == {Decimal(1_500_000)} and n("0.5%") == {Decimal("0.5")}
+    assert n("ngày 01.08.2030") == {"1/8/2030"}
+    assert n("khoản 1, 2 và điểm a Điều 5") == {"khoan:1", "khoan:2", "diem:a", "dieu:5"}
+    assert n("Đoạn [1] và đoạn 2 nêu điều kiện") == set()  # mã đoạn và chữ 'điều kiện' không phải số
+
+
+def test_structural_digits_do_not_vouch_for_invented_numbers():
+    p = answer.Passage(1, 1, 1, "36/2024/QH15", "Điều 8. Mức phạt", "1. Phạt tiền từ 500.000 đồng đến 1.000.000 đồng.")
+
+    def kept(y):
+        return answer.check(_reply(cac_y=[{"y": y, "nguon": [1]}]), [p], "q").answer["cac_y"] != []
+
+    assert not kept("Nộp phạt trong 15 ngày.")  # 15 trong 'QH15'
+    assert not kept("Thời hạn 8 ngày.")  # 8 trong 'Điều 8'
+    assert not kept("Thời hạn 1 ngày.")  # 1 trong '[1]' / '1.'
+    assert kept("Theo khoản 1 Điều 8 Luật 36/2024/QH15, phạt từ 500.000 đến 1 triệu đồng.")
+    assert kept("Đoạn [1] nêu mức phạt tối đa 1.0 triệu đồng.")
+    assert not kept("Phạt tối đa 1.5 triệu đồng.")
+
+
+def test_pick_does_not_spend_budget_beside_a_line_that_did_not_fit():
+    lines = [("D1.K1", "1. Mở đầu " + "y" * 40), ("D1.K2", "2. Xe máy đi vào đường cấm " + "x" * 300),
+             ("D1.K3", "3. Câu bên cạnh " + "z" * 34), ("D1.K4", "4. Xe máy đi vào khu vực cấm bị phạt.")]
+    out = answer._pick(lines, "xe máy đi vào đường cấm", 120)  # K1 + K3 trước thì K4 không còn chỗ
+    assert "4. Xe máy đi vào khu vực cấm" in out and "Mở đầu" not in out
+
+
+def test_content_sig_keeps_different_titles_apart(db, tmp_path):
+    p = tmp_path / "hai.txt"
+    p.write_text("Nghị định số 7/2020/NĐ-CP\nĐiều 1. Ưu tiên trong tuyển dụng viên chức\n1. Con liệt sĩ.\n"
+                 "Điều 2. Ưu tiên trong tuyển dụng công chức\n1. Con liệt sĩ.\n", encoding="utf-8")
+    ingest_path(db, p, tmp_path)
+    assert answer.content_sig(db, _root(db, "D1")) != answer.content_sig(db, _root(db, "D2"))

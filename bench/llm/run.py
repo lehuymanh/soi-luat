@@ -33,7 +33,7 @@ from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from soiluat import answer, semantic  # noqa: E402
+from soiluat import answer, crossrank, semantic  # noqa: E402
 from soiluat.db import connect  # noqa: E402
 from soiluat.fold import fold_search  # noqa: E402
 from soiluat.search import cascade_search  # noqa: E402
@@ -72,7 +72,8 @@ def root_keys(conn, label: str) -> dict[int, str]:
     return out
 
 
-NEAR = 0.5  # ≥ 50% bộ 3-từ của Điều ngắn hơn có trong Điều kia: coi là cùng nội dung (bản sửa đổi chép lại, bản cũ/mới)
+NEAR = 0.7  # ≥ 70% bộ 3-từ của Điều dài hơn trùng với Điều kia: cùng nội dung (bản chép, bản cũ/mới); 0,5 theo Điều
+# ngắn hơn thì gộp nhầm các Điều khác nhau của cùng một nghị định (Điều 5, 6, 7 NĐ 100/2019)
 
 
 def shingles(conn, rid: int) -> set:
@@ -92,7 +93,7 @@ class Same:
         if rid in self.gold:
             return True
         s = shingles(self.conn, rid)
-        return any(s and g and len(s & g) / min(len(s), len(g)) >= NEAR for g in self.sh)
+        return any(s and g and len(s & g) / max(len(s), len(g)) >= NEAR for g in self.sh)
 
 
 def vnd(v: int) -> str:
@@ -224,6 +225,11 @@ def main() -> None:
 
     conn = connect(args.db)
     semantic.set_mode(conn, args.mode)
+    if args.mode == "advance" and not (
+        conn.execute("SELECT 1 FROM unit_vectors WHERE model = ? LIMIT 1", (semantic.MODEL_NAME,)).fetchone()
+        and semantic.encoder() and crossrank.ranker()
+    ):  # thiếu thì app lặng lẽ tìm như Normal: số đo sẽ ghi nhầm là Advance
+        sys.exit("Kho chưa có vector hoặc chưa cài mô hình AITeamVN: dùng --mode normal, hoặc nhúng vector trước.")
     qs, label = load_queries(args.queries, args.split)
     keys = root_keys(conn, label)
     by_key: dict[str, list[int]] = defaultdict(list)
@@ -268,7 +274,8 @@ def main() -> None:
             ok = a.get("du_can_cu") is False
         else:
             said = " ".join([a.get("tien_de_sai") or "", a.get("tra_loi") or ""] + [y.get("y", "") for y in a.get("cac_y") or [] if isinstance(y, dict)])
-            ok = bool((a.get("tien_de_sai") or "").strip()) and bool({Decimal(v) for v in q["fine"]} & answer.numbers(said))
+            right = {Decimal(v) for v in q["fine"]} - {Decimal(3 * v) for v in q["fine"]}  # nhắc lại số của câu hỏi không tính
+            ok = bool((a.get("tien_de_sai") or "").strip()) and bool(right & answer.numbers(said))
         recs.append({"kind": kind, "id": q["id"], "q": q["q"], "gold_n": gold_n, "natural": natural, "ok": ok,
                      "search_s": round(search_s, 2), **r})
         print(f"{i}/{len(jobs)} {kind:7} {'đúng' if ok else 'sai '} tìm {search_s:.1f}s + LLM {r['llm_s']:.1f}s"
