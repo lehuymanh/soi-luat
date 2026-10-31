@@ -1,27 +1,85 @@
-# Ghi nhớ nghiên cứu P0 (bàn giao cho lượt làm sau)
+# Bàn giao cho lượt làm sau (ghi nhớ nghiên cứu)
 
-Viết 31/10/2026, cuối P0 của lộ trình 1.0. Người đọc chính: agent (hoặc người) làm tiếp P1 hay "việc trước P3", hoặc phải đo lại phần trả lời AI. Tài liệu này giữ **kết luận, phương pháp và những điều không tự tra được**. Số liệu đầy đủ nằm ở tài liệu nguồn; ở đây chỉ chép số cần để định hướng, kèm chỗ tra.
+Viết lần đầu 31/10/2026 ở cuối P0, viết lại cùng ngày ở cuối P1, cho bản 0.9.0. Người đọc chính: agent (hoặc người) làm tiếp lộ trình (P2), đo lại tìm kiếm hay câu trả lời AI, hoặc chạy job dài. Tài liệu này giữ **trạng thái, bước đầu tiên, kết luận, phương pháp, cách dựng lại môi trường và bẫy**. Số liệu đầy đủ nằm ở tài liệu nguồn; ở đây chỉ chép số cần để định hướng, kèm chỗ tra. Bản đồ mọi tài liệu và tệp: `docs/README.md`.
 
 Đọc theo thứ tự này:
 
-1. Tệp này: mục 1–2 để biết đang ở đâu, mục 3 trước khi đo bất cứ gì, mục 5 trước khi chạy job dài.
-2. `docs/ke-hoach/lo-trinh-1.0.md`: mục 6 (P0 trạng thái, P1, P3 có "Việc trước P3"), mục 9 (quyết định còn mở).
-3. `docs/ke-hoach/ke-hoach-p1.md`: kế hoạch triển khai P1 từng việc, từng file.
-4. `bench/llm/KET-QUA.md` (vòng 2 ở đầu, vòng 1 ở dưới), `bench/llm/CHON-MO-HINH.md` (mục 7: lần tìm thêm mô hình), `bench/van-ban-that/KET-QUA.md` (mốc tìm kiếm P0).
+1. Tệp này: mục 1 là đủ nếu chỉ cần biết làm gì tiếp; mục 3 trước khi đo bất cứ gì; mục 4 khi dựng lại máy; mục 5 trước khi chạy job dài.
+2. `docs/ke-hoach/lo-trinh-1.0.md`: mục 6 (P2, nhánh độ chính xác, "Việc trước P3"), mục 9 (quyết định còn mở).
+3. `docs/ke-hoach/ke-hoach-p1.md`: mục "Nhóm Z", B1, "Phụ lục A", "Đã kiểm / chưa kiểm".
+4. `docs/nghien-cuu/so-thu-nghiem.md`: bảng tổng hợp để biết đã thử gì, rồi "Câu hỏi còn mở".
+5. `docs/quy-trinh.md`: mục 4 (cổng đo), 8 (môi trường), 11 (bẫy).
+6. `bench/README.md` (bộ đo nào, chạy lệnh gì), `bench/llm/KET-QUA.md` (vòng 2 ở đầu, vòng 1 ở dưới), `bench/van-ban-that/KET-QUA.md` (mốc tìm kiếm).
 
 ---
 
 ## 1. Trạng thái bàn giao
 
-- Nhánh `claude/funny-feynman-xvg6dm`, PR nháp lehuymanh/soi-luat#2 (base là nhánh của PR lộ trình lehuymanh/soi-luat#1). `pytest`: 258 passed, 7 skipped (bỏ qua vì thiếu Word COM, Tesseract hoặc mô hình thật, giống `main`).
-- P0, phần máy làm được: **xong**. Còn chờ chủ dự án (lộ trình mục 9): duyệt mẫu `mau/giao-dien-1.0.html` (cổng để bắt đầu P1), chốt cách tính cổng câu trả lời AI (điều 10), đo trên máy 16 GB, ≥ 100 câu hỏi thật, chế độ tìm mặc định (điều 8).
-- Mã trả lời AI (`src/soiluat/answer.py`) **chưa gắn vào app**; chỉ `bench/llm/run.py` gọi nó. P3 sẽ gắn.
-- Số test của vòng 2 đo trên mã `b17461f`. Sau đó bản soát sửa thêm 6 lỗi (`bc9f9af`). Lần đo LLM kế tiếp phải chạy trên mã mới, và chạy lại sau khi P1 sửa parser (chữ đưa vào mô hình đổi).
-- **Bước đầu tiên:** xem lộ trình mục 9 để biết chủ dự án đã trả lời điều 9 (mẫu giao diện) và điều 10 (cách tính cổng) chưa. Mẫu đã duyệt thì làm P1 theo `docs/ke-hoach/ke-hoach-p1.md`, bắt đầu từ mục 1 "Cần chốt", rồi N0. Chưa duyệt thì chưa viết mã P1; làm "Việc trước P3" mục 1 hoặc 3 (lộ trình mục 6, P3).
-- **Không đo lại khi mã liên quan chưa đổi** (đã chốt; số ở tài liệu nguồn): chọn mô hình (Qwen; Gemma 4 E4B và Bolt đã đo, `bench/llm/KET-QUA.md` vòng 2); mốc tìm kiếm P0 trên văn bản thật (`bench/van-ban-that/KET-QUA.md`); A/B ba biến thể `pham_vi` trên train; mốc offline bằng chứng (mục 3.2). Khi parser, `src/soiluat/answer.py` hay mô hình đổi thì đo lại hai nhánh trước/sau trên cùng mã (kế hoạch P1, B1), không so thẳng với số P0.
-- **Môi trường này không kiểm được:** tốc độ và RAM trên máy 16 GB Windows (`llama-server` bản Windows), gói PyInstaller, hành vi giao diện trong trình duyệt. Có máy 16 GB thì đo việc đó trước (`bench/llm/README.md`).
+### 1.1 Đang ở đâu và bước đầu tiên
+
+- **Bản 0.9.0** (`src/soiluat/__init__.py`), nhánh `claude/funny-feynman-xvg6dm`. `pytest`: **471 qua, 7 bỏ qua** (chạy 31/10/2026 ở mã `a13af05`; các commit sau đó không đổi `src/` và `tests/`). 7 test bị bỏ qua vì thiếu Word COM, Tesseract hoặc mô hình thật, giống `main`. Trước đó: 443 qua (`fdad4d3`), cuối P0: 258 qua. PR nháp lehuymanh/soi-luat#2 xếp trên PR lộ trình lehuymanh/soi-luat#1 (ghi ngày 31/10/2026, chưa kiểm lại trên GitHub). Agent không merge PR.
+- **P0 xong** phần máy làm được. **P1 xong phần mã** (lộ trình mục 6, P1; từng việc và số đo ở `docs/ke-hoach/ke-hoach-p1.md`). Chưa gắn tag, chưa dựng bộ cài (`git tag` trống ngày 31/10/2026). Ghi chú phát hành đã nháp ở `CHANGELOG.md`.
+- **Còn thiếu để phát hành 0.9.0 và đóng P1**, đều cần thứ mà môi trường soạn không có: (a) dựng bộ cài bằng `pack/build.ps1` trên Windows và thử gói (Z0); (b) xem tay trên Edge và Chrome Windows (Z1); (c) 3 đến 5 người dùng thật làm 9 việc (`docs/ke-hoach/ke-hoach-p1.md`, Phụ lục A; chưa có tên người thử); (d) chạy lại `bench/llm` hai nhánh trước và sau sửa parser (B1, khoảng 15 giờ máy; parser đã chốt nên được phép bắt đầu).
+- Mã trả lời AI (`src/soiluat/answer.py`) **vẫn chưa gắn vào app**; chỉ `bench/llm/run.py` gọi nó. P3 sẽ gắn. Số đo LLM của P0 là của mã `b17461f`; sau đó bản soát sửa thêm 6 lỗi (`bc9f9af`). Lần đo kế tiếp phải chạy trên mã mới và trên parser mới (chữ đưa vào mô hình đã đổi).
+- **Bước đầu tiên cho phiên sau:**
+  1. `git status --short` và `git log --oneline -5`; đọc `CLAUDE.md`, rồi `docs/README.md`.
+  2. Hỏi chủ dự án một lần về các quyết định còn mở (mục 1.4), nhất là cách tính cổng P0 cho câu trả lời AI (lộ trình mục 9, điều 10) và chế độ tìm mặc định (điều 8), vì hai điều này quyết định cổng P3; và tên người thử cho cổng người dùng của P1.
+  3. Có máy Windows: làm Z0 rồi Z1 (`docs/ke-hoach/ke-hoach-p1.md`, "Nhóm Z"), rồi tag theo `docs/quy-trinh.md` mục 10. Không có máy Windows: lập kế hoạch P2 (`superpowers:brainstorming`, `superpowers:writing-plans`, theo `docs/ke-hoach/lo-trinh-1.0.md` mục 6, P2), và chạy B1 nếu máy rảnh (một job nặng mỗi lúc, mục 5).
+  4. Chưa có kế hoạch P2 được duyệt thì chưa viết mã P2 (`docs/quy-trinh.md` mục 0).
+
+### 1.2 Không đo lại khi mã liên quan chưa đổi
+
+Đã chốt; số ở tài liệu nguồn. Muốn đo lại thì phải nêu thứ gì đã đổi.
+
+| Đã đo | Chỗ tra | Đo lại khi |
+|---|---|---|
+| Chọn mô hình: Qwen3-VL-4B; Gemma 4 E4B và Nemotron-3.5-Bolt-E4B đã đo, không hơn | `bench/llm/KET-QUA.md` vòng 2; sổ CN-01, CN-03, CN-04 | có ứng viên mới cùng cỡ và có lý do mới |
+| Mốc tìm kiếm P0 trên văn bản thật: Hit@1 rộng Normal 83,3%, Advance 72,6% (n = 84) | `bench/van-ban-that/KET-QUA.md`, mục "Mốc P0"; sổ TK-09 | sửa bước hợp BM25 với vector (lộ trình, nhánh độ chính xác, điều 0) |
+| Mốc Normal của 0.9.0 trên ba bộ (văn bản thật n = 84; Zalo test n = 788 và gold n = 500, theo mục) | mục 1.3; sổ PS-06, PS-07, HT-02; message của `a13af05` | đổi `search.py`, `sohieu.py`, `query.py`, `semantic.py`, `fold.py`, `crossrank.py` hoặc `parse.py` (cổng: `docs/quy-trinh.md` mục 4) |
+| Mở trình đọc p95 27 ms; xoá văn bản 41,5 s xuống 0,01 s; nâng cấp dữ liệu | sổ HT-03, PS-05, PS-09 | đổi `reader.py`, route `/doc`, chỉ mục khoá ngoại hay `rebuild.py` |
+| A/B ba biến thể `pham_vi` trên train; mốc offline bằng chứng (mục 3.2) | `bench/llm/KET-QUA.md`; sổ LM-02, LM-04 | đổi `answer.py`, lời nhắc hay khuôn JSON |
+
+**Phải đo lại** (chưa có số hợp lệ): `bench/llm` sau sửa parser, hai nhánh trước và sau trên cùng mã (kế hoạch P1, B1); tốc độ, RAM và p95 45 giây trên máy 16 GB Windows; mọi thứ giao diện trong Edge và Chrome Windows.
+
+### 1.3 Phiên 31/10/2026 đã làm gì
+
+Số đo kèm bộ và n; chi tiết, cách đo và lý do giữ hay bỏ ở sổ thí nghiệm (mã trong cột cuối) và `docs/ke-hoach/ke-hoach-p1.md`. Không chép lại ở đây.
+
+| Việc | Kết quả đáng nhớ | Chỗ tra |
+|---|---|---|
+| Đóng P0 | Mẫu giao diện dựng lại theo taste-skill, chủ dự án duyệt; kế hoạch P1 lập và tối ưu còn 21,5 ngày; lộ trình ghi ba đề xuất B, C, D được duyệt | sổ GD-02; `docs/ke-hoach/ke-hoach-p1.md` mục 0 |
+| Parser: điểm nhiều dòng (N1a), B1 + B2 + B3 và gộp Phụ lục (N3), giữ gợi ý hiệu lực khi dựng lại (N1c), nâng cấp dữ liệu một lần `PARSE_REV = "2"` (N1b) | Điều tách được 322 lên 345/344 (21 văn bản thật); nâng cấp 21 văn bản thật 5,6 s, kho Zalo 1.760/3.271 văn bản dựng lại 467 s | sổ PS-06 đến PS-10 |
+| Trình đọc `/doc` và tab Bản gốc (R1 đến R3) | p95 27 ms phía máy chủ (bản sao kho Zalo, 101 văn bản) | sổ HT-03 |
+| Kết quả gọn (K1 đến K3) | khoảng 40 thẻ mỗi câu (39,8 mục trước khi cắt, văn bản thật n = 84) xuống 5 mục hiện sẵn; Hit@1 theo thẻ lên theo mục: Zalo test (n = 788) 58,6% lên 61,0%, gold (n = 500) 51,2% lên 52,6% | sổ HT-01, HT-02 |
+| Lịch sử trò chuyện (H1 đến H4, H6), thanh bên, hộp thoại và toast | mở lại cuộc 10 câu: dựng đủ trung vị 2,41 s, sau "Xem lại" 713 ms | sổ HT-04 |
+| Nền: bốn chỉ mục khoá ngoại (N0), `static/` (N2), hệ thiết kế và phông nhúng (G0) | xoá văn bản 89 đơn vị 41,5 s xuống 0,01 s (bản sao kho Zalo) | sổ PS-05; kế hoạch P1 N0, N2, G0 |
+| Soát độc lập nhiều đợt, mỗi lỗi có test hỏng trên mã cũ | 56 phát hiện ở kế hoạch, 23 lỗi ở R2a đến K2, 12 ở lịch sử trò chuyện, rồi soát toàn repo: 5 lỗi "Phải sửa" (C1, C2, C3, SEC-1, F2) | sổ SO-05 đến SO-08 |
+| Đợt dọn mã cuối (`9780468`, `a13af05`): S1, S2, S4, S6, S7, F1, F7, SEC-2, SEC-3, SEC-5, SEC-6, C4, C5, C6/F5 (một phần), C7, C10, F3, F4, bỏ mã chết | Cổng quy tắc 7 giữ nguyên: văn bản thật (n = 84, rộng @1/@3/@5/@10) 86,9 / 94,0 / 97,6 / 98,8%, giống mốc; Zalo test (n = 788, theo mục) Hit@1 61,2%, Hit@5 86,5% (mốc 61,0 / 86,4); gold (n = 500, theo mục) 52,4 / 77,4% (mốc 52,6 / 77,4), khác một câu do thứ tự ngẫu nhiên giữa các bản trùng chữ, không do mã | message của `a13af05`, `9780468` |
+| Phát hành | Số 0.9.0 ở mọi nơi (`eb7df1d`), tài liệu 0.9 (`af7404f`), `CHANGELOG.md` nháp (`7b41b3b`) | `docs/quy-trinh.md` mục 10 |
+| Harness và tài liệu | Skill của dự án vào repo (`818efdb`); tài liệu gom về `docs/` (`fdad4d3`); sổ thí nghiệm (`51feedc`); quy trình và 4 workflow (`796e7f2`); `docs/README.md`, `bench/README.md` và bản bàn giao này | `docs/quy-trinh.md` |
+| Bản mẫu khái niệm: dự án, ghi chú rủi ro, đồ thị | Chưa duyệt | sổ GD-03; `mau/khai-niem-du-an-do-thi-dinh-huong.md` |
+
+### 1.4 Quyết định còn mở
+
+Chỉ liệt kê chỗ ghi; không chép nội dung. Bản gom từng câu hỏi kèm việc kế tiếp: `docs/nghien-cuu/so-thu-nghiem.md`, mục "Câu hỏi còn mở".
+
+- `docs/ke-hoach/lo-trinh-1.0.md` mục 9, phần "Còn mở": điều 1 (người thử, nhân lực), 2 (máy 8 GB), 3 (≥ 100 câu hỏi thật), 4 (gói AI), 5 (chứng thư ký số), 6 (ai duyệt hiệu lực), 7 (đồ thị toàn kho), 8 (chế độ tìm mặc định), 10 (cách tính cổng P0 cho câu trả lời AI). Điều 9, 11, 12, 13 đã trả lời.
+- `docs/ke-hoach/ke-hoach-p1.md` mục 1: hỏi (a) dời ghi lượt mở trích dẫn sang nhánh chính xác, hỏi (b) máy quét có xuất TIFF, BMP không, và tên người thử. Chưa có trả lời thì làm theo mặc định ghi ở đó.
+- Hoãn từ đợt soát: C8 (số hiệu sửa tay phải bền qua nạp lại) và phần còn lại của F10; cả hai đi cùng việc "đánh dấu trường đã sửa tay" của P2 (lộ trình mục 7).
+- Đã được chủ dự án duyệt (31/10/2026) nhưng chưa chạy: thử nghiệm C (mô hình ghi chép để tìm tốt hơn) và D (Qwen đọc ảnh trang đầu để gợi ý số hiệu, ngày); việc B (lưu toạ độ chữ) đã đưa lên P2 (lộ trình mục 6 và 9).
+
+### 1.5 Môi trường soạn không kiểm được
+
+- **Windows:** bộ cài (`pack/build.ps1`), gói PyInstaller có `static/` và chín tệp phông không (Z0), Word COM (SEC-1 đặt `AutomationSecurity` thành `ForceDisable`, chưa chạy với Word thật), Edge và Chrome (Z1).
+- **Máy 16 GB:** tốc độ, RAM, p95 45 giây (`bench/llm/README.md`).
+- **Giao diện:** chỉ có ảnh Playwright (Chromium); chưa có người dùng thật bấm.
+- **Workflow:** bốn script ở `.claude/workflows/` đã kiểm cú pháp và chạy với agent giả, chưa chạy bằng công cụ Workflow thật; lần chạy thật đầu tiên cần xem tay (`docs/quy-trinh.md` mục 6).
+
+---
 
 ## 2. Kết luận nghiên cứu
+
+Mục 2.1 đến 2.4 là kết luận của P0 (30 và 31/10/2026). Kết luận của P1 (parser, kết quả gọn, trình đọc, lịch sử trò chuyện, các đợt soát) nằm ở `docs/nghien-cuu/so-thu-nghiem.md`, nhóm PS, HT, SO.
 
 ### 2.1 Tìm kiếm (mốc cho P1)
 
@@ -120,22 +178,44 @@ Cách lần ra nguyên nhân dòng đáp án bị mất (dùng lại được): 
 
 Tiêu chí (từ `CHON-MO-HINH.md` mục 1): mở trọng số, giấy phép cho dùng thương mại ngoại tuyến, GGUF chạy llama.cpp trên CPU, RAM mô hình ~4 GB (trần 6 GB), tắt chế độ suy nghĩ, kịp 45 giây p95 kể cả phần tìm. Cách làm lần 30/10/2026: bốn hướng tìm song song (mô hình nhỏ mới của các hãng; bản tinh chỉnh tiếng Việt/Đông Nam Á; bảng xếp hạng bám ngữ cảnh, tiếng Việt, làm theo chỉ dẫn; hỗ trợ llama.cpp), một bước xếp hạng theo đúng lỗi đang gặp, hai tác tử kiểm chứng ngược tại nguồn (thẻ mô hình, giấy phép, tệp GGUF, llama.cpp). Rồi đo ứng viên trên đúng bộ đo, cùng mã, không chỉnh riêng. Bài học: số bám ngữ cảnh do hãng công bố bằng tiếng Anh (Bolt: GaRAGe +9,8 điểm) không chuyển sang tiếng Việt.
 
+### 3.7 Đo tìm kiếm và parser (quy tắc 7)
+
+Lệnh của từng cổng, tiêu chí qua và cách ghi số: `docs/quy-trinh.md` mục 4; lệnh theo từng script: `bench/README.md`. Điều rút ra khi làm P1:
+
+- Đo trước và sau **trên cùng một bản dựng và bản sao riêng**; luôn truyền `--tag`; mỗi số kèm bộ, tập chia, n và mã.
+- Sửa không nhằm đổi thứ hạng (dọn mã, tăng tốc) thì cổng là "Hit@1 và Hit@5 không thấp hơn trước"; sửa nhằm cải thiện thì phải tốt hơn trên cả Zalo lẫn gold và không tụt trên văn bản thật. Chênh nhỏ mà theo chữ thấp hơn thì cần ngoại lệ có tên (sổ PS-06, HT-02).
+- Một câu đổi hạng sau khi dựng lại kho: dựng **biến thể A** (mã mới, các văn bản đổi chữ giữ chữ của parser cũ) để biết do mã tìm kiếm hay do parser. Thứ tự giữa các bản trùng chữ là ngẫu nhiên (id đơn vị lớn hơn thì lên trước), nên một câu tụt từ hạng 1 xuống 2 giữa các bản trùng không phải hồi quy (đợt `a13af05`, bộ gold).
+- Không so p50 của hai lượt chạy khác `--only` hoặc khác bản sao: lượt `hien_tai_muc` riêng tính cả thời gian tìm, còn số của K3 chỉ là phần gom mục.
+- `bench/parse_khac.py <data>` cho biết kho đã lưu có cần nâng cấp không: 0 văn bản đổi thì không cần tăng `PARSE_REV`; khác 0 thì tăng và chạy cổng quy tắc 7 (`docs/kien-truc.md` mục 3).
+
+---
+
 ## 4. Môi trường và chạy lại
 
-Container của phiên này bị thu hồi; **thư mục làm việc `/tmp/claude-0/work` (kho đo, mô hình, JSON kết quả thô) không còn ở phiên sau**. `KET-QUA.md` là bản ghi chính thức. JSON thô không commit: câu hỏi gold `vle` chưa có giấy phép (`bench/gold/README.md`).
+**Mọi đường dẫn `/tmp/claude-0/...` là của phiên soạn (31/10/2026) và mất khi container bị thu hồi.** `KET-QUA.md` và `docs/nghien-cuu/so-thu-nghiem.md` là bản ghi chính thức. JSON thô (kết quả `bench/llm/run.py`, `bench/zalo/ket_qua_gold*.json`) không commit: câu hỏi gold `vle` chưa có giấy phép (`bench/gold/README.md`) và JSON thô của LLM chứa chữ lấy từ các bộ đó. Vị trí các kho đo ở phiên soạn và cách dùng từng công cụ: `docs/quy-trinh.md` mục 8. Chính sách tệp kết quả: `bench/README.md`.
 
 Dựng lại để đo (Linux, CPU):
 
-1. **Python**: venv riêng; `pip install -e ".[nghia]"` cho Advance; `pip install llama-cpp-python==0.3.36` (bản PyPI; dựng llama.cpp từ git bị chặn trong môi trường này). Bản 0.3.36 có kiến trúc `qwen3vl` và `gemma4`.
-2. **Kho đo**: Zalo dựng bằng `bench/zalo/build_db.py` từ `GreenNode/zalo-ai-legal-text-retrieval-vn` (`bench/zalo/KET-QUA.md`); gold `vle` bằng `bench/gold/build_vle.py` (chỉ giữ trên máy); văn bản thật bằng `bench/van-ban-that/import_real.py` (OCR, cần Tesseract có `vie`; đặt `SOILUAT_TESSDATA` nếu thiếu), rồi `python -m soiluat.importer --nhung` để có vector cho Advance.
-3. **Mô hình Advance** (AITeamVN): `pack/export_models.py`; trỏ `SOILUAT_MODEL_DIR` và `SOILUAT_RERANK_DIR` tới thư mục xuất.
-4. **Mô hình sinh** (Hugging Face, tải bằng `huggingface_hub`): `Qwen/Qwen3-VL-4B-Instruct-GGUF` tệp `Qwen3VL-4B-Instruct-Q4_K_M.gguf`; `google/gemma-4-E4B-it-qat-q4_0-gguf` tệp `gemma-4-E4B_q4_0-it.gguf`; `bartowski/NVIDIA-Nemotron-3.5-Bolt-E4B-GGUF` tệp `NVIDIA-Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf`.
-5. **Máy chủ**: `python -m llama_cpp.server --model <gguf> --n_ctx 4096 --n_threads 4 --host 127.0.0.1 --port 8080`; đợi `/v1/models` trả lời (`curl --noproxy '*'`). Khởi động bằng `setsid nohup … &` để sống qua giới hạn 2 giờ của lệnh nền.
-6. **Chấm**: ba lệnh ở `bench/llm/KET-QUA.md`, mục "Chạy lại". Trên máy 16 GB (Windows, `llama-server`): `bench/llm/README.md`.
+1. **Đĩa:** `df -h /` trước. Mỗi bản kho Zalo 1,4 đến 1,6 GB. Giữ trống từ 1 GB; luôn chép bản sao rồi mới ghi, không bao giờ ghi vào kho gốc.
+2. **Python:** venv riêng (từ 3.11; phiên soạn dùng 3.13). `pip install -e ".[dev]"`; thêm `".[ocr]"` cho OCR, `".[nghia]"` cho Advance. Cho `bench/llm`: `pip install llama-cpp-python==0.3.36` (bản PyPI; dựng llama.cpp từ git bị chặn trong môi trường này; bản 0.3.36 có kiến trúc `qwen3vl` và `gemma4`). Chạy bench bằng `python -I`.
+3. **Công cụ ngoài:** Tesseract có gói `vie` (thiếu thì đặt `SOILUAT_TESSDATA`); Node có Playwright cho `bench/kiem_anh.js` (`NODE_PATH=$(npm root -g) node ...`).
+4. **Kho đo:**
+   - **Zalo:** tải `GreenNode/zalo-ai-legal-text-retrieval-vn` từ Hugging Face (cần mạng), dựng bằng `python bench/zalo/build_db.py <thư mục zalo> <data>` (~510 giây, 427 nghìn đơn vị; dựng bằng parser hiện tại nên đã là kho "sau"). Thư mục câu hỏi gồm `queries.jsonl` và `qrels_test.jsonl` (thêm `qrels_train.jsonl` nếu cần chỉnh). Chi tiết: `bench/zalo/KET-QUA.md`.
+   - **Gold `vle`:** `python -I bench/gold/build_vle.py <zalo> <ViLegalExperts> <ra> --n 500`; chỉ giữ trên máy (`bench/gold/README.md`).
+   - **Văn bản thật:** tải 21 PDF theo `bench/van-ban-that/manifest.json` (cần header `Referer: https://vanban.chinhphu.vn/`), đặt trong `<realdocs>/files/` cùng `manifest.json` và `queries.json` (bản có sẵn ở `bench/van-ban-that/`), rồi `python bench/van-ban-that/import_real.py <realdocs>`. Bộ chữ `vie` khác bản làm số Điều tách được lệch (lần dựng P0 trên Linux ra 321/344 so với 341/344 trên Windows: `bench/van-ban-that/KET-QUA.md`). Kho cần vector cho Advance: `python -m soiluat.importer --nhung` với `SOILUAT_DATA=<realdocs>/data`.
+5. **Mô hình Advance (AITeamVN):** `python pack/export_models.py <OUT_DIR>` (cần mạng, torch và vài GB trống); trỏ `SOILUAT_MODEL_DIR` tới `<OUT_DIR>/aiteamvn-embedding` và `SOILUAT_RERANK_DIR` tới `<OUT_DIR>/aiteamvn-reranker`. Thiếu hai biến này thì lượt chạy không phải Advance. Kho Zalo chỉ nhúng Điều cần: `bench/zalo/embed_needed.py`.
+6. **Mô hình sinh (Hugging Face, tải bằng `huggingface_hub`):** `Qwen/Qwen3-VL-4B-Instruct-GGUF` tệp `Qwen3VL-4B-Instruct-Q4_K_M.gguf`; `google/gemma-4-E4B-it-qat-q4_0-gguf` tệp `gemma-4-E4B_q4_0-it.gguf`; `bartowski/NVIDIA-Nemotron-3.5-Bolt-E4B-GGUF` tệp `NVIDIA-Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf`.
+7. **Máy chủ:** `python -m llama_cpp.server --model <gguf> --n_ctx 4096 --n_threads 4 --host 127.0.0.1 --port 8080`; đợi `/v1/models` trả lời (`curl --noproxy '*'`). Khởi động bằng `setsid nohup ... &` để sống qua giới hạn 2 giờ của lệnh nền; lưu PID, dừng bằng `kill <PID>`.
+8. **Chấm:** ba lệnh ở `bench/llm/KET-QUA.md`, mục "Chạy lại"; lệnh B1 (hai nhánh từ worktree cố định) ở `docs/ke-hoach/ke-hoach-p1.md`, Phụ lục B. Trên máy 16 GB (Windows, `llama-server`): `bench/llm/README.md`.
+9. **Kiểm nhanh môi trường:** `python -m pytest -q` ra 471 qua và 7 bỏ qua (nhiều test bị bỏ qua hơn nghĩa là thiếu Tesseract, Word COM hay mô hình thật, không phải lỗi mã).
 
-Thời lượng trên máy ảo 4 nhân: Qwen ~50–60 s mỗi lần gọi, Gemma và Bolt ~65–80 s; ba bộ test = 150 lần gọi.
+Thời lượng trên máy ảo 4 nhân: Qwen ~50 đến 60 giây mỗi lần gọi, Gemma và Bolt ~65 đến 80 giây; ba bộ test = 150 lần gọi. Một vòng B1 hai nhánh ước ~15 giờ máy.
+
+---
 
 ## 5. Bẫy đã gặp
+
+Bảng đầy đủ, có cột hậu quả và cách tránh: `docs/quy-trinh.md` mục 11. Mục này giữ các bẫy mà tài liệu khác dẫn tới, và bẫy mới nhất ở cuối.
 
 - **Container khởi động lại giữa chừng** (hai lần trong P0): mọi tiến trình nền chết. Commit và push sớm; viết script chạy dài có **tự bỏ qua phần đã xong** (ghi `EXIT=0` từng phần vào tệp trạng thái, như bộ chạy vòng 2).
 - **Tranh CPU**: máy 4 nhân; chạy ONNX (Advance) hay một job nặng cùng lúc với máy chủ mô hình làm sinh chữ chậm ~10 lần (0,48 so với 5 token/s). Thời gian chỉ so được khi chạy một mình. Workflow chỉ chạy song song 2 tác tử trên máy này.
@@ -148,27 +228,27 @@ Thời lượng trên máy ảo 4 nhân: Qwen ~50–60 s mỗi lần gọi, Gemm
 - **Mẫu lời nhắc ghi ví dụ "không phải 5.000.000 đồng"**: mô hình chép ví dụ vào câu thường, bộ kiểm bỏ. Ví dụ trong lời nhắc nên dùng số khó trùng.
 - **Giao diện: kiểm bằng ảnh, không bằng đọc mã.** Script đo của taste-skill là mã tải về nên bị bộ phân loại quyền chặn; đừng lách. Dùng Playwright có sẵn (`require('playwright')`, Chromium ở `/opt/pw-browsers`) chụp 1440/1100/768/390, sáng và tối, từng trạng thái (mở trình đọc, lọc hết, kho trống…), đo cuộn ngang và số h1, rồi mở từng ảnh mà chấm theo `references/app-screens.md`. Một quy tắc lớp như `.scrim { display: grid }` đè thuộc tính `hidden`; luôn thêm `[hidden] { display: none !important; }`.
 - **Số hiệu như `QH15`, tên tệp, mã đoạn `[1]`, nhãn khoản `1.`** từng "bảo lãnh" cho số bịa. Bộ kiểm hiện tách chúng thành nhãn; thêm luật mới thì thêm test cho đúng loại này (`.claude/skills/vietnamese-legal-number-check`).
+- **Bẫy mới của phiên 31/10/2026** (hậu quả và cách tránh đầy đủ ở `docs/quy-trinh.md` mục 11):
+  - **Không truyền `--tag` cho `bench/zalo/eval.py`:** ghi đè `bench/zalo/ket_qua_test.json` đang được commit. JSON gắn thẻ không nằm trong `.gitignore`: xoá của lượt thử trước `git add`.
+  - **`bench/van-ban-that/eval_real.py` ghi vào kho** (`search_mode`) và `eval_normal.json` cạnh kho: mỗi bản dựng một bản sao `<realdocs>` riêng.
+  - **Đĩa đầy:** từng còn 1,7 GB trống, lúc viết tệp này còn 3,2 GB (ổ `/` 92%); bản sao cũ từng đẩy ổ lên 99% giữa một lượt chạy. Xoá bản sao ngay khi đã ghi số.
+  - **Nhiều agent trên một cây:** `git add` từng tệp, không `git add -A`, `git stash` hay `git checkout .`; gặp `index.lock` thì đợi vài giây. Một agent viết lại kế hoạch lúc bạn làm một bước thì đọc lại mục kế hoạch (`git diff -- <kế hoạch>`) trước khi commit.
+  - **Trailer ghi công của agent con sai:** agent con không thấy lời nhắc ghi công; truyền qua `args.trailer`, chép nguyên văn từ lời nhắc của phiên.
+  - **Hàm dự phòng im lặng:** dòng "Số:" hỏng của bản quét lấy nhầm số hiệu của văn bản được dẫn trong "Căn cứ" (C1, `50b3622`); thà trả `None` để người điền (bài học 8 ở sổ thí nghiệm).
+
+---
 
 ## 6. Việc tiếp theo
 
-- **P1** theo `docs/ke-hoach/ke-hoach-p1.md`, sau khi chủ dự án duyệt mẫu. P1 không phụ thuộc kết quả đo mô hình.
-- **Việc trước P3** (lộ trình mục 6, P3), chạy xen bằng máy: câu bẫy chạm trần; tín hiệu điểm tìm kiếm thấp cho lỗi phạm vi; tách câu bẫy train/test; chạy lại `bench/llm` sau khi P1 sửa parser.
-- **Quyết định của chủ dự án**: lộ trình mục 9 (điều 8, 9, 10 liên quan trực tiếp tới việc trên).
+Theo thứ tự nên làm. Kế hoạch chi tiết của từng việc nằm ở tài liệu được dẫn, không ở đây.
+
+1. **Đóng 0.9.0** (cần Windows và người): Z0, Z1, cổng người dùng (`docs/ke-hoach/ke-hoach-p1.md`), rồi tag và ghi chú phát hành (`docs/quy-trinh.md` mục 10, skill `release-version-sync`). Số phiên bản 0.9.0 đã được chủ dự án chốt (`eb7df1d`).
+2. **B1** (máy, nền): chạy lại `bench/llm` hai nhánh trước và sau sửa parser; kết quả là mốc cho "Việc trước P3" và cổng P3. Một job nặng mỗi lúc (mục 5).
+3. **Kế hoạch P2** (kho văn bản: tag, ghi chú, @, hiệu lực; việc B lưu toạ độ chữ và việc D gợi ý số hiệu từ ảnh đi cùng): lập theo `docs/ke-hoach/lo-trinh-1.0.md` mục 6 (P2) và mục 7 (thay đổi dữ liệu), rồi xin duyệt. Mẫu giao diện cho Kho và @ làm ở đầu P2.
+4. **Nhánh độ chính xác** (lộ trình mục 6, "Nhánh song song"): điều 0 (hợp BM25 với vector làm tụt hạng 1 trên văn bản thật) trước, vì nó quyết định chế độ mặc định; điều 3 (reranker nhiều luồng) sớm vì ảnh hưởng ngân sách 45 giây của P3.
+5. **Việc trước P3** (lộ trình mục 6, P3): câu bẫy chạm trần token; tín hiệu điểm tìm kiếm thấp cho lỗi phạm vi; tách câu bẫy train và test; chạy lại `bench/llm` (việc 2 ở trên); máy 16 GB; ≥ 100 câu hỏi thật.
+6. **Quyết định của chủ dự án:** mục 1.4.
 
 ## 7. Bản đồ tệp
 
-| Tệp | Là gì |
-|---|---|
-| `src/soiluat/answer.py` | Lõi trả lời: dựng ngữ cảnh, lời nhắc, khuôn JSON, gọi `llama-server`, cứu JSON, bộ kiểm số liệu |
-| `tests/test_answer.py`, `tests/test_bench_llm.py` | Test của lõi trả lời và cách lấy mẫu của bộ đo |
-| `bench/llm/run.py` | Bộ đo câu trả lời (ba phép, chỉ số, `--skip`) |
-| `bench/llm/bang.py` | Bảng báo cáo từ JSON thô |
-| `bench/llm/bang_chung.py` | Đo offline câu trích bằng chứng còn trong đoạn |
-| `bench/llm/KET-QUA.md` | Kết quả vòng 1, vòng 2, A/B, ba mô hình, việc tiếp theo, lệnh chạy lại |
-| `bench/llm/CHON-MO-HINH.md` | Chọn mô hình theo benchmark công khai; mục 7: lần tìm thêm 30/10/2026 |
-| `bench/llm/README.md` | Cách chạy, kể cả trên máy 16 GB |
-| `bench/van-ban-that/KET-QUA.md` | Mốc tìm kiếm trên văn bản thật (Normal/Advance) |
-| `docs/ke-hoach/lo-trinh-1.0.md` | Lộ trình 1.0; P0 trạng thái; P3 "Việc trước P3"; quyết định mở |
-| `docs/ke-hoach/ke-hoach-p1.md` | Kế hoạch triển khai P1 |
-| `mau/giao-dien-1.0.html` | Mẫu giao diện chờ duyệt. Dựng lại 31/10/2026 theo taste-skill (repo leonxlnx/taste-skill, `references/app-screens.md`). Script đo của skill bị chặn trong môi trường này nên kiểm bằng Playwright |
-| `.claude/skills/` | Kỹ năng rút ra trong P0 (đóng gói ngữ cảnh, khuôn JSON, kiểm số tiếng Việt, chạy llama.cpp) |
+Bản đồ tệp của repo và từ điển thuật ngữ nằm ở một nơi: `docs/README.md` (mục 4 và 5). Bảng riêng của tệp này đã bỏ để khỏi lệch.
