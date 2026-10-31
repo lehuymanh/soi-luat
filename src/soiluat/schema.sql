@@ -184,6 +184,26 @@ CREATE TABLE IF NOT EXISTS effect_hints(
   reviewed_at TEXT
 );
 
+-- Lịch sử trò chuyện (P1 H1). AUTOINCREMENT: id tin đã xoá không bị tái dùng, tab cũ không nhận nhầm tin mới.
+-- Không khoá ngoại tới units: nạp lại văn bản đổi id đơn vị, cascade sẽ xoá nhầm lịch sử.
+CREATE TABLE IF NOT EXISTS conversations(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  scope_json TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS messages(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK(role IN ('user','bot')),
+  text TEXT NOT NULL,
+  result_json TEXT,
+  answer_json TEXT,
+  created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_docs_so_hieu_search ON documents(so_hieu_search);
 CREATE INDEX IF NOT EXISTS idx_units_doc ON units(doc_id);
 CREATE INDEX IF NOT EXISTS idx_units_path ON units(doc_id, path);
@@ -197,6 +217,8 @@ CREATE INDEX IF NOT EXISTS idx_units_fine_source ON units(fine_source_unit);
 CREATE INDEX IF NOT EXISTS idx_regions_unit ON page_regions(unit_id);
 CREATE INDEX IF NOT EXISTS idx_qlog_unit ON query_log(selected_unit);
 CREATE INDEX IF NOT EXISTS idx_hints_unit ON effect_hints(source_unit_id);
+CREATE INDEX IF NOT EXISTS idx_conv_updated ON conversations(updated_at);
+CREATE INDEX IF NOT EXISTS idx_msg_conv ON messages(conversation_id, id);
 
 CREATE TRIGGER IF NOT EXISTS units_ai AFTER INSERT ON units BEGIN
   INSERT INTO units_fts(rowid, title_search, search_accent, search_text, context_search, context_accent)

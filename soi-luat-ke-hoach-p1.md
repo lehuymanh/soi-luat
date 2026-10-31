@@ -225,6 +225,7 @@ Một truy vấn `SELECT ... FROM units WHERE doc_id = ? ORDER BY id` (chỉ m�
 
 ### Nhóm 1c: cuộc trò chuyện
 #### H1. Lược đồ (0,25 ngày)
+- **Trạng thái: xong.** `conversations`, `messages` (AUTOINCREMENT, cascade khi xoá cuộc, chỉ mục `updated_at` và `(conversation_id, id)`) trong `schema.sql`. `tests/test_conversations.py::test_nang_cap_tu_0_8`: kho dựng từ `schema_08.sql` có một văn bản, một đơn vị, một dòng `query_log`; `init_schema` hai lần, dữ liệu cũ nguyên; id tin không tái dùng sau xoá; xoá cuộc xoá tin; truy vấn tin theo cuộc dùng chỉ mục.
 - `schema.sql`, toàn `CREATE TABLE IF NOT EXISTS` (chạy lại mỗi request vẫn an toàn, `db.py:49-64`):
   - `conversations(id INTEGER PRIMARY KEY AUTOINCREMENT, title NOT NULL, scope_json NOT NULL DEFAULT '[]', created_at, updated_at)` + chỉ mục `updated_at`.
   - `messages(id INTEGER PRIMARY KEY AUTOINCREMENT, conversation_id REFERENCES conversations ON DELETE CASCADE, role CHECK IN ('user','bot'), text, result_json, answer_json, created_at)` + chỉ mục `(conversation_id, id)`. `AUTOINCREMENT` để id tin đã xoá không bị tái dùng (`INTEGER PRIMARY KEY` thường nhận lại id lớn nhất đã xoá, nên tab cũ gọi `/c/{id}/m/{mid}` có thể nhận nhầm tin mới; cũng là điều kiện cho `citation_opens` ở nhánh chính xác). Không khoá ngoại tới `units` (nạp lại đổi id, cascade sẽ xoá nhầm). `answer_json` để P3 (lộ trình :252).
