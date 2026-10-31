@@ -242,6 +242,7 @@ Dựng lại để đo (Linux, CPU):
 9. **Kiểm nhanh môi trường:** `python -m pytest -q -rs` (`-rs` in lý do bỏ qua) ra dòng cuối `471 passed, 7 skipped` khi đã cài `.[dev,ocr,nghia]` (bước 2) và chưa đặt `SOILUAT_TESSDATA`. Số khác là do môi trường, không phải lỗi mã:
    - Chỉ cài `.[dev]`: 441 qua, 9 bỏ qua. So với bảy dòng dưới thì thêm ba: `tests/test_jobs.py` và `tests/test_semantic.py` bị bỏ cả tệp vì không có `numpy` (mỗi tệp tính một), `tests/test_a_ocr.py:89` vì không có `pytesseract`. Bớt một: dòng 7, vì cả `tests/test_semantic.py` đã bị bỏ.
    - Đặt `SOILUAT_TESSDATA` (bước 2): hai test OCR thật chạy, ra 473 qua, 5 bỏ qua.
+   - Cài thêm `pymupdf openpyxl` (dòng thứ ba của khối lệnh bước 2): hai test `fitz` chạy, nhưng `tests/test_e_gaps.py:103` lại bỏ qua vì máy Linux không có `arial.ttf`, nên ra 472 qua, 6 bỏ qua. Số 471/7 ở trên là khi chưa cài `pymupdf`.
    - Bảy test bị bỏ qua ở 471/7 (số dòng ở cây mã sau `30d68e8`):
      1. `tests/test_a_formats.py:165`: không có `win32com.client` (Word COM, chỉ có trên Windows).
      2. `tests/test_a_ocr.py:135`: "máy không có Tesseract + vie" (hết khi đặt `SOILUAT_TESSDATA`).

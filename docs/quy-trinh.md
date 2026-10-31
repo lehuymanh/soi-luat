@@ -274,7 +274,7 @@ Nghiên cứu web theo vài góc nhìn (dẫn URL đã mở), tổng hợp thàn
 | `briefAsks` | chuỗi | trống | Yêu cầu thêm cho bản brief |
 | `designRules` | chuỗi | taste-skill | Quy tắc thiết kế hay đường dẫn tới chúng |
 | `shoot` | chuỗi | `.claude/skills/html-mockup-visual-check/scripts/shoot.js` | Script chụp ảnh |
-| `reviewLenses` | mảng 2 phần tử | `taste`, `needs` | `{key, prompt}` thay cho hai góc soát |
+| `reviewLenses` | mảng từ 2 phần tử `{key, prompt}` | `taste`, `needs` | `{key, prompt}` thay cho hai góc soát |
 
 Trả về: `{brief, prototype, research[], build, issues[], fixed}`. Mẫu chỉ được vẽ cái kế hoạch sẽ xây; thứ chưa có ghi "ví dụ" hoặc "mới".
 
