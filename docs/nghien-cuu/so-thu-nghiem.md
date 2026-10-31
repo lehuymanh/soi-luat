@@ -1,6 +1,6 @@
 # Sổ thử nghiệm của Soi Luật (0.7 đến 0.9.0)
 
-Ghi đến commit `9780468` (31/10/2026), cho bản 0.9.0. Sổ này kể **đã thử gì, kết quả ra sao, vì sao giữ hay bỏ, và rút ra điều gì** để phiên sau không phải đo lại, không lặp lại thử nghiệm đã thất bại, và biết chỗ nào chưa đo.
+Ghi đến commit `a13af05` (31/10/2026), cho bản 0.9.0. Sổ này kể **đã thử gì, kết quả ra sao, vì sao giữ hay bỏ, và rút ra điều gì** để phiên sau không phải đo lại, không lặp lại thử nghiệm đã thất bại, và biết chỗ nào chưa đo.
 
 Người đọc chính: agent hoặc người làm tiếp lộ trình, đo lại tìm kiếm hay câu trả lời AI, hoặc đổi công nghệ.
 
@@ -68,15 +68,16 @@ Nguồn: `docs/ke-hoach/lo-trinh-1.0.md` mục 5, điều 7; `bench/gold/README.
 | `gold` | `bench/gold/KET-QUA.md` (và `bench/gold/README.md`) |
 | `vbt` | `bench/van-ban-that/KET-QUA.md` |
 | `llm` | `bench/llm/KET-QUA.md` |
-| `mh` | `bench/llm/CHON-MO-HINH.md` |
-| `csdl` | `bench/llm/CHON-CSDL.md` |
+| `mh` | `docs/nghien-cuu/chon-mo-hinh.md` |
+| `csdl` | `docs/nghien-cuu/chon-csdl.md` |
 | `demo` | `bench/BAO-CAO-DEMO.md` |
 | `stress` | `bench/stress10/KET-QUA.md` |
 | `kt` | `docs/kien-truc.md` |
+| `kt0` | `docs/kien-truc.md` bản trước commit `6f39851` (viết lại ở 0.9.0; đọc bằng `git show 6f39851^:docs/kien-truc.md`) |
 | `kh1` | `docs/ke-hoach/ke-hoach-p1.md` |
 | `lt` | `docs/ke-hoach/lo-trinh-1.0.md` |
 | `gn` | `docs/nghien-cuu/ghi-nho.md` |
-| `mau` | `mau/` (`giao-dien-1.0.html`, `khai-niem-du-an-do-thi.html`, `khai-niem-du-an-do-thi-dinh-huong.md`) |
+| `mau` | `mau/` (`giao-dien-1.0.html`, `khai-niem-du-an-do-thi.html`; bản định hướng `khai-niem-du-an-do-thi-dinh-huong.md` đã chuyển sang `docs/nghien-cuu/`) |
 
 Mã bảy ký tự hex (ví dụ `8197efd`) là commit trong lịch sử git của repo (`git show 8197efd`).
 
@@ -92,8 +93,8 @@ Ngày là năm 2026. Kết quả một dòng kèm bộ và n; chi tiết ở m�
 | TK-04 | 22/10 | Mô hình tĩnh potion có thay được mô hình theo ngữ cảnh không? | Hit@1 46,6% so với 58,9% của BM25 (Zalo test, n = 788) | bỏ | `zalo`, `8197efd` |
 | TK-05 | 23/10 | Thêm 20 Điều từ vector toàn kho có cứu ghi chú không chung chữ không? | Ghi chú tìm ra 0/6 lên 6/6 (5/6 sau ngưỡng); Hit@10 91,9% lên 92,5% (Zalo test, n = 788) | giữ (có ngưỡng) | `zalo`, `vbt`, `69f3734` |
 | TK-06 | 27/10 | Zalo test có rò rỉ train không, có tập thứ hai không? | 788/788 câu test nằm trong train gốc; dựng gold `vle` n = 500 | giữ (thành quy tắc 7) | `gold`, `3dd903c` |
-| TK-07 | 28/10 | AITeamVN cộng reranker có đạt Hit@1 90% không? | Hit@1 74,1% (Zalo test, n = 788) và 79,2% (gold, n = 500); không đạt 90% | giữ | `kt` 5.1, `45e58f0`, `2f133e5` |
-| TK-08 | 28–29/10 | Những thêm thắt nào cho Advance không đáng giữ? | Reranker top-10 hơn 0,5–1,8 điểm Hit@1 nhưng chậm gấp đôi; ba phương án khác không có số trong repo | bỏ | `kt` 5.3 |
+| TK-07 | 28/10 | AITeamVN cộng reranker có đạt Hit@1 90% không? | Hit@1 74,1% (Zalo test, n = 788) và 79,2% (gold, n = 500); không đạt 90% | giữ | `kt0` 5.1, `45e58f0`, `2f133e5` |
+| TK-08 | 28–29/10 | Những thêm thắt nào cho Advance không đáng giữ? | Reranker top-10 hơn 0,5–1,8 điểm Hit@1 nhưng chậm gấp đôi; ba phương án khác không có số trong repo | bỏ | `kt0` 5.3 |
 | TK-09 | 22/10 đến 30/10 | Advance có hơn Normal trên văn bản mới không? | Hit@1 rộng Normal 83,3% so với Advance 72,6% (văn bản thật, n = 84); ngược với Zalo và gold | giữ Normal làm mặc định (đề xuất, chốt còn mở) | `vbt`, `lt` mục 9, `7060f61` |
 | PS-01 | 21/10 | Bản 0.7 chịu được file bẩn và kho lớn không? | File bẩn nạp 12/18 lên 18/18; kho 1.762 văn bản p50 930 lên 88 ms (kho sinh tự động) | giữ (các sửa) | `demo`, `8197efd` |
 | PS-02 | 21/10 | File lệch cấu trúc có nạp và tìm được không? | 10/10 file nạp, 19/20 truy vấn đúng (stress10); sau TK-01: 20/20 | giữ (hồi quy) | `stress` |
@@ -187,7 +188,7 @@ Ngày là năm 2026. Kết quả một dòng kèm bộ và n; chi tiết ở m�
   | Hit@10 | 90,2 | 92,3 | 91,8 | 91,9 |
 
   Trong app (256 token), từng câu: 128 câu lên hạng, 110 câu xuống hạng; 33 câu vào top 5, 10 câu rơi khỏi top 5. Chi phí: nhúng 2,29 Điều/s (256 token) và 4,51 Điều/s (128 token) ở 2 luồng; Search App (60 câu) RAM đỉnh 78 MB lên 1300 MB, câu đầu 3,2 s lên 6,5 s, p50 1118 ms lên 1471 ms. Chốt ngày 22/10 (n = 788): MRR@10 0,709 (Normal) và 0,722 (Advance).
-- **Quyết định:** giữ lúc đó làm Advance (128 token, `semantic.MAXLEN = 128`). Sau đó **bỏ**: thay bằng AITeamVN (TK-07); `docs/kien-truc.md` mục 5.3 ghi EmbeddingGemma kém AITeamVN trên bộ đo.
+- **Quyết định:** giữ lúc đó làm Advance (128 token, `semantic.MAXLEN = 128`). Sau đó **bỏ**: thay bằng AITeamVN (TK-07); `kt0` mục 5.3 ghi EmbeddingGemma kém AITeamVN trên bộ đo.
 - **Vì sao chỉ là bước đệm:** mức tăng nhỏ (Hit@1 +1,3, Hit@10 +1,7 điểm), RAM đỉnh của Search App từ 78 MB lên 1300 MB, giấy phép Gemma không phải MIT hay Apache. **Bài học:** (1) số thử ngoài app (62,3% Hit@1) lạc quan hơn số đầu-cuối qua app (60,5%); luôn chốt bằng đo qua đường thật. (2) Mức tăng ròng che số câu tụt: 110 câu xuống hạng so với 128 câu lên; báo cả hai. (3) Cắt 128 token cho độ chính xác như 256 mà nhanh gấp đôi, nên thử cắt ngắn trước khi mua phần cứng. (4) Độ trễ câu đầu dao động mạnh theo cache ổ đĩa (4 lần đo Normal: 3,2 / 5,9 / 17,1 / 17,9 s); chỉ so độ trễ từ câu thứ hai.
 - **Nguồn:** `bench/zalo/KET-QUA.md` mục "Thử nghiệm EmbeddingGemma", "EmbeddingGemma trong app", "EmbeddingGemma cắt 128 token", "Chốt (22/10/2026...)"; commit `8197efd`.
 
@@ -207,7 +208,7 @@ Ngày là năm 2026. Kết quả một dòng kèm bộ và n; chi tiết ở m�
 - **Giả thuyết:** thêm 20 Điều gần nghĩa nhất toàn kho, chen sau, không xáo thứ tự BM25, sẽ cứu được ghi chú mà không làm tụt hạng đầu.
 - **Cách làm:** `semantic.DENSE_K = 20`. Zalo test (n = 788) trên kho nhúng đủ 61.361 Điều (3 giờ 22 phút, 4,3 Điều/s). Kho 21 văn bản thật cộng 6 ghi chú tự viết, mỗi ghi chú cùng chủ đề một văn bản thật; câu hỏi kiểm bằng máy là không trùng âm tiết nào với ghi chú (6 câu). Ngưỡng `DENSE_MIN` chọn từ cosine cao nhất toàn kho: 15 câu vô nghĩa 0,27–0,47; Điều đáp án của 784 câu thật có p5 / p10 / p50 = 0,51 / 0,54 / 0,65.
 - **Kết quả:** Zalo test (n = 788) Hit@10 91,9% lên 92,5%, Hit@1 / @3 / @5 không đổi; 6 câu tốt hơn, 6 câu kém hơn. Văn bản thật (n = 84, rộng) @5 / @10 96,4% lên 97,6%. Ghi chú tìm ra 0 trên 6 lên 6 trên 6 (hạng 7, 8, 8, 8, 15, 21); sau ngưỡng 0,50: 5 trên 6. Chi phí: thêm khoảng 65 MB RAM thường trực, đỉnh Search App 1304 MB lên 1370 MB; nạp ma trận 6,10 s (ổ đĩa chưa cache) hoặc 0,4 s.
-- **Quyết định:** giữ, có ngưỡng. Hằng số hiện hành (`DENSE_K`, `DENSE_MIN`) ghi ở `docs/kien-truc.md` mục 4.2, vì sau TK-07 chúng đổi.
+- **Quyết định:** giữ, có ngưỡng. Hằng số hiện hành (`DENSE_K`, `DENSE_MIN`) ghi ở `docs/kien-truc.md` mục 7.7, vì sau TK-07 chúng đổi.
 - **Vì sao bản đầu thất bại:** bản đầu tính chung hạng theo nghĩa cho cả hai nhóm làm xáo thứ tự top 20; Hit@1 rộng văn bản thật tụt 73,8% xuống 69,0% (n = 84). Đổi sang "chỉ thêm, không xáo" thì hết tụt. Không có ngưỡng thì câu vô nghĩa ("?", "qwzx plokm vbnrt") vẫn nhận đủ 20 thẻ không liên quan thay vì "Không tìm thấy".
 - **Bài học:** (1) Thay đổi chỉ-thêm an toàn hơn thay đổi xáo trộn thứ hạng. (2) Mọi ngưỡng cần một bộ câu âm tính (câu vô nghĩa) để đặt. (3) Ghi chú tự viết chỉ 6 câu là minh hoạ, không phải số đo thống kê.
 - **Nguồn:** `bench/zalo/KET-QUA.md` mục "Thêm 20 Điều từ vector toàn kho ở Advance"; `bench/van-ban-that/KET-QUA.md` mục "Ghi chú viết tự do và ứng viên từ vector"; commit `69f3734`, `8197efd`.
@@ -225,7 +226,7 @@ Ngày là năm 2026. Kết quả một dòng kèm bộ và n; chi tiết ở m�
 ### TK-07 · AITeamVN embedding và reranker (Advance hiện hành) (28–29/10/2026)
 
 - **Câu hỏi:** mô hình nhúng tiếng Việt chuyên dụng cộng reranker có đưa Hit@1 lên 90% như mục tiêu ban đầu không?
-- **Giả thuyết:** mục tiêu Hit@1 90% (ghi trong `docs/kien-truc.md` mục 5.1).
+- **Giả thuyết:** mục tiêu Hit@1 90% (ghi trong `kt0` mục 5.1; kết luận hiện hành ở `docs/kien-truc.md` mục 11.1).
 - **Cách làm:** `AITeamVN/Vietnamese_Embedding` (nền BGE-M3, ONNX int8, 1024 chiều, cắt 128 token) hợp BM25 và vector toàn kho bằng RRF (K = 5, W = 2), rồi `AITeamVN/Vietnamese_Reranker` top-5 (cross-encoder int8, 384 token). `DENSE_MIN` 0,40 chọn trên 1.200 câu chỉnh ngoài bộ đo. Đo qua app. Nghiệm thu: 300 câu ngẫu nhiên, nửa Zalo nửa gold, app tự nhúng lại cả 61.361 Điều, 2 luồng.
 - **Kết quả** (Hit@1 / @5 / @10; kho 61.425 Điều):
 
@@ -239,17 +240,17 @@ Ngày là năm 2026. Kết quả một dòng kèm bộ và n; chi tiết ở m�
   Nghiệm thu qua app (300 câu ngẫu nhiên nửa Zalo nửa gold): Hit@1 / @3 / @5 / @10 = 79,3 / 90,0 / 92,3 / 97,3%; nhãn "độ tin cậy cao" ở 61% số câu với Hit@1 94,0%; độ trễ p50 8,6 s, p95 9,6 s (câu đầu khi chưa nạp sẵn khoảng 31 s); RAM đỉnh khoảng 2,2 GB. Trần lý thuyết: khoảng 12,7% câu sai thật; tính cả Điều tương đương ở văn bản khác thì Hit@1 tối đa khoảng 86–87%.
 - **Quyết định:** giữ làm chế độ Advance. Mục tiêu Hit@1 90% **không đạt**. Chế độ mặc định của bản 1.0 là việc còn mở, xem TK-09.
 - **Vì sao giữ:** so với Normal, Hit@1 tăng 15,2 điểm (Zalo) và 28,2 điểm (gold). Reranker chỉ xếp lại top 5 nên Hit@5 và Hit@10 không đổi khi thêm nó (90,4 và 95,6 ở Zalo); mức tăng Hit@1 đến từ đây (Zalo 68,3 lên 74,1) và nó chiếm khoảng 5 s trong khoảng 9 s mỗi câu. **Bài học:** hai bộ cho cùng chiều nhưng phải đọc cùng TK-09: trên văn bản thật chiều ngược lại. Số độ trễ phải ghi cùng máy và số luồng.
-- **Nguồn:** `docs/kien-truc.md` mục 4.2, 5.1; commit `45e58f0`, `2f133e5`, `1e489f1`, `c743a08`.
+- **Nguồn:** `docs/kien-truc.md` mục 7.7 và 11.1 (hằng số và kết luận hiện hành); `kt0` mục 4.2, 5.1; commit `45e58f0`, `2f133e5`, `1e489f1`, `c743a08`.
 
 ### TK-08 · Phương án tìm đã đo và loại
 
 - **Câu hỏi:** những thêm thắt nào cho Advance không đáng giữ?
 - **Giả thuyết:** không ghi trước.
-- **Cách làm:** repo không ghi cách đo, chỉ ghi kết luận trong tài liệu kiến trúc.
-- **Kết quả (như ghi trong tài liệu kiến trúc):** reranker top-10 thay top-5: Hit@1 hơn 0,5–1,8 điểm nhưng chậm gấp đôi, nên giữ top-5. Phạt "hubness" và ưu tiên văn bản mới khi hoà điểm: không ổn định giữa hai bộ đo. Reranker gte và EmbeddingGemma-2: kém AITeamVN trên bộ đo. Fine-tune trên GPU thuê hoặc huấn luyện từ đầu: loại vì yêu cầu chạy offline và không thuê hạ tầng.
+- **Cách làm:** repo không ghi cách đo, chỉ ghi kết luận trong tài liệu kiến trúc bản trước `6f39851` (`kt0` mục 5.3).
+- **Kết quả (như ghi trong `kt0` mục 5.3):** reranker top-10 thay top-5: Hit@1 hơn 0,5–1,8 điểm nhưng chậm gấp đôi, nên giữ top-5. Phạt "hubness" và ưu tiên văn bản mới khi hoà điểm: không ổn định giữa hai bộ đo. Reranker gte và EmbeddingGemma-2: kém AITeamVN trên bộ đo. Fine-tune trên GPU thuê hoặc huấn luyện từ đầu: loại vì yêu cầu chạy offline và không thuê hạ tầng.
 - **Quyết định:** bỏ cả bốn (reranker top-10 là "hoãn" nếu ngân sách thời gian cho phép: lộ trình nhánh chính xác điều 3).
 - **Vì sao:** trừ top-10, nguồn không ghi số cho từng phương án; `grep` trong repo chỉ thấy các dòng này. **Bài học:** ghi số cùng với kết luận loại. Thiếu số thì lượt sau không biết loại vì chênh 0,5 điểm hay vì kém xa, và không biết có nên thử lại khi điều kiện đổi.
-- **Nguồn:** `docs/kien-truc.md` mục 5.3; `docs/ke-hoach/lo-trinh-1.0.md` mục 6 (nhánh song song, điều 3).
+- **Nguồn:** `kt0` mục 5.3 (bảng này không còn trong `docs/kien-truc.md`; số liệu duy nhất là các dòng ở mục này); `docs/ke-hoach/lo-trinh-1.0.md` mục 6 (nhánh song song, điều 3).
 
 ### TK-09 · Normal và Advance trên 21 văn bản thật (22/10, 23/10, 30/10/2026)
 
@@ -493,7 +494,7 @@ Chung cho cả nhóm: máy đo là máy ảo Linux 4 nhân (Xeon có AVX-512), 1
 - **Quyết định:** giữ.
 - **Vì sao giữ:** CJK về 0% ở mọi bộ, tốc độ không đổi, không cần gọi thêm mô hình.
 - **Bài học:** ràng buộc ở lúc sinh (grammar) tốt hơn lọc sau; đo ảnh hưởng tốc độ của ràng buộc. Bẫy: `maxLength` bị bỏ qua khi có `pattern`.
-- **Nguồn:** `bench/llm/KET-QUA.md` mục "Bảy việc đã làm", việc 4; `docs/nghien-cuu/ghi-nho.md` mục 5; commit `7aec13f`.
+- **Nguồn:** `bench/llm/KET-QUA.md` mục "Bảy việc đã làm", việc 4; `docs/quy-trinh.md` mục 11 (bẫy "llama.cpp bỏ qua `maxLength`"); commit `7aec13f`.
 
 ### LM-06 · Việc 5: nới bộ kiểm tham chiếu (30/10/2026)
 
@@ -534,7 +535,7 @@ Chung cho cả nhóm: máy đo là máy ảo Linux 4 nhân (Xeon có AVX-512), 1
 - **Câu hỏi:** sửa parser (N1a, N3) đổi chữ đưa vào mô hình thì chất lượng câu trả lời đổi thế nào?
 - **Giả thuyết:** không ghi trước; quy tắc đo lại khi mã liên quan đổi (kế hoạch P1, mục 2b) buộc phải đo.
 - **Cách làm đã lên kế hoạch:** hai nhánh cùng mã `bc9f9af` chạy từ một git worktree cố định, chỉ khác kho dữ liệu (bản trước và bản sau khi dựng lại bằng parser cuối); nhúng lại vector cho nhánh mới trước khi chạy; ba lệnh ở `bench/llm/README.md`; ước khoảng 7,5 giờ máy mỗi nhánh.
-- **Kết quả:** chưa đo. Ở commit `9780468`, `bench/llm/KET-QUA.md` vẫn là số P0 của `b17461f`; không thấy kết quả B1 trong repo.
+- **Kết quả:** chưa đo. Ở commit `a13af05`, `bench/llm/KET-QUA.md` vẫn là số P0 của `b17461f`; không thấy kết quả B1 trong repo.
 - **Quyết định:** hoãn. Chỉ chạy khi parser đã chốt (đã chốt sau N3) và máy rảnh.
 - **Vì sao hoãn:** tranh CPU làm sinh chữ chậm khoảng 10 lần (0,48 so với 5 token/giây) nên số đo hỏng; chạy trên parser chưa chốt thì phải chạy lại khoảng 15 giờ.
 - **Bài học:** không so thẳng với số P0 khi mã hoặc dữ liệu liên quan đã đổi; đo lại hai nhánh trước và sau trên cùng mã. Chạy từ worktree cố định để sửa mã không lọt vào lần đo.
@@ -560,7 +561,7 @@ Chung cho cả nhóm: nghiên cứu bằng đọc tài liệu tại nguồn (th�
   Vectara (tiếng Anh, giám khảo HHEM-2.3): họ Qwen3.5 có tỉ lệ ảo giác khoảng gấp đôi họ Qwen3 và Gemma 4 (qwen3-4b 5,7%; qwen3.5-27b 12,1%); các bản nhỏ của Qwen3.5 và Gemma 4 không có trên bảng. Bài RAG báo cáo ESG (tiếng Anh, 100 câu, giám khảo cũng là mô hình 4B): faithfulness gemma4:e4b 0,796, qwen3:4b-instruct 0,719. Đếm token: Qwen3 1,293 token mỗi âm tiết (Zalo), Qwen3.5 1,204, Gemma 4 1,251; chênh tối đa 7%.
 - **Quyết định:** chọn Qwen3-VL-4B-Instruct (GGUF Q4_K_M chính hãng, 2,33 GiB), dự phòng Gemma 4 E4B (QAT Q4_0). Bỏ Qwen3.5-4B (đề xuất cũ của lộ trình), Qwen3.5-9B và Vi-Qwen2-7B-RAG (quá chậm), Gemma 4 12B (Q4_0 nặng 7,65 GB, vượt trần), các mô hình 2B (yếu tiếng Việt).
 - **Vì sao:** ở chế độ dùng được trong 45 s (không suy nghĩ), Qwen3-VL-4B cao nhất nhóm ≤ 5B ở tiếng Việt, và hơn hẳn Gemma ở hai tác vụ gần việc của app nhất (QA trích đoạn 77,5 so với 44,7; NLI 50,0 so với 39,9). Tắt suy nghĩ làm Qwen3.5-4B tụt mạnh (VI 69,0 xuống 52,2; NLI 52,6 xuống 14,3). Rủi ro đã ghi: chưa có số bám ngữ cảnh đo trực tiếp cho đúng mô hình này; kiến thức tiếng Việt thấp (43,4); đôi khi chèn chữ Trung (đã thành LM-05). **Bài học:** (1) Chọn theo tác vụ gần nhất với ứng dụng (QA trích đoạn, NLI), không theo điểm tổng. (2) Điểm của hãng thường đo ở chế độ suy nghĩ; ngân sách 45 s buộc dùng chế độ không suy nghĩ, nên phải lấy số ở đúng chế độ. (3) Không có benchmark luật Việt nào cho ứng viên (VLegalBench, VMLU, VLSP chưa chấm các mô hình này): benchmark công khai chỉ chọn được danh sách rút gọn, quyết định cuối phải đo trên bộ riêng (LM-07, CN-03).
-- **Nguồn:** `bench/llm/CHON-MO-HINH.md` mục 2, 3, 5, 6; commit `bc540db`.
+- **Nguồn:** `docs/nghien-cuu/chon-mo-hinh.md` mục 2, 3, 5, 6; commit `bc540db`.
 
 ### CN-02 · Ngân sách 45 giây và tốc độ: ước tính, chưa đo trên máy 16 GB (29–30/10/2026)
 
@@ -569,8 +570,8 @@ Chung cho cả nhóm: nghiên cứu bằng đọc tài liệu tại nguồn (th�
 - **Cách làm:** ước tính, không đo. Đọc prompt bị giới hạn bởi tính toán (khoảng 38–40 GFLOPS hiệu dụng mỗi nhân, theo hai số đo công khai trên CPU AVX2, nhân thêm khoảng 1,4–1,5 nhờ sắp xếp lại trọng số và nhân theo khối); sinh chữ bị giới hạn bởi băng thông RAM (34–42 GB/s hiệu dụng cho DDR4-3200 hai kênh). Mỗi câu: 1.500 token prompt mới, 200 token ra, tìm 5 s.
 - **Kết quả (ước tính, Qwen3-VL-4B Q4_K_M, máy Ryzen 5 5600GT):** đọc prompt 30–70 token/giây (trung tâm 45), sinh 12–15 token/giây; tổng trung tâm 53 s, p95 bi quan 79 s, lạc quan 36 s; prompt tối đa để vừa 45 s ở mức trung tâm khoảng 1.150 token. Gemma 4 E4B: 57 s, 85 s, 39 s. Mô hình 2B vừa 45 s nhưng yếu. Đo thật duy nhất, trên máy ảo 4 nhân Xeon (không đại diện): đọc prompt khoảng 27 token/giây, sinh khoảng 5,2 token/giây, p50 của Qwen 49–57 s mỗi câu (LM-07). **Trên máy 16 GB Windows: chưa đo.**
 - **Quyết định:** hoãn đo; trần prompt giữ khoảng 1.000 token (ngân sách ngữ cảnh 2.400 ký tự, LM-02). Việc cần máy 16 GB: `llama-bench -m <gguf> -t 6 -p 1000,1500 -n 200 -r 5` với Office mở; công thức trần prompt cho p95: prompt tối đa = pp × (36 − 250 / tg); đo p50 và p95 trên từ 100 câu thật; đo RAM của `llama-server`; kiểm máy chạy RAM hai kênh (một kênh thì sinh chữ chậm gần một nửa).
-- **Vì sao chỉ ước tính:** môi trường soạn không có máy chuẩn; mọi số tốc độ trong `bench/llm/CHON-MO-HINH.md` mục 4 là ước tính. **Bài học:** (1) Không mô hình 4B nào chắc chắn vừa 45 s với prompt 1.500 token; ngân sách 45 s buộc cắt prompt. (2) Máy ảo dùng chung không dùng được cho cổng thời gian; chỉ dùng cho tỉ lệ chất lượng. (3) Mọi con số "ước tính" phải được đánh dấu để lượt sau không coi là đã đo.
-- **Nguồn:** `bench/llm/CHON-MO-HINH.md` mục 4, 5 ("Cần đo trên máy 16 GB"), 6; `bench/llm/KET-QUA.md` đoạn mở đầu và "Vòng 1" (tốc độ máy ảo); `bench/llm/README.md`.
+- **Vì sao chỉ ước tính:** môi trường soạn không có máy chuẩn; mọi số tốc độ trong `docs/nghien-cuu/chon-mo-hinh.md` mục 4 là ước tính. **Bài học:** (1) Không mô hình 4B nào chắc chắn vừa 45 s với prompt 1.500 token; ngân sách 45 s buộc cắt prompt. (2) Máy ảo dùng chung không dùng được cho cổng thời gian; chỉ dùng cho tỉ lệ chất lượng. (3) Mọi con số "ước tính" phải được đánh dấu để lượt sau không coi là đã đo.
+- **Nguồn:** `docs/nghien-cuu/chon-mo-hinh.md` mục 4, 5 ("Cần đo trên máy 16 GB"), 6; `bench/llm/KET-QUA.md` đoạn mở đầu và "Vòng 1" (tốc độ máy ảo); `bench/llm/README.md`.
 
 ### CN-03 · Ba mô hình cùng mã, cùng mẫu: Qwen, Gemma 4 E4B, Nemotron-3.5-Bolt-E4B (30/10/2026)
 
@@ -602,7 +603,7 @@ Chung cho cả nhóm: nghiên cứu bằng đọc tài liệu tại nguồn (th�
 - **Kết quả:** xếp hạng: (1) Nemotron-3.5-Bolt-E4B (Gemma 4 E4B huấn luyện thêm bằng RL; số của hãng, tiếng Anh: GaRAGe 40,73 so với Gemma 4 E4B 30,91 khi bật suy nghĩ); (2) LFM3-1.7B (giấy phép giới hạn doanh thu dưới 10 triệu USD; 1,7B khó đọc đúng phạm vi); (3) Granite 4.2 3B (tiếng Việt chưa thử); (4) Gemma-SEA-LION-v4-4B-VL (gốc cũ); (5) MiniCPM5-2B (chỉ en và zh). Đo Bolt: CN-03, kém Qwen và Gemma khi gộp; không thấy mức tăng GaRAGe; một phép thử RAG tiếng Hàn độc lập (299 câu, tắt suy nghĩ) cũng không thấy Bolt hơn Gemma 4 E4B (63,2% so với 65,2%).
 - **Quyết định:** không chọn Bolt. Kết luận của lần tìm: trong các mô hình mới tới 30/10/2026 vừa ràng buộc, không thấy mô hình nào có bằng chứng sửa lỗi này bằng tiếng Việt; hướng tiếp theo ở luồng xử lý (bước kiểm phạm vi riêng, tín hiệu điểm tìm kiếm thấp), không ở việc đổi mô hình cùng cỡ.
 - **Vì sao thất bại:** số bám ngữ cảnh do hãng công bố bằng tiếng Anh không chuyển sang tiếng Việt, và mức tăng GaRAGe là phụ phẩm (không có môi trường RL nhắm bám ngữ cảnh). **Bài học:** (1) Xếp hạng ứng viên theo đúng lỗi đang gặp, không theo điểm tổng. (2) Số của hãng, bằng ngôn ngữ khác, là giả thuyết, không phải bằng chứng; đo lại trên bộ của mình. (3) Ghi cả chỗ nguồn tự mâu thuẫn (giấy phép của Gemma-SEA-LION-v4.5-E2B ghi MIT ở trường `license` nhưng `license_link` trỏ giấy phép Gemma 4), để người quyết định tự đọc lại.
-- **Nguồn:** `bench/llm/CHON-MO-HINH.md` mục 7, 2; `docs/nghien-cuu/ghi-nho.md` mục 3.6; commit `0ed2ed6`.
+- **Nguồn:** `docs/nghien-cuu/chon-mo-hinh.md` mục 7, 2; `docs/nghien-cuu/ghi-nho.md` mục 3.6; commit `0ed2ed6`.
 
 ### CN-05 · Chọn kho dữ liệu cho phần truy hồi: giữ SQLite + FTS5 (29/10/2026)
 
@@ -612,7 +613,7 @@ Chung cho cả nhóm: nghiên cứu bằng đọc tài liệu tại nguồn (th�
 - **Kết quả:** phần phụ thuộc CSDL chỉ chiếm tối đa khoảng 1 s trong khoảng 9 s của một câu Advance (p50 8,6 s); reranker chiếm khoảng 5 s. Độ chính xác nằm ở thuật toán: BM25 trên cột không dấu Hit@10 77,7%, trên cột có dấu 84,9% (Zalo test, n = 788; TK-01). Lý do loại: Meilisearch bỏ dấu với chữ Latin và không thấy cách tắt; Typesense GPL-3.0 và Windows chỉ qua WSL; Weaviate không có bản Windows; Chroma có full-text chỉ để lọc, tìm kết hợp chỉ có trên Cloud; DuckDB lưu chỉ mục HNSW xuống đĩa còn thử nghiệm và không thấy phrase hay NEAR; LanceDB bỏ dấu mặc định và là kho thứ hai (thêm khoảng 110 MB); Qdrant thêm tiến trình và kho thứ hai (BM25 mới có từ 22/10/2026); Elasticsearch AGPL, SSPL; Kùzu đã archived 10/10/2025; FalkorDB SSPL; Memgraph, ArangoDB BSL; Neo4j GPL-3.0 và JVM.
 - **Quyết định:** giữ SQLite (WAL) + FTS5 làm kho duy nhất; vector giữ vét cạn bằng NumPy trong RAM (CN-06); quan hệ văn bản (P4) để trong bảng SQLite, đi đồ thị bằng CTE đệ quy; không dùng framework đồ thị tri thức (CN-07); sqlite-vec chưa dùng (bản ổn định chỉ quét toàn bộ, chậm hơn NumPy 6–7 lần, trước v1).
 - **Vì sao giữ:** không thêm byte vào bộ cài (SQLite có sẵn trong Python Windows), một file, một giao dịch, một cơ chế sao lưu; mọi ứng viên khác trái ràng buộc hoặc thêm kho thứ hai và buộc viết lại `search.py` mà không có lợi ích đo được. **Bài học:** (1) Hỏi "bước này chiếm bao nhiêu giây" trước khi đổi công nghệ: đổi CSDL không làm đúng hơn và chỉ bớt được một phần của khoảng 1 s. (2) Ràng buộc cứng (nền Windows không admin, giấy phép, offline) loại gần hết ứng viên trước khi so tính năng; xếp ràng buộc cứng lên trước. (3) Ghi "không thấy trong tài liệu (ngày)" thay vì suy ra "không hỗ trợ".
-- **Nguồn:** `bench/llm/CHON-CSDL.md` mục 2–4, 6; `docs/ke-hoach/lo-trinh-1.0.md` mục 4b; commit `2c2239a`.
+- **Nguồn:** `docs/nghien-cuu/chon-csdl.md` mục 2–4, 6; `docs/ke-hoach/lo-trinh-1.0.md` mục 4b; commit `2c2239a`.
 
 ### CN-06 · Đo tìm vector trong sandbox: NumPy, USearch, sqlite-vec (29/10/2026)
 
@@ -631,7 +632,7 @@ Chung cho cả nhóm: nghiên cứu bằng đọc tài liệu tại nguồn (th�
 
 - **Quyết định:** giữ NumPy f32 ở 61.000 vector; khi ma trận f32 vượt khoảng 500 MB (khoảng 125.000 vector) hoặc RAM đỉnh Advance trên máy chuẩn vượt 2,5 GB thì chuyển f16 trong RAM cộng USearch exact; i8 cộng chấm lại bằng f16 khi vượt khoảng 250.000 vector; HNSW chỉ khi bước tìm vector vượt khoảng 150 ms p95. Mỗi bước phải qua quy tắc 7.
 - **Vì sao:** mọi cách vét cạn trong RAM đều ≤ 0,2 s ở 250K vector, nhỏ hơn 2–3% của khoảng 9 s; RAM mới chặn (f32 ở 500K khoảng 1,95 GB, cộng hai mô hình thì vượt ngân sách 2–2,5 GB). sqlite-vec chậm hơn NumPy 6–7 lần. i8 thang ±127 mất 5–9% recall@50. **Chưa kiểm:** USearch trên Windows (wheel `numkong` chỉ 0,47 MB so với 10,1 MB bản Linux, có thể ít nhân SIMD hơn); vector thật AITeamVN (recall của HNSW và i8 trên vector thật chưa biết); máy chuẩn (L3 260 MiB làm số 61K lạc quan). **Bài học:** đặt ngưỡng kích hoạt cụ thể (500 MB, 150 ms) thay vì tối ưu sớm; vector tổng hợp chỉ cho so sánh tương đối.
-- **Nguồn:** `bench/llm/CHON-CSDL.md` mục 5, 6.2, 6.6, 8.
+- **Nguồn:** `docs/nghien-cuu/chon-csdl.md` mục 5, 6.2, 6.6, 8.
 
 ### CN-07 · Framework đồ thị tri thức dựng bằng LLM: không dùng (29/10/2026)
 
@@ -641,7 +642,7 @@ Chung cho cả nhóm: nghiên cứu bằng đọc tài liệu tại nguồn (th�
 - **Kết quả (ước tính, thời gian CPU chạy liên tục):** sàn cho mọi framework (chỉ đọc kho một lượt): 5,2 ngày; LlamaIndex `SimpleLLMPathExtractor` khoảng 10 ngày; Mem0 khoảng 17 ngày; Cognee khoảng 23 ngày; LightRAG khoảng 25 ngày; GraphRAG và HippoRAG 2 khoảng 33 ngày; Graphiti khoảng 175 ngày (có cache) đến 360 ngày (không cache). Khi hỏi, mỗi lệnh LLM thêm khoảng 5–25 s (ước tính), ngân sách 45 s đã gần chạm với một lệnh trả lời. Chính các framework khuyên mô hình lớn hơn: LightRAG ghi Qwen3-30B-A3B là mức tối thiểu khi chạy cục bộ; Graphiti và GraphRAG cảnh báo mô hình nhỏ trả sai schema. Không tìm thấy benchmark trích thực thể và quan hệ tiếng Việt nào cho Qwen3-VL-4B.
 - **Quyết định:** bỏ. Chỉ lấy ý tưởng: cạnh có hai trục thời gian và vô hiệu chứ không xoá (Graphiti), mỗi cạnh nhớ nguồn, backlinks và đồ thị cục bộ 1–2 bước bằng CTE đệ quy, cạnh "nội dung tương tự" từ vector có sẵn (ghi rõ không phải quan hệ pháp lý).
 - **Vì sao:** không khả thi trên máy 16 GB không GPU (sàn đã là 5 ngày CPU 100%); chất lượng chưa có bảo đảm; trái nguyên tắc "máy gợi ý, người quyết" và "không dùng LLM lập chỉ mục chạy nền" (lộ trình mục 5 và 10). Quan hệ cần cho P4 (căn cứ, hướng dẫn, sửa đổi, thay thế, bãi bỏ, dẫn chiếu) có câu chữ gần như cố định nên trích bằng quy tắc, chạy vài mili giây mỗi văn bản. **Bài học:** một phép nhân thô (token nhân tốc độ) đủ để loại cả một họ giải pháp, miễn là ghi rõ đó là ước tính và các giả định; chỉ lấy ý tưởng khi framework không hợp ràng buộc.
-- **Nguồn:** `bench/llm/CHON-CSDL.md` mục 4.4, 4.5, 6.5; `docs/ke-hoach/lo-trinh-1.0.md` mục 2 điều 9, mục 10.
+- **Nguồn:** `docs/nghien-cuu/chon-csdl.md` mục 4.4, 4.5, 6.5; `docs/ke-hoach/lo-trinh-1.0.md` mục 2 điều 9, mục 10.
 
 ## Nhóm HT: kết quả gọn, trình đọc, lịch sử trò chuyện (P1)
 
@@ -730,7 +731,7 @@ Chung cho cả nhóm: mã nằm ở `src/soiluat/` (`cards.py`, `answer.py`, `re
 - **Kết quả:** Playwright 25 trạng thái ở 1440/1100/768/390, sáng và tối: 0 lỗi console, 0 cuộn ngang, đúng một h1. Một lỗi bố cục đáng kể do soát đối chiếu tìm ra: mẫu vẽ mỗi điểm một hàng và lặp tên Điều, trong khi app thật gộp theo (văn bản, Điều); mẫu hứa một hình mà P1 không ra. Sau duyệt, mẫu chỉ được sửa dữ liệu minh hoạ và chữ cho khớp mã. Bẫy CSS: quy tắc `.scrim { display: grid }` đè thuộc tính `hidden`, luôn thêm `[hidden] { display: none !important; }`. Khi làm P1 thật, `bench/kiem_anh.js` chụp lại: 12/12 ở G0 và R2a, 24/24 ở K2 (4 truy vấn).
 - **Quyết định:** giữ; chủ dự án duyệt ngày 31/10/2026 (lộ trình mục 9 điều 9). Mẫu P1 gỡ chặn mã P1.
 - **Vì sao giữ:** vẽ đúng thứ mã làm được, kể cả trạng thái lỗi và rỗng (ref hỏng, chưa lưu được lịch sử, tệp gốc mất, kho trống, nâng cấp dữ liệu). **Bài học:** (1) Mẫu phải khớp mã: nếu mẫu hứa một bố cục mà bộ gộp của app không tạo ra thì người duyệt duyệt một thứ không tồn tại. (2) Kiểm giao diện bằng ảnh ở nhiều cỡ, sáng và tối, từng trạng thái, rồi mở từng ảnh mà xem; không kiểm bằng đọc mã. (3) Không chạy script tải từ ngoài để lách bộ chặn.
-- **Nguồn:** commit `ad6e8e2`, `9e5cf35`, `c6b5fef`; `docs/nghien-cuu/ghi-nho.md` mục 5 ("Giao diện: kiểm bằng ảnh"); `docs/ke-hoach/lo-trinh-1.0.md` mục 9 điều 9.
+- **Nguồn:** commit `ad6e8e2`, `9e5cf35`, `c6b5fef`; `docs/quy-trinh.md` mục 11 (bẫy giao diện, "Kiểm giao diện bằng đọc mã"); `docs/ke-hoach/lo-trinh-1.0.md` mục 9 điều 9.
 
 ### GD-03 · Bản mẫu khái niệm: dự án, sổ rủi ro, trình đọc có Liên quan và đồ thị (31/10/2026, chưa duyệt)
 
@@ -741,7 +742,7 @@ Chung cho cả nhóm: mã nằm ở `src/soiluat/` (`cards.py`, `answer.py`, `re
 - **Quyết định:** hoãn: chưa duyệt, không thay mẫu P1 đã duyệt. Nhãn giai đoạn (P1, P2, P3, P4, MỚI) trên bản bấm thử để chủ dự án thấy phần nào đã có.
 - **Vì sao hoãn:** chờ chủ dự án duyệt hướng; thiếu dữ liệu thật để kiểm (đồ thị chủ yếu là văn bản chưa có trong kho, chưa có tệp rủi ro thật, chưa có số liệu dùng sơ đồ).
 - **Bài học:** nghiên cứu nhiều góc hội tụ vào vài quyết định ít ngờ (đồ thị cục bộ, danh sách trước sơ đồ) và chỉ ra rõ cái chưa kiểm được; ý tưởng "mới" của chủ dự án (dự án, sổ rủi ro) phải ghi là MỚI để không lẫn với lộ trình đã duyệt.
-- **Nguồn:** `mau/khai-niem-du-an-do-thi-dinh-huong.md` mục 0, 2, 14, 15; `mau/khai-niem-du-an-do-thi.html`; commit `5226a73`.
+- **Nguồn:** `docs/nghien-cuu/khai-niem-du-an-do-thi-dinh-huong.md` mục 0, 2, 14, 15; `mau/khai-niem-du-an-do-thi.html`; commit `5226a73`.
 
 ## Nhóm SO: các đợt soát độc lập
 
@@ -792,7 +793,14 @@ Giả thuyết chung của cả nhóm: người viết không tự thấy hết 
 
 ### SO-08 · Soát toàn repo cho v0.9.0 (ponytail-audit) (31/10/2026)
 
-- **Phạm vi và kết quả:** năm lỗi "Phải sửa" ở `50b3622`, rồi đợt dọn ở `9780468`. Năm lỗi đầu: **C1** bản quét có dòng "Số:" hỏng bị gán số hiệu của văn bản được dẫn trong "Căn cứ" (cùng gốc với lỗi 7 của PS-03: lấy số đầu tiên khớp); nay trả `None` để người duyệt điền; **C2** Word xuất thẻ máy dựng lại ("Hạng 2 · Điều 49", "có thể bị xử phạt theo", thiếu khoản 2–4 của Điều được tick) thay vì nguyên văn đơn vị đã tick; **C3** bộ lọc loại, cơ quan, hiệu lực áp sau khi cắt top-100 nên ẩn kết quả có thật ("thời hạn" kèm Thông tư: 4 kết quả thay vì 63 trên kho 21 văn bản; nay lọc trong truy vấn); **SEC-1** Word COM mở `.doc` và `.rtf` với `AutomationSecurity` mặc định (chạy macro; nay `ForceDisable`; chưa chạy với Word thật vì máy Linux); **F2** `/review` dựng 50 MB HTML và `/review/docs` 39 MB trên kho Zalo (nay phân trang: 0,08 MB và 0,14 MB trên 5.927 liên kết chờ). Đợt dọn: cookie CSRF không phân biệt cổng nên hai bản app (8000, 8001) ghi đè token của nhau (nay `soiluat_csrf_<cổng>`; chạy thật hai tiến trình); POST có `Origin` khác bị chặn trước khi đọc thân; nạp file giữ khoá ghi khi truy vấn FTS gợi ý liên kết; nhúng vector lỗi làm chết luồng nền và chip "Nhúng" quay mãi; nạp lại cùng đường dẫn xoá gợi ý hiệu lực đã duyệt; tệp tạm sao lưu trùng tên giữa hai lần gọi; tải `.docx` nén dạng bom (đo trên mã cũ: 20.000 đoạn rỗng, file 36 KB, mất 10,4 s, không bị từ chối; nay có trần 64 MiB và 300.000 đoạn); mã chết (route `/review/pages`, `templates/jobs.html`) bị xoá. Tổng số test sau đợt: 443 qua và 7 bỏ qua, rồi 471 qua và 7 bỏ qua.
+- **Phạm vi và kết quả:** năm lỗi "Phải sửa" ở `50b3622`, rồi đợt dọn ở `9780468`.
+  - **C1** bản quét có dòng "Số:" hỏng bị gán số hiệu của văn bản được dẫn trong "Căn cứ" (cùng gốc với lỗi 7 của PS-03: lấy số đầu tiên khớp); nay trả `None` để người duyệt điền.
+  - **C2** Word xuất thẻ máy dựng lại ("Hạng 2 · Điều 49", "có thể bị xử phạt theo", thiếu khoản 2–4 của Điều được tick) thay vì nguyên văn đơn vị đã tick.
+  - **C3** bộ lọc loại, cơ quan, hiệu lực áp sau khi cắt top-100 nên ẩn kết quả có thật ("thời hạn" kèm Thông tư: 4 kết quả thay vì 63 trên kho 21 văn bản; nay lọc trong truy vấn).
+  - **SEC-1** Word COM mở `.doc` và `.rtf` với `AutomationSecurity` mặc định (chạy macro; nay `ForceDisable`; chưa chạy với Word thật vì máy Linux).
+  - **F2** `/review` dựng 50 MB HTML và `/review/docs` 39 MB trên kho Zalo (nay phân trang: 0,08 MB và 0,14 MB trên 5.927 liên kết chờ).
+  - **Đợt dọn:** cookie CSRF không phân biệt cổng nên hai bản app (8000, 8001) ghi đè token của nhau (nay `soiluat_csrf_<cổng>`; chạy thật hai tiến trình); POST có `Origin` khác bị chặn trước khi đọc thân; nạp file giữ khoá ghi khi truy vấn FTS gợi ý liên kết; nhúng vector lỗi làm chết luồng nền và chip "Nhúng" quay mãi; nạp lại cùng đường dẫn xoá gợi ý hiệu lực đã duyệt; tệp tạm sao lưu trùng tên giữa hai lần gọi; tải `.docx` nén dạng bom (đo trên mã cũ: 20.000 đoạn rỗng, file 36 KB, mất 10,4 s, không bị từ chối; nay có trần 64 MiB và 300.000 đoạn); mã chết (route `/review/pages`, `templates/jobs.html`) bị xoá.
+  - Số test sau đợt: [`ghi-nho.md`](ghi-nho.md) mục 1.1.
 - **Hoãn (cần chủ quyết định):** C8 (số hiệu sửa tay bền qua nạp lại: cần đánh dấu trường đã sửa tay, đã xếp ở P2); phần còn lại của F10 (bản sao `ImportError` ở các tệp khác).
 - **Bài học:** soát theo từng tính năng ở các đợt trước bỏ sót lỗi cắt ngang nhiều tính năng (CSRF theo cổng, bộ lọc sau cắt, khoá ghi dùng chung); soát toàn repo cuối cùng bắt được chúng. Lỗi nghiệp vụ nặng nhất (C1, C2, C3) đều là chức năng "chạy được, ra kết quả trông hợp lý, nhưng sai".
 - **Nguồn:** commit `50b3622`, `9780468`.
@@ -842,11 +850,11 @@ Rút ra từ nhiều thí nghiệm; mỗi bài học ghi ID để tra ví dụ. 
 16. **Soát độc lập: tìm, bác bỏ, test hỏng trên mã cũ, rồi sửa.** Mỗi đợt tìm một lớp lỗi khác (bảng cuối nhóm SO). Soát từng tính năng bỏ sót lỗi cắt ngang, soát toàn repo cuối mới bắt (SO-08); bản sửa có thể gây hồi quy nên đo lại (SO-02); số trong báo cáo phải có người khác tính lại từ JSON thô (LM-07). Skill `review-findings-fix-loop`.
 17. **Nghiên cứu công nghệ:** ràng buộc cứng (nền Windows không admin, giấy phép, offline) loại trước khi so tính năng (CN-05); đọc tại nguồn kèm ngày; phân biệt số của hãng với số độc lập; số tiếng Anh không chuyển sang tiếng Việt (CN-04); chọn theo tác vụ gần việc của app nhất, không theo điểm tổng (CN-01).
 18. **Ghi cả số của phương án bị loại.** Loại mà không ghi số thì lượt sau không biết loại vì chênh 0,5 điểm hay vì kém xa (TK-08).
-19. **Phiên làm việc có thể bị thu hồi.** Commit sớm, script chạy dài tự bỏ qua phần đã xong (`docs/nghien-cuu/ghi-nho.md` mục 5).
+19. **Phiên làm việc có thể bị thu hồi.** Commit sớm, script chạy dài tự bỏ qua phần đã xong (`docs/quy-trinh.md` mục 11, bẫy "Container khởi động lại").
 
 ## Câu hỏi còn mở
 
-Mỗi dòng nêu ai giữ câu hỏi và nơi ghi chi tiết. Tất cả còn mở theo các tài liệu nguồn ở commit `9780468`.
+Mỗi dòng nêu ai giữ câu hỏi và nơi ghi chi tiết. Tất cả còn mở theo các tài liệu nguồn ở commit `a13af05`.
 
 | # | Câu hỏi | Giữ ở | Việc kế tiếp |
 |---|---|---|---|
@@ -858,7 +866,7 @@ Mỗi dòng nêu ai giữ câu hỏi và nơi ghi chi tiết. Tất cả còn m�
 | 6 | Điều dài bị nhúng chỉ 128 token đầu nên tụt hạng (TK-09) | Nhánh độ chính xác, điều 2 | Thử nhúng theo khoản rồi lấy điểm cao nhất cho Điều, hoặc `MAXLEN` 256 hoặc 512 |
 | 7 | Thử nghiệm C (mô hình ghi chép để tìm tốt hơn) và D (Qwen đọc ảnh trang đầu để gợi ý số hiệu, ngày) | Chủ dự án duyệt 31/10/2026, chưa chạy; `docs/ke-hoach/lo-trinh-1.0.md` mục 6, 9 | C qua quy tắc 7; D đo trước trên 12 trường đang sai của 21 văn bản thật |
 | 8 | Số hiệu viết tay hoặc nằm trong ô chữ ký số (5/21 số hiệu và 7/21 ngày ban hành ở lần đo 23/10, chưa đo lại sau N3; PS-03) | P2 | Hàng chờ người điền kèm ảnh trang |
-| 9 | Bản mẫu khái niệm (dự án, sổ rủi ro, đồ thị) chưa duyệt: khách có bao nhiêu dự án, tệp rủi ro thật trông thế nào, đồ thị trên kho thật (GD-03) | Chủ dự án; `mau/khai-niem-du-an-do-thi-dinh-huong.md` mục 14, 15 | Duyệt hoặc đổi hướng; lấy tệp rủi ro thật |
+| 9 | Bản mẫu khái niệm (dự án, sổ rủi ro, đồ thị) chưa duyệt: khách có bao nhiêu dự án, tệp rủi ro thật trông thế nào, đồ thị trên kho thật (GD-03) | Chủ dự án (`docs/ke-hoach/lo-trinh-1.0.md` mục 9, điều 14); `docs/nghien-cuu/khai-niem-du-an-do-thi-dinh-huong.md` mục 14, 15 | Duyệt hoặc đổi hướng; lấy tệp rủi ro thật |
 | 10 | Chỉnh `SURE_GAP` và bảng `citation_opens` (HT-05) | Nhánh độ chính xác, điều 4 | Làm khi Advance có thể thành mặc định và có người dùng thật |
 | 11 | Số hiệu sửa tay bền qua nạp lại (C8) và phần còn lại của F10 (SO-08) | P2 (đánh dấu trường đã sửa tay) | Quyết cùng cách đánh dấu của P2 |
 | 12 | Giới hạn chung của số đo: gold `vle` chưa có giấy phép; AITeamVN không công bố dữ liệu huấn luyện nên Zalo và gold có thể lẫn (TK-06); mẫu LLM chỉ 15–30 câu mỗi bộ (khoảng tin cậy ±18–25 điểm) | Mọi lượt đo | Dùng bộ văn phòng (mục 4) và cỡ mẫu từ 100 câu |

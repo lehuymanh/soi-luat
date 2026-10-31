@@ -28,7 +28,7 @@ Bản đầu tiên của lộ trình 1.0 (`docs/ke-hoach/lo-trinh-1.0.md`, giai 
 | Zalo test, 788 câu (theo mục) | 61,0% | 86,4% | theo thẻ 0.8: 58,6% / 86,3% |
 | Gold, 500 câu (theo mục) | 52,6% | 77,4% | theo thẻ 0.8: 51,2% / 77,0% |
 
-Mở trình đọc trên kho Zalo (3.271 văn bản): p95 27 ms phía máy chủ. Điều tách được trên 21 văn bản thật: 345/344 (0.8: 322).
+Mở trình đọc trên kho Zalo (3.271 văn bản): p95 27 ms phía máy chủ. Điều tách được trên 21 văn bản thật, đo trên máy Linux của phiên soạn: 345/344 (0.8, cùng máy: 322). Mốc P0 trên Windows là 341/344; hai máy lệch vì bộ chữ `vie` của Tesseract khác nhau (`docs/nghien-cuu/ghi-nho.md` mục 4, bước 5).
 
 ### Cài đặt và nâng cấp
 

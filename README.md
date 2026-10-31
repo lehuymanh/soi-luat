@@ -88,6 +88,12 @@ Mặc định `./data`. Đổi: `set SOILUAT_DATA=C:\Users\...\SoiLuat`
 
 ## Lệnh
 
+Mở app từ mã nguồn (cổng mặc định đổi bằng `--port`):
+
+```text
+python -m soiluat
+```
+
 Khám sức khoẻ kho (có cột Q2 “phạt tiền từ” và dòng `_TONG`):
 
 ```text
@@ -134,7 +140,7 @@ pytest
 
 Cài đặt → **Sao lưu SQLite**, hoặc `POST /backup` ghi `data/backup/soiluat.db`. Hoặc copy cả thư mục data khi app đã tắt.
 
-## Đóng gói (tuần 8)
+## Đóng gói
 
 Máy có Python (máy build):
 

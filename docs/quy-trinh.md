@@ -23,7 +23,7 @@ Viết 31/10/2026, cho bản 0.9.0. Người đọc: agent hoặc người sắp
 |---|---|---|
 | Luật ngắn, tự nạp vào mọi phiên và agent | [`CLAUDE.md`](../CLAUDE.md) | Con trỏ và luật cứng |
 | Tài liệu này | `docs/quy-trinh.md` | Cách làm, cổng đo, bẫy |
-| 22 skill của dự án | [`.claude/skills/`](../.claude/skills/) | Mỗi skill ép một thói quen đã từng bị bỏ quên (mục 7) |
+| 23 skill của dự án | [`.claude/skills/`](../.claude/skills/) | Mỗi skill ép một thói quen đã từng bị bỏ quên (mục 7) |
 | 4 workflow có tham số | [`.claude/workflows/`](../.claude/workflows/) | Cách giao việc cho nhiều agent (mục 6) |
 | Bộ đo và cổng | [`bench/`](../bench/) | Tìm kiếm, parser, trình đọc, giao diện, câu trả lời AI |
 
@@ -118,7 +118,7 @@ Mỗi agent bắt đầu với ngữ cảnh trống: nó đọc lại `CLAUDE.md
 | Cần xem một hướng giao diện trước khi lập kế hoạch | **Workflow** `ui-prototype-research` | Nghiên cứu song song, rồi một đường dựng và soát |
 | Việc mà một lệnh cho kết quả chắc chắn (đếm, grep, diff) | **Tự làm**, không dùng agent | Agent chỉ thêm chỗ sai |
 
-Giới hạn chi phí: mỗi workflow dưới khoảng 10 agent (mỗi script tự kiểm và dừng nếu vượt, xem mục 6). Máy 4 nhân: chỉ cho 2 agent nặng chạy song song, và không chạy bộ đo cùng lúc với máy chủ mô hình (tranh CPU làm sinh chữ chậm khoảng 10 lần, `ghi-nho.md` mục 5). Tăng số góc nhìn khi việc quan trọng (trước phát hành); giảm khi kiểm nhanh.
+Giới hạn chi phí: mỗi workflow dưới khoảng 10 agent (mỗi script tự kiểm và dừng nếu vượt, xem mục 6). Máy 4 nhân: chỉ cho 2 agent nặng chạy song song, và không chạy bộ đo cùng lúc với máy chủ mô hình (tranh CPU làm sinh chữ chậm khoảng 10 lần, bảng bẫy ở mục 11). Tăng số góc nhìn khi việc quan trọng (trước phát hành); giảm khi kiểm nhanh.
 
 **Trước khi chạy workflow**
 
@@ -246,6 +246,7 @@ Skill của dự án nằm ở [`.claude/skills/<tên>/SKILL.md`](../.claude/ski
 | `pdf-page-render-serving` | Dựng trang PDF thành ảnh trong route FastAPI | Mọi lệnh pdfium (mở, dựng, đóng) sau một khoá toàn tiến trình, đặt trong module duy nhất import pdfium; test gọi song song phải hỏng khi chưa có khoá |
 | `plan-doc-line-reference-edits` | Sửa kế hoạch mà tài liệu khác trích theo số dòng | Sửa tại chỗ, giữ số dòng; trạng thái vào dòng có sẵn; kiểm `wc -l` trước commit; kiểm các dòng được trích |
 | `plan-progress-html-report` | Báo tiến độ kế hoạch cho người dùng | Trả trang HTML: giai đoạn hiện tại, việc xong kèm số đo, việc còn lại và quyết định cần chủ dự án; mọi số lấy từ kế hoạch và commit; trang phải dựng được |
+| `query-reference-parsing` | Truy vấn trích số hiệu, ngày, Điều hay khoản | Ngày không phải tiền tố số hiệu; đệm số trước khi so (`2/2021/TT-BTC` khớp `02/2021/TT-BTC`); chuẩn hoá NFC và so không phân biệt hoa thường; `khoản`, `điểm` chỉ thu hẹp đến mức thẻ cho phép, còn lại báo cả Điều kèm chú thích `shortcut:`; mỗi luật một test hỏng trên mã cũ |
 | `release-version-sync` | Nâng phiên bản hoặc gắn tag | Số phiên bản khớp ở mọi nơi trong một commit; chủ dự án phải xác nhận số; hỏi nếu số thấp hơn số app đang báo; installer Windows chỉ dựng bằng `pack/build.ps1` trên Windows; không tự merge |
 | `review-findings-fix-loop` | Sửa phát hiện của đợt soát | Phân loại trước; mỗi phát hiện một test hỏng trên mã cũ rồi mới sửa; sửa gốc ở mã dùng chung; chạy toàn bộ test; một commit liệt kê từng phát hiện |
 | `sqlite-table-rebuild` | Dựng lại bảng SQLite hoặc nâng cấp dữ liệu người dùng | Một giao dịch, `ROLLBACK` khi lỗi; liệt kê hàng người dùng đã duyệt và khẳng định còn nguyên; test lỗi giữa chừng; `PRAGMA foreign_key_check`; đo giờ trên bản sao kho thật |
@@ -273,10 +274,10 @@ Mọi đường dẫn `/tmp/claude-0/...` dưới đây là của phiên soạn 
 
 | Kho | Vị trí ở phiên soạn | Là gì | Dựng lại |
 |---|---|---|---|
-| Văn bản thật | `/tmp/claude-0/work/realdocs` (`data/soiluat.db`, `queries.json` 84 câu, `files/`) | 21 văn bản 2026, 344 Điều thật | `bench/van-ban-that/import_real.py` (cần Tesseract có `vie`) |
-| Zalo | `/tmp/claude-0/work/zalo-sau` (parser sau N1a), `zalo-data` (parser cũ) | khoảng 3,3 nghìn văn bản, 1,4 đến 1,6 GB | `bench/zalo/build_db.py` |
+| Văn bản thật | `/tmp/claude-0/work/realdocs` (`data/soiluat.db`, `queries.json`, `files/`) | Bộ văn bản thật (số liệu: [`so-thu-nghiem.md`](nghien-cuu/so-thu-nghiem.md), mục "Bộ dữ liệu") | `bench/van-ban-that/import_real.py` (cần Tesseract có `vie`) |
+| Zalo | `/tmp/claude-0/work/zalo-sau` (parser sau N1a), `zalo-data` (parser cũ) | Kho Zalo, 1,4 đến 1,6 GB mỗi bản | `bench/zalo/build_db.py` |
 | Zalo, câu hỏi | `/tmp/claude-0/work/zalo-q` | câu hỏi và qrels | như trên |
-| Gold `vle` | `/tmp/claude-0/work/gold_vle` | 500 câu, **không giấy phép** | `bench/gold/build_vle.py`, chỉ trên máy |
+| Gold `vle` | `/tmp/claude-0/work/gold_vle` | **Không giấy phép**, không có chỗ lưu bền (dựng lại cần mạng) | `bench/gold/build_vle.py`, chỉ trên máy |
 | Kho nhỏ để kiểm ảnh | tự dựng từ `tests/fixtures` | vài văn bản | lệnh ở đầu `bench/kiem_anh.js` |
 
 **Đĩa.** Lúc viết, ổ `/` đầy 96% và chỉ còn 1,7 GB trống: không chép nổi một bản kho Zalo cùng lúc với việc khác. Chạy `df -h /` trước mỗi lần chép kho; giữ trống ít nhất 1 GB; xoá bản sao và bản sao lưu (`db.backup_db` ghi cạnh kho) ngay khi số đo đã được ghi lại. Bản sao cũ từng làm ổ đầy tới 99% giữa một lượt chạy. Dọn nốt: JSON kết quả gắn thẻ của lượt thử, `__pycache__`, thư mục scratch của agent đã xong.
@@ -285,7 +286,7 @@ Mọi đường dẫn `/tmp/claude-0/...` dưới đây là của phiên soạn 
 
 **Cây mã dùng chung.** Nhiều agent cùng làm trên một cây: chỉ đụng tệp mà việc của bạn nêu tên; `git add` đúng các tệp đó (không `git add -A`, không `git stash`, không `git checkout .`); gặp `index.lock` thì đợi vài giây rồi thử lại.
 
-**Gold không vào repo.** `.gitignore` chặn `bench/zalo/ket_qua_gold*.json`. Commit chỉ kết quả suy ra (bảng, tỉ lệ) và không bao giờ câu hỏi (`bench/gold/README.md`). Trước `git add` chạy `git status --short` và đọc tên từng tệp.
+**Gold không vào repo.** Lý do và luật commit: [`bench/gold/README.md`](../bench/gold/README.md). Trước `git add` chạy `git status --short` và đọc tên từng tệp.
 
 ## 9. Commit và PR
 
@@ -321,7 +322,7 @@ Theo skill `release-version-sync`; kế hoạch P1 có thêm các việc Z0, Z1 
 
 ## 11. Bẫy đã gặp
 
-Gộp từ [`ghi-nho.md` mục 5](nghien-cuu/ghi-nho.md), từ các skill, và từ phiên làm bản 0.9.0. Đủ để lượt sau khỏi trả giá lần nữa.
+Gộp từ các skill và từ các phiên làm bản 0.9.0; bảng bẫy cũ ở `ghi-nho.md` mục 5 đã nhập vào đây, mục đó chỉ còn liên kết. Đủ để lượt sau khỏi trả giá lần nữa.
 
 **Tiến trình và máy**
 
@@ -331,6 +332,7 @@ Gộp từ [`ghi-nho.md` mục 5](nghien-cuu/ghi-nho.md), từ các skill, và t
 | Chép bản sao kho cũ mà không xoá | Ổ đầy tới 99% giữa lượt chạy; lúc viết chỉ còn 1,7 GB trống | `df -h /` trước khi chép; trống từ 1 GB; xoá bản sao ngay khi đã ghi số |
 | Container khởi động lại giữa chừng (hai lần trong P0) | Mọi tiến trình nền chết | Commit và push sớm; job dài ghi `EXIT=0` từng phần và bỏ qua phần đã xong |
 | Hai job nặng cùng lúc trên máy 4 nhân | Sinh chữ chậm khoảng 10 lần; client time out và mọi yêu cầu xếp hàng sau cũng time out | Chạy một job nặng mỗi lúc; workflow chỉ 2 agent nặng song song; lượt có `TimeoutError` thì bỏ, không báo số |
+| Giao diện báo agent con "Stalled" | Chưa rõ nguyên nhân. Lượt tài liệu 31/10/2026 (`wf_4986fa64-530`): `journal.jsonl` không có chữ Stalled, và các agent đã xong đều có dòng `result` kèm commit | Đừng kết luận lỗi và đừng chạy lại ngay (sẽ trùng commit): đọc `journal.jsonl` (mục 5, sau khi chạy workflow, bước 3) và `git log`. Giữ mỗi lệnh ngắn, chia việc viết dài thành vài lượt ghi. Chưa có bằng chứng về nguyên nhân: đừng biến phỏng đoán thành luật |
 | Lệnh nền chờ quá 10 phút ở foreground | Bị cắt ở 600 giây, đầu ra chỉ còn thông báo | `run_in_background: true` từ đầu cho mọi lần chờ dài |
 | `$(grep -c ... \|\| echo 0)` | Ra hai số 0, điều kiện chờ không bao giờ đúng, chạy lặng lẽ tới hết giờ | `n=$(grep -c ... log); n=${n:-0}` |
 | Máy chủ mô hình khởi động bằng lệnh nền có hạn 2 giờ | Hết giờ thì mọi lời gọi sau `Connection refused` và bị chấm sai | `setsid nohup ... & disown`; bỏ lượt chạy đã hỏng và chạy lại |
@@ -350,6 +352,7 @@ Gộp từ [`ghi-nho.md` mục 5](nghien-cuu/ghi-nho.md), từ các skill, và t
 | Gọi lỗi mô hình khi lỗi nằm ở bộ đo | Kết luận sai về mô hình | Đếm trước lỗi của chính bộ đo: đầu ra bị cắt ở trần token, ngữ cảnh mất dòng bằng chứng |
 | Lời nhắc có ví dụ kiểu "không phải 5.000.000 đồng" | Mô hình chép ví dụ vào câu thường, bộ kiểm bỏ | Ví dụ trong lời nhắc dùng số khó trùng |
 | Số hiệu như `QH15`, tên tệp, mã đoạn `[1]`, nhãn khoản `1.` | "Bảo lãnh" cho số bịa | Bộ kiểm tách chúng thành nhãn; thêm luật mới thì thêm test cho đúng loại này |
+| Hàm dự phòng im lặng khi dữ liệu hỏng | Dòng "Số:" hỏng của bản quét lấy nhầm số hiệu của văn bản được dẫn trong "Căn cứ" (C1, `50b3622`) | Trả `None` để người điền, không đoán (bài học 8 ở sổ thí nghiệm) |
 
 **Git và cộng tác**
 
@@ -394,7 +397,8 @@ Gộp từ [`ghi-nho.md` mục 5](nghien-cuu/ghi-nho.md), từ các skill, và t
 - Mọi số kèm nhãn: bộ dữ liệu, tập chia, n. Số quan trọng kèm mã commit.
 - **Một nguồn cho mỗi sự thật.** Tài liệu này không chép số đo hay kết luận; nó trỏ tới nơi giữ chúng. Muốn đổi một sự thật thì sửa ở nơi sở hữu nó.
 - Đường dẫn trong tài liệu phải kiểm bằng `ls` và `grep -n` trước khi commit, ghi từ gốc repo (skill `handoff-memo`).
-- `docs/ke-hoach/lo-trinh-1.0.md` và `docs/ke-hoach/ke-hoach-p1.md` bị tài liệu khác trích theo số dòng: sửa tại chỗ, giữ số dòng (skill `plan-doc-line-reference-edits`).
+- Một đoạn hay một dòng trong bảng không dài quá khoảng 1.200 ký tự; dài hơn thì chia thành gạch đầu dòng. Ngoại lệ: hai tệp kế hoạch dưới đây chỉ rút gọn tại chỗ, không chia dòng, vì số dòng của chúng bị trích.
+- `docs/ke-hoach/lo-trinh-1.0.md` bị `docs/ke-hoach/ke-hoach-p1.md` trích theo số dòng (`:486`, `:497`), và `ke-hoach-p1.md` bị sổ thí nghiệm trích một chỗ ("mục 1 dòng 4"): sửa cả hai tại chỗ, giữ số dòng (skill `plan-doc-line-reference-edits`).
 
 **Thêm skill.** Sai sót thì gọi `/autoharness:learn` trong chính lượt đó. Skill nằm ở `.claude/skills/<tên>/SKILL.md` (đầu tệp có `name`, `description` bắt đầu bằng "Use when ...", `category`). `.gitignore` bỏ qua `.ledger.jsonl`, `.sidecar.json` và `references/evidence-*.md`. Thêm skill thì thêm một dòng vào bảng ở mục 7.
 

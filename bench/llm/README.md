@@ -5,7 +5,7 @@ trong các bộ đo tìm kiếm, nên không cần người chấm pháp lý. M�
 (dựng ngữ cảnh, lời nhắc, JSON schema, kiểm nguồn và số liệu). Đổi lời nhắc, khuôn hay cách dựng ngữ cảnh thì chạy lại
 bộ này (lộ trình mục 5, điều 7).
 
-Chọn mô hình: [CHON-MO-HINH.md](CHON-MO-HINH.md). Kết quả đo: [KET-QUA.md](KET-QUA.md).
+Chọn mô hình: [chon-mo-hinh.md](../../docs/nghien-cuu/chon-mo-hinh.md). Kết quả đo: [KET-QUA.md](KET-QUA.md).
 
 ## Ba phép đo
 
@@ -29,7 +29,7 @@ Advance), **JSON hợp lệ ≥ 99%**, **dẫn đúng ≥ 80%**, **từ chối �
    `llama-b<số>-bin-win-cpu-x64.zip`), giải nén. Cần `llama-server.exe` và `llama-bench.exe`.
 2. **Mô hình:** `Qwen3VL-4B-Instruct-Q4_K_M.gguf` (2,33 GiB) từ Hugging Face `Qwen/Qwen3-VL-4B-Instruct-GGUF`.
    Không cần tệp `mmproj` (chạy như mô hình chữ). Dự phòng: Gemma 4 E4B, bản GGUF QAT Q4_0 của Google.
-3. **Tốc độ thô** (Office và trình duyệt đang mở, như `CHON-MO-HINH.md` mục 5):
+3. **Tốc độ thô** (Office và trình duyệt đang mở, như `docs/nghien-cuu/chon-mo-hinh.md` mục 5):
 
    ```text
    llama-bench -m Qwen3VL-4B-Instruct-Q4_K_M.gguf -t 6 -p 1000,1500 -n 200 -r 5

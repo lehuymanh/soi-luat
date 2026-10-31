@@ -48,7 +48,7 @@ Số đo kèm bộ và n; chi tiết, cách đo và lý do giữ hay bỏ ở s�
 | Việc | Kết quả đáng nhớ | Chỗ tra |
 |---|---|---|
 | Đóng P0 | Mẫu giao diện dựng lại theo taste-skill, chủ dự án duyệt; kế hoạch P1 lập và tối ưu còn 21,5 ngày; lộ trình ghi ba đề xuất B, C, D được duyệt | sổ GD-02; `docs/ke-hoach/ke-hoach-p1.md` mục 0 |
-| Parser: điểm nhiều dòng (N1a), B1 + B2 + B3 và gộp Phụ lục (N3), giữ gợi ý hiệu lực khi dựng lại (N1c), nâng cấp dữ liệu một lần `PARSE_REV = "2"` (N1b) | Điều tách được 322 lên 345/344 (21 văn bản thật); nâng cấp 21 văn bản thật 5,6 s, kho Zalo 1.760/3.271 văn bản dựng lại 467 s | sổ PS-06 đến PS-10 |
+| Parser: điểm nhiều dòng (N1a), B1 + B2 + B3 và gộp Phụ lục (N3), giữ gợi ý hiệu lực khi dựng lại (N1c), nâng cấp dữ liệu một lần `PARSE_REV = "2"` (N1b) | Điều tách được 322 lên 345/344 (21 văn bản thật, máy Linux; mốc Windows 341/344, lệch vì bộ chữ `vie`: mục 4, bước 5); nâng cấp 21 văn bản thật 5,6 s, kho Zalo 1.760/3.271 văn bản dựng lại 467 s | sổ PS-06 đến PS-10 |
 | Trình đọc `/doc` và tab Bản gốc (R1 đến R3) | p95 27 ms phía máy chủ (bản sao kho Zalo, 101 văn bản) | sổ HT-03 |
 | Kết quả gọn (K1 đến K3) | khoảng 40 thẻ mỗi câu (39,8 mục trước khi cắt, văn bản thật n = 84) xuống 5 mục hiện sẵn; Hit@1 theo thẻ lên theo mục: Zalo test (n = 788) 58,6% lên 61,0%, gold (n = 500) 51,2% lên 52,6% | sổ HT-01, HT-02 |
 | Lịch sử trò chuyện (H1 đến H4, H6), thanh bên, hộp thoại và toast | mở lại cuộc 10 câu: dựng đủ trung vị 2,41 s, sau "Xem lại" 713 ms | sổ HT-04 |
@@ -57,14 +57,15 @@ Số đo kèm bộ và n; chi tiết, cách đo và lý do giữ hay bỏ ở s�
 | Đợt dọn mã cuối (`9780468`, `a13af05`): S1, S2, S4, S6, S7, F1, F7, SEC-2, SEC-3, SEC-5, SEC-6, C4, C5, C6/F5 (một phần), C7, C10, F3, F4, bỏ mã chết | Cổng quy tắc 7 giữ nguyên: văn bản thật (n = 84, rộng @1/@3/@5/@10) 86,9 / 94,0 / 97,6 / 98,8%, giống mốc; Zalo test (n = 788, theo mục) Hit@1 61,2%, Hit@5 86,5% (mốc 61,0 / 86,4); gold (n = 500, theo mục) 52,4 / 77,4% (mốc 52,6 / 77,4), khác một câu do thứ tự ngẫu nhiên giữa các bản trùng chữ, không do mã | message của `a13af05`, `9780468` |
 | Phát hành | Số 0.9.0 ở mọi nơi (`eb7df1d`), tài liệu 0.9 (`af7404f`), `CHANGELOG.md` nháp (`7b41b3b`) | `docs/quy-trinh.md` mục 10 |
 | Harness và tài liệu | Skill của dự án vào repo (`818efdb`); tài liệu gom về `docs/` (`fdad4d3`); sổ thí nghiệm (`51feedc`); quy trình và 4 workflow (`796e7f2`); `docs/README.md`, `bench/README.md` và bản bàn giao này | `docs/quy-trinh.md` |
-| Bản mẫu khái niệm: dự án, ghi chú rủi ro, đồ thị | Chưa duyệt | sổ GD-03; `mau/khai-niem-du-an-do-thi-dinh-huong.md` |
+| Bản mẫu khái niệm: dự án, ghi chú rủi ro, đồ thị | Chưa duyệt | sổ GD-03; `docs/nghien-cuu/khai-niem-du-an-do-thi-dinh-huong.md` |
 
 ### 1.4 Quyết định còn mở
 
 Chỉ liệt kê chỗ ghi; không chép nội dung. Bản gom từng câu hỏi kèm việc kế tiếp: `docs/nghien-cuu/so-thu-nghiem.md`, mục "Câu hỏi còn mở".
 
-- `docs/ke-hoach/lo-trinh-1.0.md` mục 9, phần "Còn mở": điều 1 (người thử, nhân lực), 2 (máy 8 GB), 3 (≥ 100 câu hỏi thật), 4 (gói AI), 5 (chứng thư ký số), 6 (ai duyệt hiệu lực), 7 (đồ thị toàn kho), 8 (chế độ tìm mặc định), 10 (cách tính cổng P0 cho câu trả lời AI). Điều 9, 11, 12, 13 đã trả lời.
+- `docs/ke-hoach/lo-trinh-1.0.md` mục 9, phần "Còn mở": điều 1 (người thử, nhân lực), 2 (máy 8 GB), 3 (≥ 100 câu hỏi thật), 4 (gói AI), 5 (chứng thư ký số), 6 (ai duyệt hiệu lực), 7 (đồ thị toàn kho), 8 (chế độ tìm mặc định), 10 (cách tính cổng P0 cho câu trả lời AI), 14 (ý tưởng dự án, ghi chú rủi ro, đồ thị). Điều 9, 11, 12, 13 đã trả lời.
 - `docs/ke-hoach/ke-hoach-p1.md` mục 1: hỏi (a) dời ghi lượt mở trích dẫn sang nhánh chính xác, hỏi (b) máy quét có xuất TIFF, BMP không, và tên người thử. Chưa có trả lời thì làm theo mặc định ghi ở đó.
+- Ý tưởng của chủ dự án ngày 31/10/2026, chưa duyệt và chưa có trong lộ trình: dự án (nhóm văn bản), ghi chú rủi ro, sổ rủi ro, đồ thị. Ba tên này nghĩa khác nhau, định nghĩa ở `docs/README.md` mục 5. Ghi ở lộ trình mục 9 điều 14, sổ GD-03 và "Câu hỏi còn mở" số 9, và bản định hướng `docs/nghien-cuu/khai-niem-du-an-do-thi-dinh-huong.md` mục 14 (năm câu mở). Việc đầu tiên nếu duyệt: lấy một tệp rủi ro thật của khách đã che thông tin.
 - Hoãn từ đợt soát: C8 (số hiệu sửa tay phải bền qua nạp lại) và phần còn lại của F10; cả hai đi cùng việc "đánh dấu trường đã sửa tay" của P2 (lộ trình mục 7).
 - Đã được chủ dự án duyệt (31/10/2026) nhưng chưa chạy: thử nghiệm C (mô hình ghi chép để tìm tốt hơn) và D (Qwen đọc ảnh trang đầu để gợi ý số hiệu, ngày); việc B (lưu toạ độ chữ) đã đưa lên P2 (lộ trình mục 6 và 9).
 
@@ -88,7 +89,7 @@ Mục 2.1 đến 2.4 là kết luận của P0 (30 và 31/10/2026). Kết luận
 
 ### 2.2 Trả lời bằng LLM
 
-- Mô hình chính **Qwen3-VL-4B-Instruct Q4_K_M** (lý do chọn: `CHON-MO-HINH.md`). Vòng 1 → vòng 2 trên tập test (Zalo / gold / văn bản thật): dẫn đúng Điều 66,7 / 70 / 46,7% → **83,3 / 75 / 86,7%**; khẳng định như đủ căn cứ khi đã bỏ Điều đúng 66,7 / 65 / 33,3% → **26,7 / 40 / 13,3%**; JSON dùng được 87,5 / 92,5 / 96,7% → 100%; chữ Trung 3,8 / 10 / 0% → 0%. Mức tăng chắc chắn (vượt nhiễu): dẫn đúng ở Zalo và văn bản thật, khẳng định sai ở Zalo. Gold chỉ +1 câu.
+- Mô hình chính **Qwen3-VL-4B-Instruct Q4_K_M** (lý do chọn: `chon-mo-hinh.md`). Vòng 1 → vòng 2 trên tập test (Zalo / gold / văn bản thật): dẫn đúng Điều 66,7 / 70 / 46,7% → **83,3 / 75 / 86,7%**; khẳng định như đủ căn cứ khi đã bỏ Điều đúng 66,7 / 65 / 33,3% → **26,7 / 40 / 13,3%**; JSON dùng được 87,5 / 92,5 / 96,7% → 100%; chữ Trung 3,8 / 10 / 0% → 0%. Mức tăng chắc chắn (vượt nhiễu): dẫn đúng ở Zalo và văn bản thật, khẳng định sai ở Zalo. Gold chỉ +1 câu.
 - **Cổng P0 chưa đạt trọn**: dẫn đúng ≥ 80% đạt 2/3 bộ; JSON và từ chối đạt hay không tùy cách tính (lộ trình mục 9, điều 10).
 - **Ba mô hình, cùng mã, cùng mẫu** (gộp 65 câu): dẫn đúng Qwen 53, Gemma 4 E4B 48, Nemotron-3.5-Bolt-E4B 44; khẳng định sai 18 / 19 / 24. **Chưa vượt nhiễu** (McNemar ghép cặp: Qwen–Gemma p = 0,30, Qwen–Bolt p = 0,06). Giữ Qwen vì nhanh hơn ~20–27% và tệp 2,5 GB so với ~5,2 GB.
 - **Đổi mô hình cùng cỡ không sửa được lỗi phạm vi** (khái quát quy định của trường hợp hẹp cho câu hỏi chung, ví dụ mức phạt chỉ áp dụng tại đường ngang dùng cho mọi chỗ vượt đèn đỏ). Cả ba mô hình khẳng định sai ở 28–37% khi gộp. Hướng tiếp theo ở luồng xử lý (lộ trình, "Việc trước P3").
@@ -176,7 +177,7 @@ Cách lần ra nguyên nhân dòng đáp án bị mất (dùng lại được): 
 
 ### 3.6 Tìm mô hình
 
-Tiêu chí (từ `CHON-MO-HINH.md` mục 1): mở trọng số, giấy phép cho dùng thương mại ngoại tuyến, GGUF chạy llama.cpp trên CPU, RAM mô hình ~4 GB (trần 6 GB), tắt chế độ suy nghĩ, kịp 45 giây p95 kể cả phần tìm. Cách làm lần 30/10/2026: bốn hướng tìm song song (mô hình nhỏ mới của các hãng; bản tinh chỉnh tiếng Việt/Đông Nam Á; bảng xếp hạng bám ngữ cảnh, tiếng Việt, làm theo chỉ dẫn; hỗ trợ llama.cpp), một bước xếp hạng theo đúng lỗi đang gặp, hai tác tử kiểm chứng ngược tại nguồn (thẻ mô hình, giấy phép, tệp GGUF, llama.cpp). Rồi đo ứng viên trên đúng bộ đo, cùng mã, không chỉnh riêng. Bài học: số bám ngữ cảnh do hãng công bố bằng tiếng Anh (Bolt: GaRAGe +9,8 điểm) không chuyển sang tiếng Việt.
+Tiêu chí (từ `chon-mo-hinh.md` mục 1): mở trọng số, giấy phép cho dùng thương mại ngoại tuyến, GGUF chạy llama.cpp trên CPU, RAM mô hình ~4 GB (trần 6 GB), tắt chế độ suy nghĩ, kịp 45 giây p95 kể cả phần tìm. Cách làm lần 30/10/2026: bốn hướng tìm song song (mô hình nhỏ mới của các hãng; bản tinh chỉnh tiếng Việt/Đông Nam Á; bảng xếp hạng bám ngữ cảnh, tiếng Việt, làm theo chỉ dẫn; hỗ trợ llama.cpp), một bước xếp hạng theo đúng lỗi đang gặp, hai tác tử kiểm chứng ngược tại nguồn (thẻ mô hình, giấy phép, tệp GGUF, llama.cpp). Rồi đo ứng viên trên đúng bộ đo, cùng mã, không chỉnh riêng. Bài học: số bám ngữ cảnh do hãng công bố bằng tiếng Anh (Bolt: GaRAGe +9,8 điểm) không chuyển sang tiếng Việt.
 
 ### 3.7 Đo tìm kiếm và parser (quy tắc 7)
 
@@ -186,7 +187,7 @@ Lệnh của từng cổng, tiêu chí qua và cách ghi số: `docs/quy-trinh.m
 - Sửa không nhằm đổi thứ hạng (dọn mã, tăng tốc) thì cổng là "Hit@1 và Hit@5 không thấp hơn trước"; sửa nhằm cải thiện thì phải tốt hơn trên cả Zalo lẫn gold và không tụt trên văn bản thật. Chênh nhỏ mà theo chữ thấp hơn thì cần ngoại lệ có tên (sổ PS-06, HT-02).
 - Một câu đổi hạng sau khi dựng lại kho: dựng **biến thể A** (mã mới, các văn bản đổi chữ giữ chữ của parser cũ) để biết do mã tìm kiếm hay do parser. Thứ tự giữa các bản trùng chữ là ngẫu nhiên (id đơn vị lớn hơn thì lên trước), nên một câu tụt từ hạng 1 xuống 2 giữa các bản trùng không phải hồi quy (đợt `a13af05`, bộ gold).
 - Không so p50 của hai lượt chạy khác `--only` hoặc khác bản sao: lượt `hien_tai_muc` riêng tính cả thời gian tìm, còn số của K3 chỉ là phần gom mục.
-- `bench/parse_khac.py <data>` cho biết kho đã lưu có cần nâng cấp không: 0 văn bản đổi thì không cần tăng `PARSE_REV`; khác 0 thì tăng và chạy cổng quy tắc 7 (`docs/kien-truc.md` mục 3).
+- `bench/parse_khac.py <data>` cho biết kho đã lưu có cần nâng cấp không: 0 văn bản đổi thì không cần tăng `PARSE_REV`; khác 0 thì tăng và chạy cổng quy tắc 7 (`docs/kien-truc.md` mục 6.5).
 
 ---
 
@@ -207,7 +208,7 @@ Dựng lại để đo (Linux, CPU):
 6. **Mô hình sinh (Hugging Face, tải bằng `huggingface_hub`):** `Qwen/Qwen3-VL-4B-Instruct-GGUF` tệp `Qwen3VL-4B-Instruct-Q4_K_M.gguf`; `google/gemma-4-E4B-it-qat-q4_0-gguf` tệp `gemma-4-E4B_q4_0-it.gguf`; `bartowski/NVIDIA-Nemotron-3.5-Bolt-E4B-GGUF` tệp `NVIDIA-Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf`.
 7. **Máy chủ:** `python -m llama_cpp.server --model <gguf> --n_ctx 4096 --n_threads 4 --host 127.0.0.1 --port 8080`; đợi `/v1/models` trả lời (`curl --noproxy '*'`). Khởi động bằng `setsid nohup ... &` để sống qua giới hạn 2 giờ của lệnh nền; lưu PID, dừng bằng `kill <PID>`.
 8. **Chấm:** ba lệnh ở `bench/llm/KET-QUA.md`, mục "Chạy lại"; lệnh B1 (hai nhánh từ worktree cố định) ở `docs/ke-hoach/ke-hoach-p1.md`, Phụ lục B. Trên máy 16 GB (Windows, `llama-server`): `bench/llm/README.md`.
-9. **Kiểm nhanh môi trường:** `python -m pytest -q` ra 471 qua và 7 bỏ qua (nhiều test bị bỏ qua hơn nghĩa là thiếu Tesseract, Word COM hay mô hình thật, không phải lỗi mã).
+9. **Kiểm nhanh môi trường:** `python -m pytest -q` ra đúng số qua và bỏ qua ở mục 1.1 (nhiều test bị bỏ qua hơn nghĩa là thiếu Tesseract, Word COM hay mô hình thật, không phải lỗi mã).
 
 Thời lượng trên máy ảo 4 nhân: Qwen ~50 đến 60 giây mỗi lần gọi, Gemma và Bolt ~65 đến 80 giây; ba bộ test = 150 lần gọi. Một vòng B1 hai nhánh ước ~15 giờ máy.
 
@@ -215,26 +216,7 @@ Thời lượng trên máy ảo 4 nhân: Qwen ~50 đến 60 giây mỗi lần g�
 
 ## 5. Bẫy đã gặp
 
-Bảng đầy đủ, có cột hậu quả và cách tránh: `docs/quy-trinh.md` mục 11. Mục này giữ các bẫy mà tài liệu khác dẫn tới, và bẫy mới nhất ở cuối.
-
-- **Container khởi động lại giữa chừng** (hai lần trong P0): mọi tiến trình nền chết. Commit và push sớm; viết script chạy dài có **tự bỏ qua phần đã xong** (ghi `EXIT=0` từng phần vào tệp trạng thái, như bộ chạy vòng 2).
-- **Tranh CPU**: máy 4 nhân; chạy ONNX (Advance) hay một job nặng cùng lúc với máy chủ mô hình làm sinh chữ chậm ~10 lần (0,48 so với 5 token/s). Thời gian chỉ so được khi chạy một mình. Workflow chỉ chạy song song 2 tác tử trên máy này.
-- **`pkill -f <mẫu>` giết luôn shell đang gõ** nếu dòng lệnh chứa mẫu đó (exit 144). Lấy PID bằng `pgrep -f "[l]lama_cpp.server"` (mẹo dấu ngoặc) rồi `kill`.
-- **Heredoc không có dấu nháy** (`<<EOF`) chạy lệnh trong dấu backtick: chữ `` `dan` `` trong nội dung bị xoá. Dùng `<<'EOF'` khi viết tài liệu bằng shell.
-- **`random.sample` đổi thuật toán theo cỡ mẫu**: tiền tố của `sample(qs, a+b)` không chắc bằng `sample(qs, a)`. Muốn phần chỉnh tách khỏi phần chấm thì loại đúng tập chấm rồi lấy mẫu từ phần còn lại (`pick_sample`).
-- **llama.cpp bỏ qua `maxLength` khi chuỗi có `pattern`**: trần độ dài phải ghi trong pattern (`{0,n}`).
-- **Gemma 4 qua `llama-server`**: issue llama.cpp #30256, khuôn JSON qua `response_format` vẫn cho kênh suy nghĩ khi tắt suy nghĩ. llama-cpp-python tự dịch schema nên không vướng; trên máy 16 GB nếu gặp thì truyền grammar GBNF.
-- **Đọc tệp kết quả lúc `run.py` đang ghi** cho số sai (một lần đọc được 29 thay vì 30 câu `dan`). Đọc sau khi có dòng trạng thái kết thúc.
-- **Mẫu lời nhắc ghi ví dụ "không phải 5.000.000 đồng"**: mô hình chép ví dụ vào câu thường, bộ kiểm bỏ. Ví dụ trong lời nhắc nên dùng số khó trùng.
-- **Giao diện: kiểm bằng ảnh, không bằng đọc mã.** Script đo của taste-skill là mã tải về nên bị bộ phân loại quyền chặn; đừng lách. Dùng Playwright có sẵn (`require('playwright')`, Chromium ở `/opt/pw-browsers`) chụp 1440/1100/768/390, sáng và tối, từng trạng thái (mở trình đọc, lọc hết, kho trống…), đo cuộn ngang và số h1, rồi mở từng ảnh mà chấm theo `references/app-screens.md`. Một quy tắc lớp như `.scrim { display: grid }` đè thuộc tính `hidden`; luôn thêm `[hidden] { display: none !important; }`.
-- **Số hiệu như `QH15`, tên tệp, mã đoạn `[1]`, nhãn khoản `1.`** từng "bảo lãnh" cho số bịa. Bộ kiểm hiện tách chúng thành nhãn; thêm luật mới thì thêm test cho đúng loại này (`.claude/skills/vietnamese-legal-number-check`).
-- **Bẫy mới của phiên 31/10/2026** (hậu quả và cách tránh đầy đủ ở `docs/quy-trinh.md` mục 11):
-  - **Không truyền `--tag` cho `bench/zalo/eval.py`:** ghi đè `bench/zalo/ket_qua_test.json` đang được commit. JSON gắn thẻ không nằm trong `.gitignore`: xoá của lượt thử trước `git add`.
-  - **`bench/van-ban-that/eval_real.py` ghi vào kho** (`search_mode`) và `eval_normal.json` cạnh kho: mỗi bản dựng một bản sao `<realdocs>` riêng.
-  - **Đĩa đầy:** từng còn 1,7 GB trống, lúc viết tệp này còn 3,2 GB (ổ `/` 92%); bản sao cũ từng đẩy ổ lên 99% giữa một lượt chạy. Xoá bản sao ngay khi đã ghi số.
-  - **Nhiều agent trên một cây:** `git add` từng tệp, không `git add -A`, `git stash` hay `git checkout .`; gặp `index.lock` thì đợi vài giây. Một agent viết lại kế hoạch lúc bạn làm một bước thì đọc lại mục kế hoạch (`git diff -- <kế hoạch>`) trước khi commit.
-  - **Trailer ghi công của agent con sai:** agent con không thấy lời nhắc ghi công; truyền qua `args.trailer`, chép nguyên văn từ lời nhắc của phiên.
-  - **Hàm dự phòng im lặng:** dòng "Số:" hỏng của bản quét lấy nhầm số hiệu của văn bản được dẫn trong "Căn cứ" (C1, `50b3622`); thà trả `None` để người điền (bài học 8 ở sổ thí nghiệm).
+Một bảng duy nhất, có cột hậu quả và cách tránh: [`docs/quy-trinh.md`](../quy-trinh.md) mục 11 (tiến trình và máy, đo, git và cộng tác, giao diện, môi trường). Không chép lại ở đây.
 
 ---
 
@@ -243,7 +225,7 @@ Bảng đầy đủ, có cột hậu quả và cách tránh: `docs/quy-trinh.md`
 Theo thứ tự nên làm. Kế hoạch chi tiết của từng việc nằm ở tài liệu được dẫn, không ở đây.
 
 1. **Đóng 0.9.0** (cần Windows và người): Z0, Z1, cổng người dùng (`docs/ke-hoach/ke-hoach-p1.md`), rồi tag và ghi chú phát hành (`docs/quy-trinh.md` mục 10, skill `release-version-sync`). Số phiên bản 0.9.0 đã được chủ dự án chốt (`eb7df1d`).
-2. **B1** (máy, nền): chạy lại `bench/llm` hai nhánh trước và sau sửa parser; kết quả là mốc cho "Việc trước P3" và cổng P3. Một job nặng mỗi lúc (mục 5).
+2. **B1** (máy, nền): chạy lại `bench/llm` hai nhánh trước và sau sửa parser; kết quả là mốc cho "Việc trước P3" và cổng P3. Một job nặng mỗi lúc (`docs/quy-trinh.md` mục 11).
 3. **Kế hoạch P2** (kho văn bản: tag, ghi chú, @, hiệu lực; việc B lưu toạ độ chữ và việc D gợi ý số hiệu từ ảnh đi cùng): lập theo `docs/ke-hoach/lo-trinh-1.0.md` mục 6 (P2) và mục 7 (thay đổi dữ liệu), rồi xin duyệt. Mẫu giao diện cho Kho và @ làm ở đầu P2.
 4. **Nhánh độ chính xác** (lộ trình mục 6, "Nhánh song song"): điều 0 (hợp BM25 với vector làm tụt hạng 1 trên văn bản thật) trước, vì nó quyết định chế độ mặc định; điều 3 (reranker nhiều luồng) sớm vì ảnh hưởng ngân sách 45 giây của P3.
 5. **Việc trước P3** (lộ trình mục 6, P3): câu bẫy chạm trần token; tín hiệu điểm tìm kiếm thấp cho lỗi phạm vi; tách câu bẫy train và test; chạy lại `bench/llm` (việc 2 ở trên); máy 16 GB; ≥ 100 câu hỏi thật.

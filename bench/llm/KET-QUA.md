@@ -1,8 +1,8 @@
 # Kết quả đo câu trả lời bằng LLM (P0, trên máy ảo)
 
-30/10/2026. Bộ đo: [README.md](README.md). Mô hình chính: Qwen3-VL-4B-Instruct, GGUF Q4_K_M chính hãng (lý do chọn: [CHON-MO-HINH.md](CHON-MO-HINH.md)). Vòng 1: mã `9d4b7c7`; vòng 2 (sau bảy việc sửa): mã `b17461f`. Lời nhắc, khuôn JSON, bộ kiểm nằm trong `src/soiluat/answer.py`.
+30/10/2026. Bộ đo: [README.md](README.md). Mô hình chính: Qwen3-VL-4B-Instruct, GGUF Q4_K_M chính hãng (lý do chọn: [chon-mo-hinh.md](../../docs/nghien-cuu/chon-mo-hinh.md)). Vòng 1: mã `9d4b7c7`; vòng 2 (sau bảy việc sửa): mã `b17461f`. Lời nhắc, khuôn JSON, bộ kiểm nằm trong `src/soiluat/answer.py`.
 
-**Đây chưa phải số đo trên máy 16 GB.** Máy đo là máy ảo Linux 4 nhân (Xeon có AVX-512), 15 GB RAM, chạy llama-cpp-python 0.3.36 (bản mới nhất lúc đo; kiến trúc `qwen3vl` chỉ có trong llama.cpp từ 30/10/2025, xem CHON-MO-HINH.md), 4 luồng, nhiệt độ 0,1, seed 2026, cùng prompt và khuôn mà app sẽ dùng. Các tỉ lệ chất lượng không phụ thuộc máy nên dùng được cho quyết định; **thời gian thì không**: cổng 45 giây phải đo trên máy 16 GB theo README.
+**Đây chưa phải số đo trên máy 16 GB.** Máy đo là máy ảo Linux 4 nhân (Xeon có AVX-512), 15 GB RAM, chạy llama-cpp-python 0.3.36 (bản mới nhất lúc đo; kiến trúc `qwen3vl` chỉ có trong llama.cpp từ 30/10/2025, xem `docs/nghien-cuu/chon-mo-hinh.md`), 4 luồng, nhiệt độ 0,1, seed 2026, cùng prompt và khuôn mà app sẽ dùng. Các tỉ lệ chất lượng không phụ thuộc máy nên dùng được cho quyết định; **thời gian thì không**: cổng 45 giây phải đo trên máy 16 GB theo README.
 
 ## Vòng 2: sau bảy việc sửa (30/10/2026)
 
@@ -57,7 +57,7 @@ Chọn biến thể cuối vì ít câu khẳng định sai nhất trên train, 
 
 (cột "JSON đọc được": tính cả câu bị cắt đã cứu; trong ngoặc là JSON đọc được ngay, không cần cứu. p50/p95 tính như `run.py`: phần tử thứ ⌊n·p⌋ của dãy đã xếp; với 30–80 lần gọi, p95 là giá trị lớn thứ 2–4 nên rất nhiễu. Thời gian không so được giữa hai vòng: máy ảo dùng chung, tải khác nhau.)
 
-**Ba mô hình, cùng mã vòng 2, cùng mẫu câu.** Gemma 4 E4B là bản QAT Q4_0 chính hãng (dự phòng từ đầu). Nemotron-3.5-Bolt-E4B (bartowski Q4_K_M 5,16 GB) là ứng viên mới tìm thêm theo yêu cầu của người dùng (`CHON-MO-HINH.md` mục 7). Cả ba dùng cùng lời nhắc, khuôn, bộ kiểm, nhiệt độ 0,1; không chỉnh riêng cho mô hình nào.
+**Ba mô hình, cùng mã vòng 2, cùng mẫu câu.** Gemma 4 E4B là bản QAT Q4_0 chính hãng (dự phòng từ đầu). Nemotron-3.5-Bolt-E4B (bartowski Q4_K_M 5,16 GB) là ứng viên mới tìm thêm theo yêu cầu của người dùng (`docs/nghien-cuu/chon-mo-hinh.md` mục 7). Cả ba dùng cùng lời nhắc, khuôn, bộ kiểm, nhiệt độ 0,1; không chỉnh riêng cho mô hình nào.
 
 Gộp ba bộ (65 câu `dan`, 65 câu `tu_choi`, 20 câu bẫy, 150 lần gọi):
 
@@ -92,7 +92,7 @@ Từng bộ:
 
 - **Giữ Qwen3-VL-4B làm mô hình chính.** Qwen dẫn đúng nhiều nhất khi gộp, khẳng định sai ngang Gemma (18 so với 19/65) và ít hơn Bolt (24/65), viết ngắn nhất, tốn ít thời gian hơn ~20–27% (p50 từng bộ), và tệp nhỏ bằng nửa (2,5 GB so với ~5,2 GB). **Chênh lệch chất lượng giữa ba mô hình chưa vượt nhiễu** (kiểm McNemar ghép cặp trên 65 câu `dan`: Qwen–Gemma p = 0,30, Qwen–Bolt p = 0,06), nên lý do chọn dựa nhiều vào tốc độ và RAM. Thời gian chỉ so tương đối: ba mô hình chạy ở các giờ khác nhau trên máy ảo dùng chung, và Qwen sinh ít token hơn.
 - **Gemma 4 E4B** hơn ở gold (dẫn đúng 17 so với 15/20) và ở câu bẫy (19 so với 17/20), đều trong nhiễu, và từ chối hẳn nhiều gấp đôi (36 so với 18/65). Nhưng Gemma kém ở Zalo (19 so với 25/30) và khẳng định sai ngang Qwen: không sửa được lỗi phạm vi. Ở Zalo, Gemma dẫn sai 11 câu: 5 câu từ chối dù có Điều đúng (4 câu gắn "khác"); 3 câu bị cắt, mỗi câu còn 1 ý nhưng dẫn đoạn khác; 3 câu dẫn nhầm đoạn.
-- **Nemotron-3.5-Bolt-E4B kém nhất khi gộp** (dẫn đúng 44/65, khẳng định sai 24/65), nhưng không đều theo bộ: ở gold Bolt dẫn đúng bằng Qwen và khẳng định sai thấp nhất (35%); ở văn bản thật dẫn đúng bằng Gemma. Bolt là Gemma 4 E4B được NVIDIA huấn luyện thêm, nhưng trên bộ này không hơn Gemma 4 E4B gốc (bản gốc là QAT Q4_0, Bolt là Q4_K_M, nên không cùng cách lượng tử hóa). Mức tăng bám ngữ cảnh NVIDIA công bố bằng tiếng Anh không thấy ở đây, khớp với phép thử RAG tiếng Hàn độc lập ghi ở `CHON-MO-HINH.md` mục 7. Không đề xuất đo tiếp trên máy 16 GB.
+- **Nemotron-3.5-Bolt-E4B kém nhất khi gộp** (dẫn đúng 44/65, khẳng định sai 24/65), nhưng không đều theo bộ: ở gold Bolt dẫn đúng bằng Qwen và khẳng định sai thấp nhất (35%); ở văn bản thật dẫn đúng bằng Gemma. Bolt là Gemma 4 E4B được NVIDIA huấn luyện thêm, nhưng trên bộ này không hơn Gemma 4 E4B gốc (bản gốc là QAT Q4_0, Bolt là Q4_K_M, nên không cùng cách lượng tử hóa). Mức tăng bám ngữ cảnh NVIDIA công bố bằng tiếng Anh không thấy ở đây, khớp với phép thử RAG tiếng Hàn độc lập ghi ở `docs/nghien-cuu/chon-mo-hinh.md` mục 7. Không đề xuất đo tiếp trên máy 16 GB.
 - Gộp ba bộ, cả ba mô hình đều khẳng định sai ở 28–37% số câu khi đã bỏ Điều đúng. Đổi mô hình cùng cỡ không giải quyết lỗi này; hướng tiếp theo nằm ở mã và luồng (bước kiểm phạm vi riêng, tín hiệu điểm tìm kiếm thấp; xem việc tiếp theo bên dưới).
 
 **Đọc kết quả (Qwen):**
@@ -108,7 +108,7 @@ Từng bộ:
 **Việc tiếp theo** (chỉnh trên train, chấm lại test một lần):
 
 1. **Câu bẫy chạm trần token:** tiền đề sai và câu trả lời nhắc lại cùng mức phạt. Hạ trần `tra_loi` khi đã có `tien_de_sai`, hoặc đưa `cac_y` lên trước `tra_loi`, để ý có nguồn không bị cắt.
-2. **Lỗi phạm vi còn 13–40% tùy bộ** (gộp 28–37% ở cả ba mô hình) và đổi mô hình cùng cỡ không sửa được. Hai hướng đo được trên train: (a) dùng điểm tìm kiếm/reranker thấp làm tín hiệu "có thể không đúng trường hợp" để hiện cảnh báo, không cần gọi thêm mô hình; (b) bước kiểm phạm vi thứ hai bằng mô hình rất nhỏ (ứng viên: LFM3-1.7B, `CHON-MO-HINH.md` mục 7; giấy phép có trần doanh thu), chỉ khi còn ngân sách 45 giây.
+2. **Lỗi phạm vi còn 13–40% tùy bộ** (gộp 28–37% ở cả ba mô hình) và đổi mô hình cùng cỡ không sửa được. Hai hướng đo được trên train: (a) dùng điểm tìm kiếm/reranker thấp làm tín hiệu "có thể không đúng trường hợp" để hiện cảnh báo, không cần gọi thêm mô hình; (b) bước kiểm phạm vi thứ hai bằng mô hình rất nhỏ (ứng viên: LFM3-1.7B, `docs/nghien-cuu/chon-mo-hinh.md` mục 7; giấy phép có trần doanh thu), chỉ khi còn ngân sách 45 giây.
 3. **Cảnh báo thừa:** 10–40% câu có Điều đúng bị gắn "hẹp hơn"/"khác". Cần xem trên giao diện P3 cảnh báo có gây khó chịu không, hoặc chỉ hiện khi kèm tín hiệu (a).
 4. **Tách câu bẫy train/test** (`traps` sinh từ cả kho): bỏ khỏi phần chỉnh các điểm dùng làm bẫy ở test.
 5. **Máy 16 GB** (README): tốc độ, RAM, p95 45 giây; cỡ mẫu ≥ 100 câu khi có câu hỏi thật của văn phòng.
@@ -159,7 +159,7 @@ Tốc độ máy ảo (llama-cpp-python, 4 luồng), từ log máy chủ của 7
 - **Mọi JSON hỏng đều do bị cắt ở 200 token** (10/80 lần gọi ở Zalo, 3/40 ở gold, 1/30 ở văn bản thật; cả 14 đều sinh đúng 200 token). 13/14 câu bị cắt khi đang viết một ý (9 câu ở ý thứ hai), chỉ 1 câu tới được lưu ý. Tổng các trần `maxLength` là 1.000 ký tự, tức ~330–400 token (chữ trong JSON đo được 2,5–3 ký tự/token), nên trần chưa ngăn được cắt. Chỉ tính câu JSON hợp lệ thì dẫn đúng là 77% (Zalo), 82% (gold), 50% (văn bản thật) và chỉ ra tiền đề sai là 15/16; đây là tỉ lệ trên phần còn lại, chưa phải số đo sau khi hết cắt.
 - **Từ chối là chỗ yếu chính.** Khi đã bỏ Điều đúng, mô hình vẫn nói "đủ căn cứ" ở 20/28 câu JSON hợp lệ ở Zalo và 13/20 ở gold. Mục soát dưới đây (giám khảo là mô hình) cho thấy nhóm lớn nhất là khái quát quá phạm vi đoạn, không phải bịa từ đầu.
 - **Bộ kiểm số liệu chặn đúng thứ cần chặn nhưng còn quá chặt ở tham chiếu.** Trên gold, 6 lần bị bỏ ý vì "số lạ", không lần nào là số tiền bịa: mô hình viết "khoản a" thay cho "điểm a"; nhắc lại "dưới 15 tuổi" của câu hỏi trong một ý (văn bản viết "mười lăm" bằng chữ, bộ kiểm chưa đọc số viết bằng chữ); số hiệu bị trần 160 ký tự của một ý cắt cụt ("155/2020/NĐ-"); dẫn "Điều 14" không có trong các đoạn được dẫn. Vì vậy "dẫn đúng sau bộ kiểm" ở gold thấp hơn 10 điểm.
-- **Chữ Trung lẫn vào 0–10% câu trả lời** (3,8% Zalo, 10% gold, 0% văn bản thật) ("mũ坚硬", "thẩm权", "quy规划"), đúng rủi ro đã ghi ở CHON-MO-HINH.md. Bộ kiểm đã chặn: ý bị bỏ, câu trả lời bị thay bằng trích nguyên văn.
+- **Chữ Trung lẫn vào 0–10% câu trả lời** (3,8% Zalo, 10% gold, 0% văn bản thật) ("mũ坚硬", "thẩm权", "quy规划"), đúng rủi ro đã ghi ở `docs/nghien-cuu/chon-mo-hinh.md`. Bộ kiểm đã chặn: ý bị bỏ, câu trả lời bị thay bằng trích nguyên văn.
 - **Trên văn bản thật, dẫn đúng chỉ 46,7%, và một phần lớn không do mô hình.** Bộ câu hỏi này có sẵn câu trích bằng chứng của đáp án (`queries.json`, trường `evidence`). Ở 5/7 câu dẫn sai (JSON hợp lệ), đoạn sau khi cắt chỉ còn ≤ 31% bộ 3-từ của câu trích đó (3 câu dưới 10%); 2 câu còn lại có đủ câu trích (lỗi mô hình). Ở 5/7 câu đúng, câu trích còn ≥ 50%. Nguyên nhân: Điều của văn bản 2026 dài (bản scan, OCR), mỗi đoạn chỉ được ~520 ký tự, và dòng được giữ chọn theo số từ trùng câu hỏi chứ không theo độ hiếm. Ví dụ "thời gian thí điểm cơ chế chính sách": 7/22 dòng của Điều 8 có cụm "thí điểm cơ chế", còn dòng có đáp án ("Thời gian thí điểm không quá 05 năm…") bị cắt. Từ chối đúng ở bộ này là 66,7% (10/15); kho, chế độ tìm và cỡ mẫu khác hẳn nên không so trực tiếp với Zalo và gold.
 - Gắn nhầm tiền đề sai cho câu hỏi bình thường hiếm (0–6,7%); câu trả lời không bao giờ quá 3 câu.
 
@@ -190,7 +190,7 @@ Theo cổng P0, Qwen3-VL-4B **chưa đạt** ở vòng này: JSON, dẫn đúng 
 3. **Từ chối và phạm vi:** dạy lời nhắc kiểm "đoạn có nói đúng đối tượng/trường hợp được hỏi không" trước khi đặt `du_can_cu`; khi đoạn chỉ nói trường hợp hẹp hơn thì trả lời kèm phạm vi đó trong `luu_y` (giao diện: "Chỉ tìm thấy quy định cho …") thay vì khẳng định chung.
 4. **Chặn chữ Trung ngay khi sinh** (loại ký tự CJK khỏi chuỗi trong grammar), không chỉ lọc sau.
 5. **Bộ kiểm tham chiếu:** chữ cái luôn là điểm ("khoản a" = "điểm a"); số hiệu bị cắt cụt khớp theo phần đầu; đọc số viết bằng chữ (shortcut đã ghi trong `answer.numbers`).
-6. **Mô hình dự phòng Gemma 4 E4B** (QAT Q4_0) trên đúng bộ đo này: CHON-MO-HINH.md ghi nó bám ngữ cảnh tốt hơn (faithfulness 0,796), đúng điểm Qwen yếu ở đây.
+6. **Mô hình dự phòng Gemma 4 E4B** (QAT Q4_0) trên đúng bộ đo này: `docs/nghien-cuu/chon-mo-hinh.md` ghi nó bám ngữ cảnh tốt hơn (faithfulness 0,796), đúng điểm Qwen yếu ở đây.
 7. **Đo trên máy 16 GB** (README): tốc độ, p95 đầu-cuối có phần tìm, RAM của `llama-server`; cỡ mẫu ≥ 100 câu để khoảng tin cậy hẹp lại (vòng này 15–30 câu mỗi bộ: khoảng tin cậy 95% xấu nhất ±18–25 điểm).
 
 ## Chạy lại

@@ -1,7 +1,7 @@
 # Lộ trình nâng cấp Soi Luật (0.8 → 1.0)
 
-- **Ngày:** 29/10/2026, cập nhật 31/10/2026 · **Trạng thái:** P0 xong phần máy làm được (số đo ở mục 6, P0); mẫu giao diện đã được duyệt ngày 31/10/2026. Còn chờ chủ dự án: chốt cách tính cổng (mục 9, điều 10), đo trên máy 16 GB, 100 câu hỏi thật. **Phase hiện tại: P1**, đã bắt đầu; kế hoạch triển khai chi tiết ở `docs/ke-hoach/ke-hoach-p1.md`. Việc P1 đã xong: N0, N1a (mã và test), N1c, N2, G0, R1, R2a, R2b, R3. Chủ dự án đã chốt ba điểm ngày 29/10/2026 (mục 9): câu trả lời AI xong trong ≤ 45 giây; chọn mô hình theo benchmark công khai, không dùng người chấm pháp lý; có máy 16 GB để đo.
-- **Đầu vào:** phản hồi người dùng (ảnh chụp Telegram ngày 29/10/2026); mã nguồn 0.8 (`src/soiluat/`, 234 test đếm từ mã; khi soạn chưa chạy lại `pytest` vì môi trường soạn chưa cài thư viện); số đo trong `bench/*/KET-QUA.md`.
+- **Ngày:** 29/10/2026, cập nhật 31/10/2026 · **Trạng thái:** P0 xong phần máy làm được (số đo ở mục 6, P0); mẫu giao diện đã được duyệt ngày 31/10/2026. Còn chờ chủ dự án: chốt cách tính cổng (mục 9, điều 10), đo trên máy 16 GB, 100 câu hỏi thật. **Phase hiện tại: P1**, phần mã đã xong; kế hoạch triển khai chi tiết ở `docs/ke-hoach/ke-hoach-p1.md`. Còn lại để đóng P1: bộ cài Windows, xem tay trên Edge và Chrome, người dùng thử, chạy lại `bench/llm` hai nhánh (trạng thái hiện tại: `docs/README.md` mục 2). Chủ dự án đã chốt ba điểm ngày 29/10/2026 (mục 9): câu trả lời AI xong trong ≤ 45 giây; chọn mô hình theo benchmark công khai, không dùng người chấm pháp lý; có máy 16 GB để đo.
+- **Đầu vào:** phản hồi người dùng (ảnh chụp Telegram ngày 29/10/2026); mã nguồn 0.8 (`src/soiluat/`; số test hiện tại ở `docs/nghien-cuu/ghi-nho.md` mục 1.1, bản soạn đầu đếm 234 test từ mã và chưa chạy `pytest`); số đo trong `bench/*/KET-QUA.md`.
 - **Máy mục tiêu mới:** PC Windows **16 GB RAM, không card rời** (chủ dự án chốt 29/10/2026). Máy đo chuẩn giữ nguyên: Ryzen 5 5600GT (6 nhân/12 luồng, AVX2, DDR4).
 - **Quan hệ với kế hoạch 0.8:** kế hoạch và checklist 0.8 (`soi-luat-ke-hoach.md`, `soi-luat-checklist.md`, `bench/KE-HOACH-SUA.md`) đã xoá khỏi repo ngày 29/10/2026; bản cuối nằm ở commit `904160d` trong lịch sử git. Lộ trình giữ cách nạp, tách Điều, tìm kiếm và dựng thẻ **như mã 0.8 đang chạy** (mô tả ở `docs/kien-truc.md`). Ở vài chỗ mã đã lệch kế hoạch cũ (thứ tự xếp thẻ, điều kiện chạy nhánh không dấu); lộ trình lấy mã làm chuẩn. Kế hoạch 0.8 loại LLM khỏi sản phẩm; bản 1.0 thêm mô hình sinh câu trả lời chạy ngay trên máy, theo các ràng buộc ở mục 5. Lý do đổi: máy mục tiêu lên 16 GB, và người dùng cần một câu trả lời dễ đọc thay vì một danh sách thẻ dài.
 
@@ -100,7 +100,7 @@ Làm tuần tự một người: khoảng 17 tuần (16,5 tuần cộng B và D 
 
 ## 4. Chọn mô hình (16 GB, không card rời, ≤ 45 giây)
 
-Yêu cầu của chủ dự án: nhỏ, đủ ngữ cảnh, ít ảo giác, phản biện và làm luật tốt, chạy CPU; chọn theo benchmark công khai. Đầy đủ số liệu, nguồn và các mô hình đã loại: `bench/llm/CHON-MO-HINH.md` (tra 29/10/2026).
+Yêu cầu của chủ dự án: nhỏ, đủ ngữ cảnh, ít ảo giác, phản biện và làm luật tốt, chạy CPU; chọn theo benchmark công khai. Đầy đủ số liệu, nguồn và các mô hình đã loại: `docs/nghien-cuu/chon-mo-hinh.md` (tra 29/10/2026).
 
 **Chọn: Qwen3-VL-4B-Instruct**, GGUF Q4_K_M chính hãng của Qwen (2,33 GiB), chạy như mô hình chữ (không cần file ảnh `mmproj`). **Dự phòng: Gemma 4 E4B**, GGUF QAT Q4_0 chính hãng của Google, tắt thinking.
 
@@ -154,7 +154,7 @@ Chủ dự án không có người chấm pháp lý, nên mô hình được ch�
 
 ## 4b. Kho dữ liệu cho phần truy hồi
 
-Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loại "bộ nhớ AI / đồ thị tri thức" như Cognee, Graphiti. Đầy đủ so sánh (khoảng 30 lựa chọn), nguồn và số đo: `bench/llm/CHON-CSDL.md` (tra và đo ngày 29/10/2026). Số đo chạy trên máy ảo khác máy chuẩn, chỉ dùng để so tương đối.
+Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loại "bộ nhớ AI / đồ thị tri thức" như Cognee, Graphiti. Đầy đủ so sánh (khoảng 30 lựa chọn), nguồn và số đo: `docs/nghien-cuu/chon-csdl.md` (tra và đo ngày 29/10/2026). Số đo chạy trên máy ảo khác máy chuẩn, chỉ dùng để so tương đối.
 
 - **Giữ SQLite (WAL) + FTS5 làm kho duy nhất.** Mọi bảng mới của 1.0 (lịch sử chat, tag, ghi chú, quan hệ văn bản) nằm cùng file, cùng giao dịch, cùng sao lưu, cùng cascade khi xoá văn bản.
 - **Vector: giữ tìm vét cạn bằng NumPy như hiện tại.** Trên vector giả 1024 chiều, 1 luồng: 61 nghìn vector ~19 ms, 250 nghìn ~77 ms. Tốc độ không phải vấn đề; ràng buộc thật là RAM (ma trận float32: 252 MB ở 61 nghìn vector, ~977 MB ở 250 nghìn).
@@ -194,11 +194,11 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 
 ## 6. Các phase
 
-### P0 — Đo và chốt (1 tuần)
+### P0: Đo và chốt (1 tuần)
 
 **Mục tiêu:** quyết định bằng số đo; có thước đo câu trả lời và mốc tìm kiếm trước khi viết tính năng.
 
-1. Chọn mô hình theo benchmark công khai (`bench/llm/CHON-MO-HINH.md`), rồi xác nhận trên máy 16 GB theo mục 4, ghi `bench/llm/KET-QUA.md`; chốt mô hình, mức lượng tử, số luồng.
+1. Chọn mô hình theo benchmark công khai (`docs/nghien-cuu/chon-mo-hinh.md`), rồi xác nhận trên máy 16 GB theo mục 4, ghi `bench/llm/KET-QUA.md`; chốt mô hình, mức lượng tử, số luồng.
 2. Dựng bộ đo câu trả lời `bench/llm/`, chấm hoàn toàn bằng máy (mục 4): kịch bản chạy qua `llama-server`; đáp án là Điều đúng có sẵn trong các bộ đo; câu bẫy sinh từ mức phạt. Câu lấy từ ViLegalExperts chỉ giữ trên máy, như `bench/gold` (bộ này chưa ghi giấy phép).
 3. **Đo lại mốc tìm kiếm trên văn bản thật** (21 văn bản, 84 câu) với Advance hiện tại (AITeamVN): Hit@k và số thẻ trung bình mỗi câu. Chưa có lần đo nào của bản Advance này trên văn bản thật (`bench/gold/KET-QUA.md` chỉ ghi Normal); đây là mốc tham khảo, vì cổng P1 trên văn bản thật đo ở Normal (kế hoạch P1, mục 2).
 4. Gom ≥ 100 câu hỏi thật của văn phòng kèm Điều đúng (`bench/gold/README.md`, phần `van-phong`). Việc này của người dùng; phải có trước cổng P3.
@@ -210,13 +210,13 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 
 | Bước | Trạng thái |
 |---|---|
-| 1. Xác nhận mô hình | **Vòng 2 trên máy ảo (sau 7 việc sửa), Qwen3-VL-4B, tập test:** dẫn đúng Điều 83,3 / 75,0 / 86,7% (vòng 1: 66,7 / 70,0 / 46,7%; Zalo / gold / văn bản thật); JSON dùng được 100% ở cả ba bộ (đọc ngay 78,8 / 95,0 / 96,7%; ở Zalo do câu bẫy dài chạm trần 200 token); khẳng định như đủ căn cứ khi đã bỏ Điều đúng 26,7 / 40 / 13,3% (vòng 1: 66,7 / 65 / 33,3%); từ chối hẳn 16,7 / 20 / 60%, tính cả câu nêu phạm vi hẹp hơn 73,3 / 60 / 86,7%; chữ Trung 0%. **Cổng chưa đạt trọn:** dẫn đúng đạt 2/3 bộ; JSON và từ chối đạt hay không tùy cách tính (mục 9, điều 10). Gemma 4 E4B (dự phòng) không hơn: dẫn đúng gộp ba bộ 48/65 so với 53/65 của Qwen, khẳng định sai 19/65 so với 18/65 (chênh lệch chưa vượt nhiễu), viết dài hơn và tốn thêm ~30% thời gian; giữ Qwen làm mô hình chính vì nhanh hơn và tệp nhỏ bằng nửa. Ứng viên mới tìm thêm, Nemotron-3.5-Bolt-E4B (23/10/2026), kém cả hai: dẫn đúng 44/65, khẳng định sai 24/65 (`bench/llm/CHON-MO-HINH.md` mục 7). Đổi mô hình cùng cỡ không sửa được lỗi phạm vi; hướng tiếp theo ở luồng xử lý (mục 6, P3, "Việc trước P3"). Số test trên là của mã `b17461f`; sau đó bản soát sửa thêm 6 lỗi ở bộ kiểm và phần dựng ngữ cảnh (`bc9f9af`), sẽ đo lại cùng đợt việc trước P3. Chi tiết: `bench/llm/KET-QUA.md`. Còn lại: đo tốc độ, RAM, p95 45 giây trên máy 16 GB |
+| 1. Xác nhận mô hình | **Vòng 2 trên máy ảo (sau 7 việc sửa), Qwen3-VL-4B, tập test:** dẫn đúng Điều 83,3 / 75,0 / 86,7% (vòng 1: 66,7 / 70,0 / 46,7%; Zalo / gold / văn bản thật); JSON dùng được 100% ở cả ba bộ (đọc ngay 78,8 / 95,0 / 96,7%; ở Zalo do câu bẫy dài chạm trần 200 token); khẳng định như đủ căn cứ khi đã bỏ Điều đúng 26,7 / 40 / 13,3% (vòng 1: 66,7 / 65 / 33,3%); từ chối hẳn 16,7 / 20 / 60%, tính cả câu nêu phạm vi hẹp hơn 73,3 / 60 / 86,7%; chữ Trung 0%. **Cổng chưa đạt trọn:** dẫn đúng đạt 2/3 bộ; JSON và từ chối đạt hay không tùy cách tính (mục 9, điều 10). Gemma 4 E4B (dự phòng) không hơn: dẫn đúng gộp ba bộ 48/65 so với 53/65 của Qwen, khẳng định sai 19/65 so với 18/65 (chênh lệch chưa vượt nhiễu), viết dài hơn và tốn thêm ~30% thời gian; giữ Qwen làm mô hình chính vì nhanh hơn và tệp nhỏ bằng nửa. Ứng viên mới tìm thêm, Nemotron-3.5-Bolt-E4B (23/10/2026), kém cả hai: dẫn đúng 44/65, khẳng định sai 24/65 (`docs/nghien-cuu/chon-mo-hinh.md` mục 7). Đổi mô hình cùng cỡ không sửa được lỗi phạm vi; hướng tiếp theo ở luồng xử lý (mục 6, P3, "Việc trước P3"). Số test trên là của mã `b17461f`; sau đó bản soát sửa thêm 6 lỗi ở bộ kiểm và phần dựng ngữ cảnh (`bc9f9af`), sẽ đo lại cùng đợt việc trước P3. Chi tiết: `bench/llm/KET-QUA.md`. Còn lại: đo tốc độ, RAM, p95 45 giây trên máy 16 GB |
 | 2. Bộ đo câu trả lời | **Xong.** `bench/llm/run.py` (dẫn đúng, từ chối, tiền đề sai, JSON, số liệu, chữ CJK, thời gian) dùng chung mã với app: `src/soiluat/answer.py` (ngữ cảnh, lời nhắc, khuôn JSON, bộ kiểm số liệu) |
 | 3. Mốc tìm kiếm trên văn bản thật | **Xong.** Hit@1 (rộng) Normal 83,3%, Advance 72,6%; ~40 thẻ mỗi câu (`bench/van-ban-that/KET-QUA.md`); xem mục 2 điều 8 |
 | 4. ≥ 100 câu hỏi thật của văn phòng | Chưa (người dùng) |
 | 5. Mẫu giao diện | **Xong**, chủ dự án đã duyệt 31/10/2026: `mau/giao-dien-1.0.html`. Dựng lại 31/10/2026 theo taste-skill sau khi chủ dự án báo mẫu cũ không dùng được (mục 9, điều 9) |
 
-### P1 — Mở đúng đoạn, kết quả gọn, lịch sử chat (4,5 tuần)
+### P1: Mở đúng đoạn, kết quả gọn, lịch sử chat (4,5 tuần)
 
 **Giải quyết:** ① ③ ④ ⑦ và một phần ②.
 
@@ -265,7 +265,7 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 - 3–5 người dùng thật làm 9 việc (tìm đoạn, mở đúng đoạn, mở cuộc mới, tìm lại cuộc cũ…): ≥ 90% việc làm được không cần hướng dẫn.
 - `pytest` xanh, có test mới cho: neo và tô đúng đơn vị, gộp trùng, thêm/sửa/xoá cuộc trò chuyện, CSRF.
 
-### P2 — Kho văn bản: tag, ghi chú, @, hiệu lực (3 tuần)
+### P2: Kho văn bản: tag, ghi chú, @, hiệu lực (3 tuần)
 
 **Giải quyết:** ⑤ ⑥ ⑨ ⑩.
 
@@ -311,7 +311,7 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 - Trích yếu đúng ≥ 18/21 văn bản thật (kiểm tay).
 - Người dùng thử gắn tag, viết ghi chú, dùng @ mà không cần hướng dẫn.
 
-### P3 — Trợ lý trả lời (3 tuần)
+### P3: Trợ lý trả lời (3 tuần)
 
 **Giải quyết:** ② ⑥ ⑪.
 
@@ -369,7 +369,7 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 - Trả lời xong ≤ 45 giây tính từ lúc bấm Enter (p95, máy 16 GB, Office đang mở; chủ dự án chốt 29/10/2026); kết quả tìm hiện trước, trong ~5–9 giây. RAM toàn app ≤ 6 GB. Máy thật của người dùng đo lại ở P5 (máy một kênh RAM sinh chữ chậm hơn).
 - Tắt AI thì kết quả và độ trễ như P1.
 
-### P4 — Liên kết văn bản kiểu Obsidian, hiệu lực theo Điều (3 tuần)
+### P4: Liên kết văn bản kiểu Obsidian, hiệu lực theo Điều (3 tuần)
 
 **Giải quyết:** ⑧ ⑨.
 
@@ -404,7 +404,7 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 - Các Điều bị sửa đổi trong ba luật sửa đổi của bộ văn bản thật được gắn nhãn đúng ≥ 90%.
 - Đồ thị cục bộ ≤ 200 nút hiện trong ≤ 1 giây.
 
-### P5 — Chuyên nghiệp, chỉn chu, phát hành (2 tuần)
+### P5: Chuyên nghiệp, chỉn chu, phát hành (2 tuần)
 
 - **Cửa sổ app:** bỏ cửa sổ đen (PyInstaller `console=False`); mở bằng Edge chế độ app (`msedge --app=<url>`; Edge có sẵn trên Windows 10/11, không có thì dùng trình duyệt mặc định) để trông như một phần mềm riêng. Thêm nút "Thoát Soi Luật" trong Cài đặt (hoặc biểu tượng ở khay hệ thống) để tắt hẳn. Hướng dẫn hiện phải dặn "đừng tắt cửa sổ đen"; bỏ được câu đó.
 - **Lần đầu mở app:** màn chào 3 bước (nạp văn bản → hỏi thử → mở đoạn); câu hỏi mẫu lấy từ chính kho.
@@ -416,7 +416,7 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 
 **Cổng P5:** nghiệm thu trên đạt hết; 5 người dùng thật dùng một tuần, không có lỗi chặn việc, điểm hài lòng ≥ 4/5.
 
-### Nhánh song song — Độ chính xác tìm kiếm
+### Nhánh song song: Độ chính xác tìm kiếm
 
 Câu trả lời AI chỉ đúng khi đoạn đúng nằm trong 5 đoạn đưa vào mô hình. Hiện Hit@5 của Advance khoảng 90% (Zalo 90,4%, tư vấn thật 89,8%): đó là trần độ đúng của P3. **Thử nghiệm C (chủ dự án duyệt 31/10/2026): "mô hình ghi chép để tìm tốt hơn".** Cho Qwen3-VL-4B viết cho mỗi Điều 1–2 câu ngữ cảnh (kiểu Contextual Retrieval của Anthropic, 2024: họ báo số lần tìm hỏng giảm 35–49%, 67% khi có reranker) và vài câu hỏi mẫu (kiểu doc2query, có lọc câu bịa như Doc2Query--). Chữ sinh ra nằm ở cột tìm kiếm riêng, mang nhãn AI, không bao giờ hiện thành nguồn hay trích dẫn. llama.cpp giữ tiền tố văn bản trong cache nên mỗi Điều chỉ tốn phần chữ của nó cộng khoảng 50 token sinh: ước ~5 giây mỗi Điều, kho văn phòng 1.000 Điều ~1,5 giờ chạy nền, kho Zalo chỉ thử trên mẫu. Giữ khi tốt hơn trên Zalo, gold và văn bản thật (quy tắc 7) và giờ dựng chấp nhận được trên máy 16 GB; không thì gỡ. Đồ thị kiểu GraphRAG, HippoRAG chỉ xét nếu có nhiều câu hỏi nhiều bước.
 
@@ -488,7 +488,7 @@ Nguyên tắc: chỉ thêm, không xoá hay đổi cột; tự sao lưu trước
 11. **Ngoại lệ quy tắc 7 cho bản sửa parser điểm nhiều dòng** (kế hoạch P1, mục 2b). Trên văn bản thật (n = 84, Normal), Hit rộng @1 tăng 83,3 → 84,5%, @3 giảm 94,0 → 91,7%: mất 2 câu, cả hai rơi từ hạng 3 xuống hạng 4. Chênh lệch chưa vượt nhiễu (p = 0,5), nhưng theo chữ của quy tắc 7 vẫn là tụt. Đề xuất: giữ bản sửa nếu Zalo và gold không thấp hơn, vì đây là sửa đúng cho trình đọc (điểm nhiều dòng đang bị cắt), không phải chỉnh xếp hạng. Đã duyệt có điều kiện bằng văn bản ngày 31/10/2026: giữ nếu Zalo và gold không thấp hơn, kèm yêu cầu nghiên cứu nâng cấp parser và chọn ý chính (N3, kế hoạch P1). Ngoại lệ chỉ phủ bản sửa này; ứng viên của N3 phải tự qua quy tắc 7.
 12. **Cổng "Hit theo mục" khi đã gộp trùng** (kế hoạch P1, mục 2b): tính theo mục đại diện hay tính cả các bản trùng trong "Cũng có ở". Đề xuất: văn bản thật tính theo mục đại diện; Zalo và gold tính cả bản trùng, vì kho Zalo gần như không có ngày ban hành để chọn bản đại diện. Mọi bộ báo cả hai cách. Đã duyệt theo bộ ngày 31/10/2026, đúng như đề xuất.
 13. **P1 làm 22 ngày (4,5 tuần) hay ít hơn.** Đã chốt 22 ngày (31/10/2026); sau tối ưu nay 21,5 ngày vì H5 và `citation_opens` (ghi lượt mở trích dẫn) cùng TIFF/BMP đã cắt khỏi P1. Cắt thêm ba việc nhỏ trong danh sách cắt thì chỉ còn khoảng 21,0 ngày, không phải ~20,6. Không có đường cắt nhỏ nào về 3 tuần (15 ngày) mà vẫn giữ cổng người dùng (kế hoạch P1, mục 7). Tổng lộ trình khoảng 16,5 tuần, vì P1 tăng còn P3 giảm 1 tuần. Các quyết định nhỏ hơn của P1 (khối chế tài, người thử, máy Windows) ghi ở kế hoạch P1, mục 1.
-
+14. **Ý tưởng dự án, ghi chú rủi ro và đồ thị** (chủ dự án, 31/10/2026; chưa duyệt, lộ trình chưa có việc nào cho nó). Bản khái niệm: `docs/nghien-cuu/khai-niem-du-an-do-thi-dinh-huong.md` và `mau/khai-niem-du-an-do-thi.html`; sổ thí nghiệm GD-03 (hoãn). Cần quyết: duyệt hướng hay đổi; nếu duyệt thì vào P2 (Kho) hay P4 (Liên quan); năm câu mở ở mục 14 của bản khái niệm (tệp rủi ro thật của khách trông thế nào, tầm mặc định của ghi chú, khách có bao nhiêu dự án, giữ hay bỏ bản đồ dự án, xuất Excel của sổ rủi ro ở P2 hay P5). Đề xuất của bản khái niệm: làm sổ rủi ro trước, sơ đồ sau và nhỏ; không đổi mẫu P1 đã duyệt.
 ---
 
 ## 10. Không làm
