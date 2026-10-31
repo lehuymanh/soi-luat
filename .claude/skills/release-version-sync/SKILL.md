@@ -12,6 +12,8 @@ Before tagging, the version must match in every place it lives, and the user mus
 - Build the wheel and sdist locally. The Windows installer must be built by `pack/build.ps1` on a Windows machine; say so in the report instead of claiming it exists.
 - A fresh venv does not have the `build` package, so `python -m build` fails with `No module named build`. Install it first. Build from `git archive HEAD` in a scratch folder so untracked files stay out.
 - After building, list the wheel. Every non-`.py` package file must be inside it (`schema.sql`, `synonyms_seed.csv`, `static/`, `templates/`); the 0.9.0 check found 61 entries and the fonts present.
+- Name installer and artifact files only as the build config produces them: read the output name in `pack/SoiLuat.iss` (or the build script) before writing it into notes. A guessed name (`SoiLuat-0.9-setup.exe`) was caught and corrected only on re-read.
+- If the tag push is refused (HTTP 403 when the session may push only to its own branch), do not retry or route around it. Keep the tag local, record the target commit hash in the PR body and release notes, and give the user the Release-page steps: new tag name, target commit, attached wheel and sdist with sha256.
 - Push the tag and the release notes. If no tool can create the GitHub Release object, tell the user to create it from the tag.
 - Do not merge the PR yourself; the user decides the merge.
 - Recount every figure in the release notes (findings found, confirmed, fixed, deferred) from the ledger or the commit list just before writing it. A hand count gave 31 where the list held 32.
