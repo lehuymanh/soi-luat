@@ -1,7 +1,7 @@
 # Soi Luật — Tài liệu kỹ thuật
 
 Phiên bản app 0.9 · cập nhật 31/10/2026 · Đối tượng đọc: người bảo trì, người build/đóng gói, người đánh giá chất lượng tìm kiếm.
-Hướng dẫn cho người dùng cuối: [HUONG-DAN-DON-GIAN.md](HUONG-DAN-DON-GIAN.md) (ngắn) và [HUONG-DAN.md](HUONG-DAN.md) (đầy đủ).
+Hướng dẫn cho người dùng cuối: [HUONG-DAN-DON-GIAN.md](../HUONG-DAN-DON-GIAN.md) (ngắn) và [HUONG-DAN.md](../HUONG-DAN.md) (đầy đủ).
 
 ---
 

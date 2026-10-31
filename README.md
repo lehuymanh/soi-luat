@@ -4,7 +4,7 @@ Tra cứu nghị định/thông tư **trên máy văn phòng** (Windows, 8 GB, O
 
 **Một app duy nhất**, giao diện kiểu chat: gõ câu hỏi ở ô dưới; nút **Nạp văn bản** ở thanh bên (chọn nhiều file/thư mục hoặc kéo thả; OCR và nhúng vector chạy nền ngay trong app); **Cài đặt** cũng ở thanh bên (chế độ Normal/Advance, kiểm tra OCR, sao lưu, các trang duyệt). Từ 0.9: bấm trích dẫn mở văn bản ngay trong app tại đúng khoản/điểm, kết quả gọn theo văn bản, có lịch sử trò chuyện.
 
-Bản **0.9**. Lộ trình lên **1.0**: [soi-luat-lo-trinh-1.0.md](soi-luat-lo-trinh-1.0.md) · Tài liệu kỹ thuật: [TAI-LIEU-KY-THUAT.md](TAI-LIEU-KY-THUAT.md)
+Bản **0.9**. Lộ trình lên **1.0**: [docs/ke-hoach/lo-trinh-1.0.md](docs/ke-hoach/lo-trinh-1.0.md) · Tài liệu kỹ thuật: [docs/kien-truc.md](docs/kien-truc.md)
 
 ## Cài
 

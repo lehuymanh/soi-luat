@@ -13,7 +13,7 @@ Bản 1.0 cần đưa 3–5 đoạn luật đúng nhất cho Qwen3-VL-4B (llama.
 |---|---|
 | Giấy phép | OSI. Đánh dấu copyleft (GPL/AGPL) và giấy phép không phải OSI (SSPL, BSL) |
 | Nền | Windows 10/11 chạy thẳng: không Docker, không WSL, không quyền admin. PyInstaller onedir, một bộ cài, một người dùng, offline hoàn toàn |
-| Máy | 16 GB RAM, không card rời, dùng chung với Office và trình duyệt. App tối đa ~6 GB, trong đó LLM ~3,2–3,5 GB (`CHON-MO-HINH.md` mục 4), nên phần truy hồi ≤ ~2–2,5 GB. Hiện Advance đo được đỉnh ~2,2 GB (`TAI-LIEU-KY-THUAT.md` mục 5.1) |
+| Máy | 16 GB RAM, không card rời, dùng chung với Office và trình duyệt. App tối đa ~6 GB, trong đó LLM ~3,2–3,5 GB (`CHON-MO-HINH.md` mục 4), nên phần truy hồi ≤ ~2–2,5 GB. Hiện Advance đo được đỉnh ~2,2 GB (`docs/kien-truc.md` mục 5.1) |
 | Độ trễ | ≤ 45 s từ Enter tới khi xong câu trả lời. Phần tìm ~5–9 s (lộ trình mục 2, điều 4); phần CSDL nên dưới 1 s |
 | Độ chính xác | Câu có dấu và không dấu, khớp cụm và khớp gần (phrase/NEAR), đồng nghĩa, hợp BM25 + vector + reranker, lọc theo văn bản/loại/cơ quan/hiệu lực/tag |
 | Ghi | Giao dịch trong khi luồng nền nạp file và nhúng vector (`jobs.py`) |
@@ -36,18 +36,18 @@ Bản 1.0 cần đưa 3–5 đoạn luật đúng nhất cho Qwen3-VL-4B (llama.
 
 | Bước | Thời gian (máy chuẩn, 2 luồng) | Nguồn | Phụ thuộc CSDL? |
 |---|---|---|---|
-| BM25 nhiều tầng + dựng thẻ (= cả chế độ Normal) | ~1 s; p50 975 ms trên kho 427K đơn vị | `TAI-LIEU-KY-THUAT.md` 5.2; `bench/zalo/KET-QUA.md` (22/10/2026) | Có: truy vấn FTS5 (riêng truy vấn BM25 OR p50 ~400–480 ms) và các SQL lấy chữ |
+| BM25 nhiều tầng + dựng thẻ (= cả chế độ Normal) | ~1 s; p50 975 ms trên kho 427K đơn vị | `docs/kien-truc.md` 5.2; `bench/zalo/KET-QUA.md` (22/10/2026) | Có: truy vấn FTS5 (riêng truy vấn BM25 OR p50 ~400–480 ms) và các SQL lấy chữ |
 | Nhúng câu hỏi (AITeamVN, int8) | chưa đo riêng; EmbeddingGemma 300M từng đo +213 ms | `bench/zalo/KET-QUA.md` | Không |
 | Tìm vector toàn kho | ~5 ms nhân ma trận + ~7 ms kiểm cache (61K × 256 chiều, đo 23/10/2026). Ở 1024 chiều: 19 ms (1 luồng) / 3,8 ms (4 luồng) trong sandbox (mục 5) | `bench/zalo/KET-QUA.md`; mục 5 | Không (RAM) |
-| Reranker top-5 | ~5 s | `TAI-LIEU-KY-THUAT.md` 5.2 | Không |
+| Reranker top-5 | ~5 s | `docs/kien-truc.md` 5.2 | Không |
 | Phần còn lại (dựng thẻ cho tới 50 Điều thêm từ vector, dựng chữ cho reranker…) | ~2–3 s, chưa tách được | suy từ tổng ~9 s | Một phần |
-| **Tổng Advance** | p50 8,6 s, p95 9,6 s | `TAI-LIEU-KY-THUAT.md` 5.1 | |
+| **Tổng Advance** | p50 8,6 s, p95 9,6 s | `docs/kien-truc.md` 5.1 | |
 
 Phần phụ thuộc CSDL tối đa khoảng 1 s trong ~9 s. Phần lớn là reranker (~5 s), và lộ trình đã có việc riêng cho nó (nhánh chính xác, mục 3: chạy 4–6 luồng). Đổi CSDL chỉ có thể bớt một phần của ~1 s đó.
 
 ### 2.3 Đổi CSDL có làm câu trả lời đúng hơn không?
 
-Không, nếu thuật toán giữ nguyên. Độ chính xác hiện tại (Advance Hit@1 79,3%, Hit@5 92,3%; `TAI-LIEU-KY-THUAT.md` 5.1) đến từ những phần không phụ thuộc CSDL: hai cột có dấu/không dấu, các tầng khớp và hệ số đã chỉnh trên `bm25()` của FTS5, từ điển đồng nghĩa, mô hình nhúng và `MAXLEN`, tham số RRF, reranker.
+Không, nếu thuật toán giữ nguyên. Độ chính xác hiện tại (Advance Hit@1 79,3%, Hit@5 92,3%; `docs/kien-truc.md` 5.1) đến từ những phần không phụ thuộc CSDL: hai cột có dấu/không dấu, các tầng khớp và hệ số đã chỉnh trên `bm25()` của FTS5, từ điển đồng nghĩa, mô hình nhúng và `MAXLEN`, tham số RRF, reranker.
 - FTS5 đã có mọi tính năng mà các tầng đó cần: BM25 có trọng số cột, phrase, `NEAR`, tokenizer tự viết qua C API, `remove_diacritics` 0/1/2 ([FTS5](https://sqlite.org/fts5.html)).
 - Chỉ mục ANN (HNSW, IVF…) chỉ có thể mất recall so với tìm vét cạn, vì hiện app đã tìm chính xác.
 - Bộ máy luôn bỏ dấu sẽ làm kết quả kém đi. Repo đã đo: BM25 trên cột không dấu đạt Hit@10 77,7%, trên cột có dấu 84,9% (`bench/zalo/KET-QUA.md`, 22/10/2026). Tokenizer của Meilisearch bỏ dấu với mọi chữ Latin (mục 4.1).
@@ -199,7 +199,7 @@ Mọi nguồn trong mục này đọc ngày 29/10/2026. "Bản mới nhất" là
 | Graphiti | 1 Điều = 1 episode, 5 cạnh; 4 lệnh chính + 2 lệnh mỗi cạnh; ngữ cảnh có 3 episode trước | **~175 ngày (có cache) tới ~360 ngày (không cache)** |
 
 Đọc kết quả:
-- **Không khả thi trên máy 16 GB không GPU.** Ngay mức sàn đã là 5 ngày CPU 100% (6 luồng). Các framework cần từ ~10 ngày (LlamaIndex) tới ~3,5 tuần (Cognee, LightRAG) và ~5 tuần (GraphRAG, HippoRAG 2); Graphiti cần nửa năm tới một năm. Máy văn phòng không chạy liên tục được như vậy, và Office bị chậm trong suốt thời gian đó. Để so sánh, nhúng vector cả kho hiện mất 5–7 giờ (`TAI-LIEU-KY-THUAT.md` 5.2). Mỗi văn bản mới nạp vào lại tốn thêm tương ứng.
+- **Không khả thi trên máy 16 GB không GPU.** Ngay mức sàn đã là 5 ngày CPU 100% (6 luồng). Các framework cần từ ~10 ngày (LlamaIndex) tới ~3,5 tuần (Cognee, LightRAG) và ~5 tuần (GraphRAG, HippoRAG 2); Graphiti cần nửa năm tới một năm. Máy văn phòng không chạy liên tục được như vậy, và Office bị chậm trong suốt thời gian đó. Để so sánh, nhúng vector cả kho hiện mất 5–7 giờ (`docs/kien-truc.md` 5.2). Mỗi văn bản mới nạp vào lại tốn thêm tương ứng.
 - **Chất lượng chưa có bảo đảm.** Chính các framework khuyên dùng mô hình lớn hơn nhiều: LightRAG cho rằng Qwen3-30B-A3B là mức tối thiểu khi chạy cục bộ; Graphiti và GraphRAG cảnh báo mô hình nhỏ trả sai schema. Không tìm thấy benchmark trích thực thể–quan hệ tiếng Việt nào cho Qwen3-VL-4B (29/10/2026). Prompt và loại thực thể mặc định viết cho tiếng Anh (tổ chức, người, địa điểm, sự kiện), không có các loại "văn bản / Điều / cơ quan / chủ thể / hành vi / chế tài".
 - **Khi hỏi.** Mỗi lệnh LLM thêm tốn ~5–25 s trên CPU (ước tính), tuỳ có cache hay không và dài bao nhiêu token. Ngân sách 45 s đã gần chạm với một lệnh trả lời ~1.000 token (`CHON-MO-HINH.md` mục 4). Vì vậy luồng hỏi của LightRAG (từ khoá + trả lời, ngữ cảnh mặc định 30K token), GraphRAG global, HippoRAG 2 (lọc + trả lời) và LlamaIndex mặc định (từ khoá đồng nghĩa + trả lời) không vừa. Graphiti không gọi LLM khi hỏi, nhưng lại cần Neo4j.
 - **Trái nguyên tắc của lộ trình.** Mục "Không làm" (§10) có dòng "Dùng LLM để lập chỉ mục hay tóm tắt cả văn bản, chạy nền"; mục 5 điều 6 yêu cầu "Máy gợi ý, người quyết". Không ai duyệt nổi hàng trăm nghìn cạnh do LLM sinh.

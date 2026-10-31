@@ -155,4 +155,4 @@ Ngay sau khi mở phần mềm, **câu hỏi đầu tiên ở Advance có thể 
 2. Phần mềm **không biết văn bản nào còn hiệu lực**. "Hiệu lực chưa rõ" là bình thường, bạn tự đánh dấu nếu cần.
 3. Kết quả đầu tiên **không phải lúc nào cũng đúng**. Ngay cả ở chế độ thông minh, cứ khoảng 4 câu thì có 1 câu kết quả đầu chưa đúng, nên hãy xem thêm vài kết quả bên dưới.
 
-Cần hướng dẫn chi tiết hơn: xem file **HUONG-DAN.md**. Cần hiểu phần mềm chạy ra sao bên trong: xem **TAI-LIEU-KY-THUAT.md**.
+Cần hướng dẫn chi tiết hơn: xem file **HUONG-DAN.md**. Cần hiểu phần mềm chạy ra sao bên trong: xem **docs/kien-truc.md**.

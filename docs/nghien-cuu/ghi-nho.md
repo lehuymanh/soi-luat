@@ -5,8 +5,8 @@ Viết 31/10/2026, cuối P0 của lộ trình 1.0. Người đọc chính: agen
 Đọc theo thứ tự này:
 
 1. Tệp này: mục 1–2 để biết đang ở đâu, mục 3 trước khi đo bất cứ gì, mục 5 trước khi chạy job dài.
-2. `soi-luat-lo-trinh-1.0.md`: mục 6 (P0 trạng thái, P1, P3 có "Việc trước P3"), mục 9 (quyết định còn mở).
-3. `soi-luat-ke-hoach-p1.md`: kế hoạch triển khai P1 từng việc, từng file.
+2. `docs/ke-hoach/lo-trinh-1.0.md`: mục 6 (P0 trạng thái, P1, P3 có "Việc trước P3"), mục 9 (quyết định còn mở).
+3. `docs/ke-hoach/ke-hoach-p1.md`: kế hoạch triển khai P1 từng việc, từng file.
 4. `bench/llm/KET-QUA.md` (vòng 2 ở đầu, vòng 1 ở dưới), `bench/llm/CHON-MO-HINH.md` (mục 7: lần tìm thêm mô hình), `bench/van-ban-that/KET-QUA.md` (mốc tìm kiếm P0).
 
 ---
@@ -17,7 +17,7 @@ Viết 31/10/2026, cuối P0 của lộ trình 1.0. Người đọc chính: agen
 - P0, phần máy làm được: **xong**. Còn chờ chủ dự án (lộ trình mục 9): duyệt mẫu `mau/giao-dien-1.0.html` (cổng để bắt đầu P1), chốt cách tính cổng câu trả lời AI (điều 10), đo trên máy 16 GB, ≥ 100 câu hỏi thật, chế độ tìm mặc định (điều 8).
 - Mã trả lời AI (`src/soiluat/answer.py`) **chưa gắn vào app**; chỉ `bench/llm/run.py` gọi nó. P3 sẽ gắn.
 - Số test của vòng 2 đo trên mã `b17461f`. Sau đó bản soát sửa thêm 6 lỗi (`bc9f9af`). Lần đo LLM kế tiếp phải chạy trên mã mới, và chạy lại sau khi P1 sửa parser (chữ đưa vào mô hình đổi).
-- **Bước đầu tiên:** xem lộ trình mục 9 để biết chủ dự án đã trả lời điều 9 (mẫu giao diện) và điều 10 (cách tính cổng) chưa. Mẫu đã duyệt thì làm P1 theo `soi-luat-ke-hoach-p1.md`, bắt đầu từ mục 1 "Cần chốt", rồi N0. Chưa duyệt thì chưa viết mã P1; làm "Việc trước P3" mục 1 hoặc 3 (lộ trình mục 6, P3).
+- **Bước đầu tiên:** xem lộ trình mục 9 để biết chủ dự án đã trả lời điều 9 (mẫu giao diện) và điều 10 (cách tính cổng) chưa. Mẫu đã duyệt thì làm P1 theo `docs/ke-hoach/ke-hoach-p1.md`, bắt đầu từ mục 1 "Cần chốt", rồi N0. Chưa duyệt thì chưa viết mã P1; làm "Việc trước P3" mục 1 hoặc 3 (lộ trình mục 6, P3).
 - **Không đo lại khi mã liên quan chưa đổi** (đã chốt; số ở tài liệu nguồn): chọn mô hình (Qwen; Gemma 4 E4B và Bolt đã đo, `bench/llm/KET-QUA.md` vòng 2); mốc tìm kiếm P0 trên văn bản thật (`bench/van-ban-that/KET-QUA.md`); A/B ba biến thể `pham_vi` trên train; mốc offline bằng chứng (mục 3.2). Khi parser, `src/soiluat/answer.py` hay mô hình đổi thì đo lại hai nhánh trước/sau trên cùng mã (kế hoạch P1, B1), không so thẳng với số P0.
 - **Môi trường này không kiểm được:** tốc độ và RAM trên máy 16 GB Windows (`llama-server` bản Windows), gói PyInstaller, hành vi giao diện trong trình duyệt. Có máy 16 GB thì đo việc đó trước (`bench/llm/README.md`).
 
@@ -151,7 +151,7 @@ Thời lượng trên máy ảo 4 nhân: Qwen ~50–60 s mỗi lần gọi, Gemm
 
 ## 6. Việc tiếp theo
 
-- **P1** theo `soi-luat-ke-hoach-p1.md`, sau khi chủ dự án duyệt mẫu. P1 không phụ thuộc kết quả đo mô hình.
+- **P1** theo `docs/ke-hoach/ke-hoach-p1.md`, sau khi chủ dự án duyệt mẫu. P1 không phụ thuộc kết quả đo mô hình.
 - **Việc trước P3** (lộ trình mục 6, P3), chạy xen bằng máy: câu bẫy chạm trần; tín hiệu điểm tìm kiếm thấp cho lỗi phạm vi; tách câu bẫy train/test; chạy lại `bench/llm` sau khi P1 sửa parser.
 - **Quyết định của chủ dự án**: lộ trình mục 9 (điều 8, 9, 10 liên quan trực tiếp tới việc trên).
 
@@ -168,7 +168,7 @@ Thời lượng trên máy ảo 4 nhân: Qwen ~50–60 s mỗi lần gọi, Gemm
 | `bench/llm/CHON-MO-HINH.md` | Chọn mô hình theo benchmark công khai; mục 7: lần tìm thêm 30/10/2026 |
 | `bench/llm/README.md` | Cách chạy, kể cả trên máy 16 GB |
 | `bench/van-ban-that/KET-QUA.md` | Mốc tìm kiếm trên văn bản thật (Normal/Advance) |
-| `soi-luat-lo-trinh-1.0.md` | Lộ trình 1.0; P0 trạng thái; P3 "Việc trước P3"; quyết định mở |
-| `soi-luat-ke-hoach-p1.md` | Kế hoạch triển khai P1 |
+| `docs/ke-hoach/lo-trinh-1.0.md` | Lộ trình 1.0; P0 trạng thái; P3 "Việc trước P3"; quyết định mở |
+| `docs/ke-hoach/ke-hoach-p1.md` | Kế hoạch triển khai P1 |
 | `mau/giao-dien-1.0.html` | Mẫu giao diện chờ duyệt. Dựng lại 31/10/2026 theo taste-skill (repo leonxlnx/taste-skill, `references/app-screens.md`). Script đo của skill bị chặn trong môi trường này nên kiểm bằng Playwright |
 | `.claude/skills/` | Kỹ năng rút ra trong P0 (đóng gói ngữ cảnh, khuôn JSON, kiểm số tiếng Việt, chạy llama.cpp) |
