@@ -282,18 +282,6 @@ def test_ask_ref_toi_da_150_khi_so_hieu_kem_y_dinh(db, tmp_path, monkeypatch):
     assert res["intent"] == "muc_phat" and res["n_ids"] > conversations.REFS_MAX >= len(res["refs"]) > 0
 
 
-def test_ask_csrf_khi_tat_bypass(db, tmp_path, monkeypatch):
-    monkeypatch.setenv("SOILUAT_DATA", str(tmp_path))
-    monkeypatch.delenv("SOILUAT_ALLOW_TEST_HOST")
-    h = {"Host": "127.0.0.1:8000"}
-    c = TestClient(appmod.app)
-    token = c.get("/", headers=h).cookies.get("soiluat_csrf")
-    assert c.post("/ask", headers=h, data={"q": "báo cáo"}).status_code == 403
-    assert c.post("/ask", headers={"Host": "evil.example"}, data={"q": "báo cáo"}).status_code == 400
-    ok = c.post("/ask", headers={**h, "X-CSRF-Token": token}, data={"q": "báo cáo"})
-    assert ok.status_code == 200 and "X-Conversation-Id" in ok.headers
-
-
 # ---- P1 H3: mở lại cuộc trò chuyện (GET /c/{id}, GET /c/{id}/m/{mid}) ----
 
 def _hoi(c, *qs, **filters):
@@ -701,24 +689,71 @@ def test_doi_ten_va_xoa_khoa_ghi_ra_503_khong_500(db, tmp_path, monkeypatch):
     assert c.post(f"/c/{cid}/rename", data={"title": "Tên mới"}).status_code == 200
 
 
-def test_doi_ten_va_xoa_giu_csrf_va_host(db, tmp_path, monkeypatch):
-    cid = _cuoc(db, "Tên cũ", T0)
-    c = _client(tmp_path, monkeypatch)
-    monkeypatch.delenv("SOILUAT_ALLOW_TEST_HOST")
-    h = {"Host": "127.0.0.1:8000"}
-    token = c.get("/", headers=h).cookies.get("soiluat_csrf")
-    for url, data in ((f"/c/{cid}/rename", {"title": "Mới"}), (f"/c/{cid}/delete", {})):
-        assert c.post(url, headers=h, data=data).status_code == 403  # không token
-        assert c.post(url, headers={**h, "X-CSRF-Token": "sai"}, data=data).status_code == 403
-        assert c.post(url, headers={"Host": "evil.example", "X-CSRF-Token": token}, data=data).status_code == 400
-    assert c.get("/history", headers={"Host": "evil.example"}).status_code == 400
-    assert db.execute("SELECT title FROM conversations WHERE id = ?", (cid,)).fetchone()[0] == "Tên cũ"
-    assert c.post(f"/c/{cid}/rename", headers={**h, "X-CSRF-Token": token}, data={"title": "Mới"}).status_code == 200
-    assert c.post(f"/c/{cid}/delete", headers=h, data={"csrf_token": token}).status_code == 200  # token trong form cũng được
-    assert c.get("/history", headers=h).status_code == 200
-
-
 def test_xoa_dung_hop_thoai_dung_chung_khong_confirm():
     """Kế hoạch H4: hộp thoại xác nhận và toast tự dựng (như mẫu), không `confirm()` của trình duyệt."""
     js = (Path(appmod.__file__).parent / "static" / "app.js").read_text(encoding="utf-8")
     assert not re.search(r"(?<![\w.])confirm\(", js) and "function dialog(" in js and "function toast(" in js
+
+
+# ---- P1 H6: CSRF và Host cho mọi POST mới (conftest bật bypass nên mỗi test phải tắt) ----
+
+POST_MOI = {  # tên ca: cid -> (đường dẫn, form)
+    "ask": lambda cid: ("/ask", {"q": "báo cáo", "conversation_id": str(cid)}),
+    "rename": lambda cid: (f"/c/{cid}/rename", {"title": "Mới"}),
+    "delete": lambda cid: (f"/c/{cid}/delete", {}),
+}
+
+
+def _luu(db):
+    return [tuple(r) for t in ("conversations", "messages", "query_log") for r in db.execute(f"SELECT * FROM {t} ORDER BY 1")]
+
+
+@pytest.mark.parametrize("hanh_dong", POST_MOI)
+def test_post_moi_csrf_va_host_khi_tat_bypass(db, tmp_path, monkeypatch, hanh_dong):
+    _nap(db, tmp_path, "15/2020")
+    cids = [_cuoc(db, "Tên cũ", T0), _cuoc(db, "Tên cũ", T0)]
+    c = _client(tmp_path, monkeypatch)
+    monkeypatch.delenv("SOILUAT_ALLOW_TEST_HOST")
+    h = {"Host": "127.0.0.1:8000"}
+    token = c.get("/", headers=h).cookies.get("soiluat_csrf")
+    assert token == appmod.CSRF_TOKEN
+    url, data = POST_MOI[hanh_dong](cids[0])
+    truoc = _luu(db)
+    for gui in (
+        c.post(url, headers=h, data=data),  # có cookie, thiếu token
+        c.post(url, headers={**h, "X-CSRF-Token": "sai"}, data=data),
+        c.post(url, headers=h, data={**data, "csrf_token": "sai"}),
+        TestClient(appmod.app).post(url, headers={**h, "X-CSRF-Token": token}, data=data),  # token đúng nhưng không có cookie
+    ):
+        assert gui.status_code == 403
+    for host in ("evil.example", "localhost.evil.example", "127.0.0.1.evil.example:8000"):
+        assert c.post(url, headers={"Host": host, "X-CSRF-Token": token}, data=data).status_code == 400
+        assert c.get("/history", headers={"Host": host}).status_code == 400
+    assert _luu(db) == truoc  # mọi lần bị từ chối không ghi gì
+    r = c.post(url, headers={**h, "X-CSRF-Token": token}, data=data)  # token ở header như post() của JS
+    assert r.status_code == 200 and (hanh_dong != "ask" or "X-Conversation-Id" in r.headers)
+    sau = _luu(db)
+    assert sau != truoc
+    url, data = POST_MOI[hanh_dong](cids[1])
+    assert c.post(url, headers=h, data={**data, "csrf_token": token}).status_code == 200  # hoặc token trong form
+    assert _luu(db) != sau
+
+
+@pytest.mark.parametrize("hanh_dong", POST_MOI)
+def test_post_moi_khoi_dong_lai_token_cu_403_kem_cookie_moi_roi_token_moi_200(db, tmp_path, monkeypatch, hanh_dong):
+    """App khởi động lại khi trang cũ còn mở (CSRF_TOKEN đổi): token cũ ra 403 và chính phản hồi đó đặt cookie mới,
+    nên post() của JS gửi lại với token mới là qua, không cần GET."""
+    cid = _cuoc(db, "Tên cũ", T0)
+    c = _client(tmp_path, monkeypatch)
+    monkeypatch.delenv("SOILUAT_ALLOW_TEST_HOST")
+    h = {"Host": "127.0.0.1:8000"}
+    cu = c.get("/", headers=h).cookies.get("soiluat_csrf")
+    monkeypatch.setattr(appmod, "CSRF_TOKEN", "token-sau-khi-khoi-dong-lai")
+    url, data = POST_MOI[hanh_dong](cid)
+    truoc = _luu(db)
+    r = c.post(url, headers={**h, "X-CSRF-Token": cu}, data=data)
+    assert r.status_code == 403 and f"soiluat_csrf={appmod.CSRF_TOKEN}" in r.headers["set-cookie"]
+    assert _luu(db) == truoc
+    assert c.cookies.get("soiluat_csrf") == appmod.CSRF_TOKEN  # JS đọc đúng cookie này (cookieToken)
+    assert c.post(url, headers={**h, "X-CSRF-Token": appmod.CSRF_TOKEN}, data=data).status_code == 200
+    assert _luu(db) != truoc
