@@ -32,7 +32,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 import uvicorn
 
-from soiluat import crossrank, pageimg, reader, semantic
+from soiluat import conversations, crossrank, pageimg, reader, semantic
 from soiluat.cards import OCR_LABEL, _ocr_unverified, assemble_cards, compact, doc_groups, summarize
 from soiluat.config import HOST, PORT, data_dir, db_path
 from soiluat.db import backup_db, connect, init_schema
@@ -210,8 +210,10 @@ def _log_query(conn: sqlite3.Connection, q: str, n: int) -> None:
         conn.rollback()
 
 
-def _search_ctx(q: str, loai: str, co_quan: str, hieu_luc: str) -> dict:
+def _search_ctx(q: str, loai: str, co_quan: str, hieu_luc: str, ask: bool = False, cid: int | None = None) -> dict:
+    """`ask`: POST /ask, lưu thành tin của cuộc `cid` (None = cuộc mới); `conversation_id` trong kết quả là cuộc đã lưu."""
     conn = get_conn()
+    saved = None
     ctx = {"cards": [], "items": [], "n_items": 0, "n_found": 0, "cut_note": "", "dates": {}, "n": {"n1": 0, "n2": 0, "n3": 0, "n4": 0}}
     hints: list[str] = []
     q2_note = ""
@@ -229,6 +231,12 @@ def _search_ctx(q: str, loai: str, co_quan: str, hieu_luc: str) -> dict:
             q2_note = (q2_note + " " if q2_note else "") + ctx["cut_note"]
         # "Mở toàn văn": số văn bản, để gõ số hiệu không lọt vào trang "Truy vấn bỏ sót" (lọc result_count = 0)
         _log_query(conn, q, len(ctx["items"]) if not ctx["cards"] else len(ctx["cards"]))
+        if ask:  # tìm xong và ghi nhật ký xong mới lưu: không giữ khoá ghi suốt phần tìm (Advance ~9 s)
+            try:
+                filters = {"loai": loai, "co_quan": co_quan, "hieu_luc": hieu_luc}
+                saved = conversations.save(conn, cid, q, conversations.result_of(conn, q, filters, s, ctx), _now())
+            except sqlite3.Error:  # đang nạp file giữ khoá ghi: vẫn trả kết quả, nói rõ chưa lưu (không nuốt im như nhật ký)
+                q2_note = (q2_note + " " if q2_note else "") + "Chưa lưu được vào lịch sử (đang nạp file)."
         if not ctx["items"]:
             hints = [r["term"] for r in conn.execute("SELECT term FROM synonyms WHERE approved = 1 LIMIT 8")]
     # số trên thanh bên "Liên kết chờ duyệt": cùng hàng chờ với trang /review
@@ -237,6 +245,7 @@ def _search_ctx(q: str, loai: str, co_quan: str, hieu_luc: str) -> dict:
     return {
         **ctx, "q": q, "loai": loai, "co_quan": co_quan, "hieu_luc": hieu_luc, "hints": hints,
         "q2_note": q2_note, "sure": sure, "empty_kho": empty_kho, "n_docs": n_docs, "n_queue": n_queue,
+        "conversation_id": saved,
     }
 
 
@@ -256,6 +265,26 @@ def home(
         "SELECT DISTINCT co_quan FROM documents WHERE co_quan IS NOT NULL AND co_quan != '' ORDER BY co_quan")]
     conn.close()
     return _tpl(request, "index.html", {**ctx, "mode": _mode_status(), "suffixes": ",".join(sorted(SUFFIXES)), "co_quans": co_quans})
+
+
+@app.post("/ask", response_class=HTMLResponse)
+def ask(
+    request: Request,
+    q: str = Form(""),
+    conversation_id: str = Form(""),
+    loai: str = Form(""),
+    co_quan: str = Form(""),
+    hieu_luc: str = Form(""),
+    csrf_token: str = Form(""),
+):
+    """Hỏi và lưu vào cuộc trò chuyện (P1 H2): mảnh kết quả như GET /?q= kèm X-Conversation-Id (cuộc mới nếu cuộc cũ không còn)."""
+    _check_csrf(request, csrf_token)
+    m = re.fullmatch(r"[0-9]{1,18}", conversation_id)  # id rác: cuộc mới (không để số quá lớn thành OverflowError ở SQLite)
+    ctx = _search_ctx(q, loai, co_quan, hieu_luc, ask=True, cid=int(m[0]) if m else None)
+    resp = _tpl(request, "_results.html", ctx)
+    if ctx["conversation_id"]:
+        resp.headers["X-Conversation-Id"] = str(ctx["conversation_id"])
+    return resp
 
 
 def _mode_status(count_pending: bool = True) -> dict:

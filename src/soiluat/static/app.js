@@ -22,7 +22,9 @@
   composer.addEventListener("submit", e => { e.preventDefault(); const q = qbox.value; qbox.value = ""; qbox.style.height = "auto"; ask(q); });
   document.addEventListener("click", e => { const c = e.target.closest("[data-ask]"); if (c) ask(c.dataset.ask); });
 
-  async function ask(q) {
+  /* Các lần hỏi xếp thành một chuỗi: cuộc mới chưa có id tới khi có câu trả lời đầu, hai lần Enter nhanh sẽ tạo hai cuộc. */
+  let cid = "", queue = Promise.resolve();
+  function ask(q) {
     q = q.trim();
     if (!q) return;
     $("#hello")?.remove();
@@ -36,16 +38,21 @@
     b.innerHTML = '<div class="typing" role="status" aria-label="Đang tìm"><i></i><i></i><i></i></div>';
     thread.append(u, b);
     u.scrollIntoView({ behavior: "smooth", block: "start" });
-    const p = new URLSearchParams({ q });
-    for (const n of ["loai", "co_quan", "hieu_luc"]) { const v = composer.elements[n].value.trim(); if (v) p.set(n, v); }
-    try {
-      const r = await fetch("/?" + p, { headers: { "HX-Request": "true" } });
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      b.innerHTML = await r.text();
-    } catch (err) {
-      b.innerHTML = '<p class="err"></p>'; b.firstChild.textContent = "Không tìm được: " + err.message;
-    }
-    u.scrollIntoView({ behavior: "smooth", block: "start" });
+    const fd = new FormData(); fd.set("q", q);
+    for (const n of ["loai", "co_quan", "hieu_luc"]) { const v = composer.elements[n].value.trim(); if (v) fd.set(n, v); }
+    queue = queue.then(async () => {  // không bao giờ từ chối: lỗi hiện trong khung trả lời, chuỗi vẫn chạy tiếp
+      if (cid) fd.set("conversation_id", cid);
+      try {
+        const r = await post("/ask", fd, {});
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        b.innerHTML = await r.text();
+        const id = r.headers.get("X-Conversation-Id");  // không có khi chưa lưu được (đang nạp file): giữ id cũ
+        if (id) { cid = id; history.replaceState(null, "", "/c/" + id); }
+      } catch (err) {
+        b.innerHTML = '<p class="err"></p>'; b.firstChild.textContent = "Không tìm được: " + err.message;
+      }
+      u.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   const fbtn = $("#btn-filters"), fbox = $("#filters");
