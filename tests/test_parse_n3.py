@@ -86,3 +86,25 @@ def test_phu_luc_gop_mot_the_khong_canh_bao_khong_cau_truc(db, tmp_path):
     pages = [r for r in db.execute(f"SELECT page_from, page_to FROM units WHERE id IN ({','.join('?' * len(ids))})", ids)]
     assert (cs[0].page_from, cs[0].page_to) == (min(p[0] for p in pages), max(p[1] or p[0] for p in pages))  # cả phần Phụ lục
     assert cascade_search(db, "bốc xếp thủ công").ids  # nội dung phụ lục tìm được
+
+
+QH = (
+    "Luật số 24/2026/QH16\n"
+    "Điều 1. Phạm vi\n1. Luật này quy định một.\n"
+    "Điều 2. Hiệu lực\n1. Luật này có hiệu lực từ ngày 01 tháng 7 năm 2027.\n"
+    "Luật này được Quốc hội nước Cộng hòa xã hội chủ nghĩa Việt Nam khóa XVI, Kỳ họp thứ 1 thông qua ngày 24 tháng 8 năm 2026.\n"
+    "CHỦ TỊCH QUỐC HỘI\nTrần Thanh Mẫn\n"
+)
+
+
+def test_c4_luat_quoc_hoi_khong_noi_nhan_cat_chu_ky_va_tach_phu_luc():
+    r = parse_structure(QH + "PHỤ LỤC I\nDANH MỤC NGÀNH\n1. Một mục.\n")
+    thân = "".join(u.text for u in r.units if not u.addr_part.startswith("PL"))
+    assert "CHỦ TỊCH" not in thân and "Trần Thanh Mẫn" not in thân and "thông qua" not in thân
+    assert [u.addr_part for u in r.units if u.addr_part.startswith("PL")] == ["PL1.para1"]
+
+
+def test_c4_cau_ket_trong_ngoac_trich_van_la_cua_khoi_trich():
+    # sửa luật khác: câu "Luật này được Quốc hội … thông qua" nằm trong khối trích dẫn không phải câu kết của văn bản
+    text = BODY + "3. Sửa đổi như sau:\n“Điều 3. Mới\n1. Luật này được Quốc hội nước Cộng hòa xã hội chủ nghĩa Việt Nam thông qua.”\nĐiều 3. Ba\n1. Khoản ba.\n"
+    assert _dieu_nums(parse_structure(text)) == ["D1", "D2", "D3"]

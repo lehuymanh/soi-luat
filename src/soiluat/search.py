@@ -9,7 +9,6 @@ import threading
 from dataclasses import dataclass, field
 
 from soiluat.fold import (
-    dieu_path,
     fold_search,
     iy_norm_text,
     iy_norm_token,
@@ -37,15 +36,6 @@ _OCR_PAGE_COND = """
 p.extraction_method LIKE '%ocr%'
 AND IFNULL(p.verification_status, '') != 'da_doi_chieu'
 AND p.ocr_status NOT IN ('khong_can', 'da_doi_chieu')
-"""
-OCR_SQL = f"""
-u.id IN (
-  SELECT u2.id FROM units u2
-  JOIN pages p ON p.doc_id = u2.doc_id
-    AND p.page_no BETWEEN IFNULL(u2.page_from, 1)
-                      AND IFNULL(u2.page_to, IFNULL(u2.page_from, 1))
-  WHERE {_OCR_PAGE_COND}
-)
 """
 
 
@@ -175,36 +165,9 @@ def _fts_term(tok: str) -> str:
     return "(" + " OR ".join(alts) + ")"
 
 
-def fts_phrase(tokens: list[str]) -> str:
-    toks = [t for t in tokens if t]
-    if not toks:
-        return ""
-    variants = [toks]
-    last_alts = iy_token_alts(toks[-1])
-    if len(last_alts) > 1:
-        variants = [toks[:-1] + [a] for a in last_alts]
-    bodies = []
-    for v in variants:
-        inner = " ".join(t.replace('"', '""') for t in v)
-        if inner:
-            bodies.append(f'"{inner}"')
-    if not bodies:
-        return ""
-    if len(bodies) == 1:
-        return bodies[0]
-    return "(" + " OR ".join(bodies) + ")"
-
-
 def fts_and(tokens: list[str]) -> str:
     parts = [_fts_term(t) for t in tokens if _fts_term(t)]
     return " AND ".join(parts)
-
-
-def fts_near(tokens: list[str], window: int = 10) -> str:
-    parts = [_fts_term(t) for t in tokens if _fts_term(t)]
-    if len(parts) < 2:
-        return ""
-    return f"NEAR({' '.join(parts)}, {window})"
 
 
 def load_synonyms(conn: sqlite3.Connection, *, accent: bool) -> list[tuple[str, str]]:
@@ -231,20 +194,25 @@ def _replace_term(tokens: list[str], term: str, alt: str) -> list[str] | None:
     return None
 
 
+def _zero_pad(key: str) -> str:
+    """'2/2021/tt-btc' → '02/2021/tt-btc': văn bản ghi số hiệu một chữ số có số 0 đứng đầu, người gõ hay bỏ."""
+    return re.sub(r"^(\d)/", r"0\1/", key)
+
+
 def _so_hieu_docs(conn: sqlite3.Connection, raw_query: str) -> list[int]:
     full = find_so_hieu(raw_query)
     prefix = None if full else find_so_hieu_prefix(raw_query)
     if full:
         key = so_hieu_search_key(full)
         rows = conn.execute(
-            "SELECT id FROM documents WHERE so_hieu_search = ?",
-            (key,),
+            "SELECT id FROM documents WHERE so_hieu_search IN (?, ?)",
+            (key, _zero_pad(key)),
         ).fetchall()
     elif prefix:
         key = fold_search(prefix)
         rows = conn.execute(
-            "SELECT id FROM documents WHERE so_hieu_search LIKE ?",
-            (key + "/%",),
+            "SELECT id FROM documents WHERE so_hieu_search LIKE ? OR so_hieu_search LIKE ?",
+            (key + "/%", _zero_pad(key) + "/%"),
         ).fetchall()
     else:
         return []
@@ -255,7 +223,7 @@ def _dieu_where(dieu: str) -> tuple[str, list[str]]:
     """Điều n gồm cả bản trùng số D{n}~k (H4)."""
     needle = f"D{dieu}"
     return (
-        "(path = ? OR path LIKE ? OR path LIKE ?)",
+        "(path = ? COLLATE NOCASE OR path LIKE ? OR path LIKE ?)",  # văn bản viết "Điều 1A" hay "1a", người gõ bất kỳ
         [needle, needle + ".%", needle + "~%"],
     )
 
@@ -300,21 +268,21 @@ DIEU_CAP = 100  # "Điều n" không kèm số hiệu: mỗi văn bản một Đ
 def lookup_dieu_all_docs(conn: sqlite3.Connection, dieu: str) -> list[int]:
     needle = f"D{dieu}"
     rows = conn.execute(
-        "SELECT id FROM units WHERE (path = ? OR path LIKE ?) AND level = 'dieu' ORDER BY id",
+        "SELECT id FROM units WHERE (path = ? COLLATE NOCASE OR path LIKE ?) AND level = 'dieu' ORDER BY id",
         (needle, needle + "~%"),
     ).fetchall()
     return [int(r["id"]) for r in rows]
 
 
 def _ids_on_dieu(conn: sqlite3.Connection, ids: list[int], dieu: str) -> list[int]:
-    needle = f"D{dieu}"
+    needle = f"D{dieu}".lower()
     keep: list[int] = []
     meta = _fetch_units(conn, ids)
     for uid in ids:
         row = meta.get(uid)
         if row is None:
             continue
-        path = row["path"] or ""
+        path = (row["path"] or "").lower()
         if path == needle or path.startswith((needle + ".", needle + "~")):
             keep.append(uid)
     return keep
@@ -330,7 +298,6 @@ def match_units(
     limit: int = 50,
     match_sql: str | None = None,
     branch: str = "fold",
-    ocr_unverified_only: bool = False,
     only_ids: list[int] | None = None,
 ) -> list[int]:
     if match_sql is None:
@@ -339,7 +306,7 @@ def match_units(
         i
         for i, _ in scored_units(
             conn, match_sql, branch=branch, doc_id=doc_id, doc_ids=doc_ids, labels=labels,
-            limit=limit, ocr_unverified_only=ocr_unverified_only, only_ids=only_ids,
+            limit=limit, only_ids=only_ids,
         )
     ]
 
@@ -358,7 +325,6 @@ def scored_units(
     doc_ids: list[int] | None = None,
     labels: tuple[str, ...] | None = None,
     limit: int = 50,
-    ocr_unverified_only: bool = False,
     only_ids: list[int] | None = None,
 ) -> list[tuple[int, float]]:
     """(id, điểm bm25) — điểm âm, càng nhỏ càng liên quan."""
@@ -372,7 +338,7 @@ def scored_units(
     sql_match = f"{cols} : ({match_sql})"
     extra = ""
     params: list = [sql_match]
-    join = bool(doc_ids or doc_id is not None or labels or ocr_unverified_only)
+    join = bool(doc_ids or doc_id is not None or labels)
     if doc_ids:
         placeholders = ",".join("?" * len(doc_ids))
         extra += f" AND u.doc_id IN ({placeholders})"
@@ -386,8 +352,6 @@ def scored_units(
             f" AND u.id IN (SELECT unit_id FROM unit_labels WHERE label IN ({placeholders}))"
         )
         params.extend(labels)
-    if ocr_unverified_only:
-        extra += f" AND {OCR_SQL}"
     if only_ids is not None:
         # dấu +: không để SQLite duyệt từng id rồi chạy lại cả truy vấn FTS cho mỗi id (kho OCR: 0,7 s → 3 ms)
         extra += " AND +f.rowid IN (SELECT value FROM json_each(?))"
@@ -413,13 +377,15 @@ def scored_units(
 
 
 def _ocr_unit_ids(conn: sqlite3.Connection) -> list[int]:
-    """Unit thuộc trang OCR chưa đối chiếu (F2). Đi từ pages (ít) sang units."""
+    """Unit thuộc trang OCR chưa đối chiếu (F2). Chỉ xét văn bản có trang OCR (kho chữ không đụng tới), rồi mỗi unit tra
+    trang của nó qua chỉ mục (doc_id, page_no): không ghép trang x unit cùng văn bản (bậc hai theo số trang)."""
     rows = conn.execute(
         f"""
-        SELECT DISTINCT u.id FROM pages p CROSS JOIN units u ON u.doc_id = p.doc_id
-        WHERE {_OCR_PAGE_COND}
-          AND p.page_no BETWEEN IFNULL(u.page_from, 1)
-                            AND IFNULL(u.page_to, IFNULL(u.page_from, 1))
+        SELECT u.id FROM units u
+        WHERE u.doc_id IN (SELECT p.doc_id FROM pages p WHERE {_OCR_PAGE_COND})
+          AND EXISTS (SELECT 1 FROM pages p WHERE p.doc_id = u.doc_id AND {_OCR_PAGE_COND}
+                      AND p.page_no BETWEEN IFNULL(u.page_from, 1)
+                                        AND IFNULL(u.page_to, IFNULL(u.page_from, 1)))
         """
     ).fetchall()
     return [int(r[0]) for r in rows]
@@ -432,13 +398,6 @@ def _token_df(conn: sqlite3.Connection, token: str) -> int:
     except sqlite3.OperationalError:
         return 0
     return int(row[0]) if row else 0
-
-
-def group_key_row(row: sqlite3.Row) -> tuple[int, str]:
-    # Ghi chú (H4) gom theo đơn vị cha nếu có.
-    if row["level"] == "ghi_chu" and row["ppath"]:
-        return (int(row["doc_id"]), dieu_path(row["ppath"], row["plevel"]))
-    return (int(row["doc_id"]), dieu_path(row["path"], row["level"]))
 
 
 _RISK_IN = ",".join(f"'{x}'" for x in RISK_LABELS)

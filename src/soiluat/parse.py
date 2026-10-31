@@ -40,7 +40,7 @@ DIEU_BARE = re.compile(r"^Điều\s*(\d+[a-z]?)\s+(\S.*)$", re.IGNORECASE)
 KHOAN = re.compile(r"^(\d{1,2})[.)/](?!\d)\s*(.*)$")
 DIEM_PAREN = re.compile(r"^([a-zđ])\)\s*(.*)$", re.IGNORECASE)
 DIEM_DOT = re.compile(r"^([a-zđ])\.\s+(.*)$")
-CHUONG_MUC = re.compile(r"^(Chương|Mục|Phần)\s+([IVXLCDM]+|\d+)\b", re.IGNORECASE)
+CHUONG_MUC = re.compile(r"^(Chương|Mục|Tiểu\s+mục|Phần)\s+([IVXLCDM]+|\d+)\b", re.IGNORECASE)
 # "Số: 15/2020/NĐ-CP", "Luật số: 17/2026/QH16", "Số: 388 /2026/NĐ-CP" (số điền tay, cách trước "/");
 # phân biệt hoa thường: dòng căn cứ bị ngắt "số 40/2019/QH14." không phải dòng số hiệu
 SO_LINE = re.compile(r"^(?:(?:Luật|Bộ luật|Pháp lệnh|Nghị quyết|Lệnh)\s+số\s*:|Số\s*[:.]?|SỐ\s*[:.]?)\s*\d+\s*/")
@@ -53,6 +53,8 @@ NOI_NHAN_KT = re.compile(r"noi nhan\s*[:.]?\s*(?:kt|tm|q|t)[. ]")
 ANNEX_HEAD = re.compile(r"^(?:PHỤ\s+LỤC|Phụ\s+lục|DANH\s+MỤC|BIỂU\s+MẪU|MẪU\s+SỐ|Mẫu\s+số)\b")
 ANNEX_NEXT = re.compile(r"^(?:PHỤ\s+LỤC|Phụ\s+lục)\s+[IVXLC\d]+[A-Z]?\s*(?:\(.*\))?\W*$")
 ANNEX_CHUNK = 1500  # ký tự tối đa mỗi đơn vị phụ lục (cắt ở đầu dòng viết hoa/khoản/hàng bảng, không cắt giữa dòng)
+# câu kết của Luật, Nghị quyết Quốc hội (không có "Nơi nhận"): "Luật này được Quốc hội nước Cộng hòa … thông qua ngày …"; chữ đã bỏ dấu
+QH_CAU_KET = "nay duoc quoc hoi nuoc cong hoa"
 # tên văn bản ở trích dẫn: "Điều 6 Nghị định này"
 DOC_WORDS = ("nghi dinh", "thong tu", "luat", "bo luat", "quyet dinh", "nghi quyet", "phap lenh")
 
@@ -343,7 +345,8 @@ def _parse_lines(lines: list[str], body: str) -> ParseResult | None:
             continue
         last, prev = prev, line
         if in_sign and ANNEX_HEAD.match(line):
-            # shortcut: chỉ nhận phụ lục sau khối nơi nhận (in_sign); phụ lục không có khối đó vẫn dồn vào đơn vị cuối
+            # shortcut: chỉ nhận phụ lục sau khối nơi nhận hoặc câu kết của Quốc hội (in_sign); phụ lục không có khối nào
+            # trong hai khối đó vẫn dồn vào đơn vị cuối
             in_sign = in_quotes = False
             in_annex = True
         if in_annex:
@@ -428,9 +431,10 @@ def _parse_lines(lines: list[str], body: str) -> ParseResult | None:
             current_dieu.title = current_dieu.text = f"{current_dieu.title} {line}".strip()
             current_dieu.line_to = i
             continue
-        if len(line) < 80 and fold_search(line).startswith("noi nhan") and (
-                len(line) < 20 or NOI_NHAN_KT.match(fold_search(line))):
-            in_sign = True  # khối nơi nhận/chữ ký: bỏ tới Điều kế tiếp (hoặc tới phụ lục)
+        folded = fold_search(line)
+        if (len(line) < 80 and folded.startswith("noi nhan") and (len(line) < 20 or NOI_NHAN_KT.match(folded))) \
+                or QH_CAU_KET in folded:
+            in_sign = True  # khối nơi nhận/chữ ký (Quốc hội: từ câu kết): bỏ tới Điều kế tiếp (hoặc tới phụ lục)
             continue
         if CHUONG_MUC.match(line):
             skip_upper = True  # tên Chương/Mục ở dòng sau, viết hoa

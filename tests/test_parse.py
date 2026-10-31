@@ -98,3 +98,24 @@ def test_c1_dong_so_hong_khong_lay_so_hieu_van_ban_duoc_dan():
         assert parse_so_hieu_from_text(f"BỘ NỘI VỤ\n{ln}\n{can_cu}") == "26/2026/TT-BNV", ln
     # không có dòng Số nào: vẫn lấy số hiệu đầu tiên trong văn bản như cũ
     assert parse_so_hieu_from_text(f"THÔNG TƯ\n{can_cu}") == "84/2015/QH13"
+
+
+def test_f3_tieu_muc_va_ten_chuong_khong_dinh_vao_diem_cuoi():
+    text = (
+        "Nghị định số 1/2020/NĐ-CP\n"
+        "Chương I\nQUY ĐỊNH CHUNG\n"
+        "Điều 1. Một\n1. Khoản một:\na) Tiếp nhận tố cáo;\nb) Xử lý tố cáo.\n"
+        "Tiểu mục 2. TIẾP NHẬN VÀ XỬ LÝ TỐ CÁO\n"
+        "Mục 3\nHÀNH VI VI PHẠM\n"
+        "Chương II\nTHI HÀNH\n"
+        "Điều 2. Hai\n1. Khoản hai.\n"
+    )
+    r = parse_structure(text)
+    assert {u.addr_part: u.text for u in r.units}["D1.K1.Đb"] == "Xử lý tố cáo."
+    assert not any("Tiểu mục" in u.text or "THI HÀNH" in u.text for u in r.units)
+
+
+def test_f3_ten_dieu_bi_ngat_dong_noi_lai_thanh_mot_ten():
+    r = parse_structure("Nghị định số 1/2020/NĐ-CP\nĐiều 1. Quy định về tổ chức\nvà hoạt động\n1. Khoản một.\n")
+    d1 = next(u for u in r.units if u.addr_part == "D1")
+    assert d1.title == "Quy định về tổ chức và hoạt động"

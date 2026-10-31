@@ -5,7 +5,8 @@ from soiluat.db import connect, init_schema, seed_synonyms
 from soiluat.fold import dieu_path, fold_search, pretty_path, search_accent
 from soiluat.ingest import ingest_path
 from soiluat.query import classify_query, split_intent, strip_question
-from soiluat.search import _title_index, cascade_search, tokenize
+from soiluat.search import _so_hieu_docs, _title_index, cascade_search, tokenize
+from soiluat.sohieu import find_dieu_so
 
 
 def _ingest(db, tmp_path, name, text):
@@ -217,3 +218,90 @@ def test_ghi_chu_without_parent_is_own_card(db, sample_doc):
     cards = assemble_cards(db, r.ids, tiers=r.tiers)
     assert len(cards) == 1 and cards[0].rank == 4
     assert "ghi chú 2" in cards[0].duty_addr
+
+
+# ---------- Tra số hiệu và "Điều n" (đợt dọn mã 0.9.0: C5, C6/F5, C10) ----------
+
+def _nd5_khoan(db, tmp_path):
+    _ingest(
+        db, tmp_path, "nd384.txt",
+        "Nghị định số 384/2026/NĐ-CP\n"
+        "Điều 5. Mức thu\n"
+        "1. Mức một.\n"
+        "2. Mức hai khoản nhắc khoản 2 và Điều 5 trong lời.\n"
+        "a) Điểm a của khoản hai.\n"
+        "3. Mức ba.\n"
+        "Điều 6. Nộp\n"
+        "1. Nộp tiền.\n",
+    )
+
+
+def test_c5_ngay_thang_khong_bi_doc_la_dau_so_hieu(db, tmp_path):
+    from soiluat.sohieu import find_so_hieu_prefix
+    _ingest(db, tmp_path, "tt02.txt", "Thông tư số 02/2021/TT-BTC\nĐiều 1. Lưu trữ\n1. Hồ sơ lưu trữ.\n")
+    for q in ("hạn nộp hồ sơ trước ngày 05/02/2021", "hạn nộp trong tháng 10/2020", "ngày 5/2/2021"):
+        assert find_so_hieu_prefix(q) is None, q
+    assert find_so_hieu_prefix("15/2020") == "15/2020"
+    assert find_so_hieu_prefix("Thông tư 15/2020 Điều 5") == "15/2020"
+    assert _so_hieu_docs(db, "hạn nộp hồ sơ trước ngày 05/02/2021") == []  # không giới hạn kho vào Thông tư 02/2021
+
+
+def test_c6_khoan_diem_trong_cau_trich_khong_thanh_tu_khoa(db, tmp_path):
+    _nd5_khoan(db, tmp_path)
+    goc = cascade_search(db, "Điều 5 384/2026/NĐ-CP")
+    assert set(_paths(db, goc.ids)) >= {"D5", "D5.K1", "D5.K2", "D5.K2.Đa", "D5.K3"}
+    for q in ("Khoản 2 Điều 5 Nghị định 384/2026/NĐ-CP", "384/2026/NĐ-CP Điều 5 khoản 2",
+              "Điểm a khoản 2 Điều 5 384/2026/NĐ-CP", "điểm a, khoản 2, Điều 5 Nghị định số 384/2026/NĐ-CP"):
+        r = cascade_search(db, q)
+        assert r.note == "so_hieu" and sorted(r.ids) == sorted(goc.ids), q  # cả Điều 5, không khoản chỉ "nhắc" khoản 2
+    # từ khoá thật đi kèm vẫn được tìm trong Điều
+    assert cascade_search(db, "khoản 2 Điều 5 384/2026/NĐ-CP mức ba").ids
+
+
+def test_c10_so_hieu_thieu_so_0_va_chu_cai_dieu_hoa_thuong(db, tmp_path):
+    _ingest(db, tmp_path, "tt02.txt", "Thông tư số 02/2021/TT-BTC\nĐiều 1. Lưu trữ\n1. Hồ sơ.\n")
+    assert cascade_search(db, "Thông tư 2/2021/TT-BTC").ids == cascade_search(db, "02/2021/TT-BTC").ids != []
+    assert cascade_search(db, "2/2021").note == "so_hieu"
+    _ingest(db, tmp_path, "luat30.txt", "Luật số 30/2022/QH15\nĐiều 1A. Bổ sung\n1. Nội dung bổ sung.\nĐiều 2. Hai\n1. Hai.\n")
+    for q in ("Điều 1A", "Điều 1a"):
+        r = cascade_search(db, q)
+        assert "D1A" in _paths(db, r.ids), q
+        r = cascade_search(db, f"30/2022/QH15 {q}")
+        assert set(_paths(db, r.ids)) == {"D1A", "D1A.K1"}, q
+
+
+def test_c10_cau_hoi_nfd_giong_nfc(db, tmp_path):
+    import unicodedata
+    _nd5_khoan(db, tmp_path)
+    q = "Điều 5 Nghị định số 384/2026/NĐ-CP"
+    nfd = unicodedata.normalize("NFD", q)
+    assert nfd != q
+    r = cascade_search(db, nfd)
+    assert r.note == "so_hieu" and r.ids == cascade_search(db, q).ids != []
+    assert find_dieu_so(nfd) == "5"
+
+
+def test_f4_ocr_unit_ids_chi_duyet_van_ban_co_trang_ocr(db):
+    from soiluat.search import _ocr_unit_ids
+
+    def add_doc(did, ocr, status, n=200):
+        db.execute("INSERT INTO documents(id, file_path, sha256, source_status, extraction_method) VALUES (?,?,?,?,?)",
+                   (did, f"f{did}", f"s{did}", "x", "ocr" if ocr else "txt"))
+        db.executemany(
+            "INSERT INTO pages(doc_id, page_no, kind, extraction_method, ocr_status, verification_status) VALUES (?,?,?,?,?,?)",
+            [(did, p, "scan", "ocr" if ocr else "pdf_text", status, "auto") for p in range(1, n + 1)])
+        db.executemany(
+            "INSERT INTO units(doc_id, path, level, raw_text, normalized_text, search_text, extraction_method, "
+            "verification_status, page_from, page_to) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            [(did, f"D{u}", "dieu", "x", "x", "x", "txt", "auto", u, u) for u in range(1, n + 1)])
+
+    add_doc(1, True, "chua_doi_chieu")
+    add_doc(2, True, "da_doi_chieu", n=5)
+    add_doc(3, False, "khong_can", n=5)
+    db.commit()
+    steps = [0]
+    db.set_progress_handler(lambda: steps.__setitem__(0, steps[0] + 1) or 0, 1)
+    ids = _ocr_unit_ids(db)
+    db.set_progress_handler(None, 0)
+    assert sorted(ids) == [r[0] for r in db.execute("SELECT id FROM units WHERE doc_id = 1 ORDER BY id")]
+    assert steps[0] < 60_000  # theo số trang x số đơn vị của văn bản thì ~350.000 bước; duyệt từ đơn vị thì ~11.000

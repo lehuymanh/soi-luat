@@ -158,7 +158,7 @@ def root_ids(conn: sqlite3.Connection, unit_ids: list[int]) -> dict[int, int]:
 
 def _marker(path: str) -> str:
     """Số khoản / chữ điểm dựng lại từ đường dẫn: 'D3.K1' → '1.', 'D3.K1.Đa' → 'a)'."""
-    seg = path.rsplit(".", 1)[-1]
+    seg = re.sub(r"~\d+$", "", path.rsplit(".", 1)[-1])  # hậu tố ~n của số lặp không phải chữ của luật
     return seg[1:] + "." if seg.startswith("K") else seg[1:] + ")" if seg.startswith("Đ") else ""
 
 

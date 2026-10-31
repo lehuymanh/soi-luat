@@ -332,3 +332,14 @@ def test_s8_dung_lai_giu_vector_cua_dieu_khong_doi_chu(db, doc, fake):
         "SELECT u.path, v.vec FROM units u JOIN unit_vectors v ON v.unit_id = u.id")}
     assert set(moi) == set(cu) - {"D3"} and all(moi[k] == cu[k] for k in moi)  # D1, D2, đoạn mở đầu còn; D3 đổi chữ nên mất
     assert [_path(db, i) for i in semantic.missing_roots(db)] == ["D3"]  # chỉ Điều đổi chữ phải nhúng lại
+
+
+def test_c7_so_khoan_lap_khong_ro_hau_to_lap_vao_chu_trich(db, tmp_path):
+    p = tmp_path / "nd7.txt"
+    p.write_text("Nghị định số 7/2024/NĐ-CP\nĐiều 1. Sửa đổi\n1. Khoản một.\na) Điểm a.\n"
+                 "1. Khoản một lặp.\na) Điểm a lặp.\n", encoding="utf-8")
+    ingest_path(db, p, tmp_path)
+    paths = [r[0] for r in db.execute("SELECT path FROM units WHERE path LIKE 'D1.%'")]
+    assert "D1.K1~2.Đa" in paths  # số khoản lặp mang hậu tố ~2 trong đường dẫn
+    _, lines = semantic.root_lines(db, _unit(db, "D1"))
+    assert [t for _, t in lines] == ["1. Khoản một.", "a) Điểm a.", "1. Khoản một lặp.", "a) Điểm a lặp."]

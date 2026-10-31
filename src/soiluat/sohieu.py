@@ -9,9 +9,12 @@ from soiluat.fold import fold_search
 
 # C2 — giống 3.1 / 4.3.3
 SO_HIEU_RE = re.compile(r"(?i)(\d+/\d{4}/[A-ZĐ0-9-]+)")
-# F4 — thiếu đuôi; (?<!\d) để 15/2020 không khớp trong 115/2020
-SO_HIEU_PREFIX_RE = re.compile(r"(?i)(?<!\d)(\d+/\d{4})(?!/[A-ZĐ0-9-])")
+# F4: thiếu đuôi; (?<!\d) để 15/2020 không khớp trong 115/2020; (?<![\d/]) và "tháng " để ngày 05/02/2021 và
+# "tháng 10/2020" không bị đọc là số hiệu 02/2021, 10/2020
+SO_HIEU_PREFIX_RE = re.compile(r"(?i)(?<![\d/])(?<!tháng\s)(\d+/\d{4})(?!/[A-ZĐ0-9-])")
 DIEU_RE = re.compile(r"Điều\s+(\d+[a-z]?)", re.IGNORECASE)
+# "khoản 2", "điểm a" trong trích dẫn "điểm a khoản 2 Điều 5": địa chỉ chứ không phải từ khoá
+KHOAN_DIEM_RE = re.compile(r"(?i)\b(?:khoản\s+\d+[a-z]?|điểm\s+[a-zđ])\b")
 
 
 def find_so_hieu(raw: str) -> str | None:
@@ -27,7 +30,7 @@ def find_so_hieu_prefix(raw: str) -> str | None:
 
 
 def find_dieu_so(raw: str) -> str | None:
-    m = DIEU_RE.search(raw or "")
+    m = DIEU_RE.search(unicodedata.normalize("NFC", raw or ""))  # chữ dán từ nguồn NFD vẫn khớp "Điều"
     return m.group(1) if m else None
 
 
@@ -38,9 +41,11 @@ _CITE_BOILER_RE = re.compile(
 
 def citation_remainder(raw: str) -> str:
     """Phần còn lại sau khi bỏ số hiệu / Điều n / từ loại văn bản."""
-    s = raw or ""
+    s = unicodedata.normalize("NFC", raw or "")
     s = SO_HIEU_RE.sub(" ", s)
     s = SO_HIEU_PREFIX_RE.sub(" ", s)
+    if DIEU_RE.search(s):  # tra "khoản 2 Điều 5 <số hiệu>": ra cả Điều 5, không tìm chữ "khoản", "2" trong văn bản
+        s = KHOAN_DIEM_RE.sub(" ", s)
     s = DIEU_RE.sub(" ", s)
     s = _CITE_BOILER_RE.sub(" ", s)
     return re.sub(r"\s+", " ", s).strip(" ,.;:-")
