@@ -853,6 +853,7 @@ def main(argv: list[str] | None = None) -> None:
     data_dir().mkdir(parents=True, exist_ok=True)
     conn = get_conn()
     conn.close()
+    JOBS.wake()  # luồng nền chạy ngay để nâng cấp dữ liệu kho cũ (PARSE_REV), không đợi file đầu tiên
     threading.Thread(target=_warm_models, name="soiluat-warm", daemon=True).start()
     port = pick_port(args.port)
     url = f"http://{HOST}:{port}/"

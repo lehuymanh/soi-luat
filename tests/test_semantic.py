@@ -244,3 +244,91 @@ def test_toggle_on_search_page(tmp_path, monkeypatch):
     page = c.get("/", headers=h).text
     assert 'value="advance" aria-pressed="true"' in page and "Chưa cài mô hình" in page
     assert c.post("/settings/mode", data={"mode": "turbo"}, headers=h).status_code == 400
+
+
+# ---- N1b soát lần hai: nâng cấp dữ liệu không làm tìm theo nghĩa chậm (V1) và giữ vector Điều không đổi (S8) ----
+
+import threading
+import time
+
+from soiluat.jobs import JOBS
+from soiluat.rebuild import rebuild_document
+
+
+def _spy_frombuffer(monkeypatch, delay=0.0):
+    sizes = []
+    real = np.frombuffer
+
+    def spy(buf, *a, **k):
+        sizes.append(len(buf))
+        time.sleep(delay)
+        return real(buf, *a, **k)
+
+    monkeypatch.setattr(np, "frombuffer", spy)
+    return sizes
+
+
+def test_v1_hai_tim_kiem_dong_thoi_chi_nap_ma_tran_mot_lan(db, doc, fake, monkeypatch, tmp_path):
+    semantic.embed_roots(db, fake, semantic.missing_roots(db))
+    monkeypatch.setattr(semantic, "_ALL", {})
+    sizes = _spy_frombuffer(monkeypatch, delay=0.3)
+    from soiluat.db import connect
+
+    def tim():
+        c = connect(tmp_path / "soiluat.db")
+        semantic._all_vectors(c, np)
+        c.close()
+
+    ts = [threading.Thread(target=tim) for _ in range(3)]
+    [t.start() for t in ts]
+    [t.join() for t in ts]
+    assert len(sizes) == 1  # ba luồng nạp song song là ba bản 252 MB ở kho Zalo
+
+
+def test_v1_nhung_them_thi_noi_hang_moi_khong_nap_lai_ca_ma_tran(db, doc, fake, monkeypatch):
+    todo = semantic.missing_roots(db)
+    semantic.embed_roots(db, fake, todo[:2])
+    monkeypatch.setattr(semantic, "_ALL", {})
+    sizes = _spy_frombuffer(monkeypatch)
+    semantic._all_vectors(db, np)
+    semantic.embed_roots(db, fake, todo[2:])
+    ids, _, mat = semantic._all_vectors(db, np)
+    per = 4 * 2  # float16 × DIM của FakeEncoder
+    assert sizes == [2 * per, 2 * per]  # lần hai chỉ đọc hai vector mới
+    assert list(ids) == sorted(todo) and mat.shape[0] == len(todo)
+
+
+def test_v1_dang_nang_cap_dung_ma_tran_cu_va_bo_dieu_da_mat(db, doc, fake, monkeypatch):
+    semantic.embed_roots(db, fake, semantic.missing_roots(db))
+    ids, _, mat = semantic._all_vectors(db, np)
+    d3 = _unit(db, "D3")
+    db.execute("DELETE FROM units WHERE id = ?", (d3,))  # văn bản được dựng lại: Điều cũ mất cả vector
+    db.commit()
+    sizes = _spy_frombuffer(monkeypatch)
+    monkeypatch.setitem(JOBS.migrate, "running", True)
+    ids2, _, mat2 = semantic._all_vectors(db, np)
+    assert mat2 is mat and sizes == []  # không nạp lại cho từng văn bản dựng lại
+    a, b = _unit(db, "D1"), _unit(db, "D2")
+    out = semantic.rerank(db, "đội mũ khi đi xe", [a, b])  # D3 giống nhất nhưng đã bị xoá: không được trả về
+    assert d3 not in out and sorted(out) == sorted([a, b])
+    monkeypatch.setitem(JOBS.migrate, "running", False)
+    ids3, _, mat3 = semantic._all_vectors(db, np)  # xong nâng cấp: nạp lại một lần
+    assert d3 not in set(int(i) for i in ids3) and len(sizes) == 1
+
+
+def _path(db, uid):
+    return db.execute("SELECT path FROM units WHERE id = ?", (uid,)).fetchone()[0]
+
+
+def test_s8_dung_lai_giu_vector_cua_dieu_khong_doi_chu(db, doc, fake):
+    semantic.embed_roots(db, fake, semantic.missing_roots(db))
+    cu = {r[0]: r[1] for r in db.execute(
+        "SELECT u.path, v.vec FROM units u JOIN unit_vectors v ON v.unit_id = u.id")}
+    assert len(cu) == 4
+    db.execute("UPDATE pages SET raw_text = replace(raw_text, 'đội mũ bảo hiểm', 'đội mũ bảo hiểm có cài quai')")
+    db.commit()
+    rebuild_document(db, doc)
+    moi = {r[0]: r[1] for r in db.execute(
+        "SELECT u.path, v.vec FROM units u JOIN unit_vectors v ON v.unit_id = u.id")}
+    assert set(moi) == set(cu) - {"D3"} and all(moi[k] == cu[k] for k in moi)  # D1, D2, đoạn mở đầu còn; D3 đổi chữ nên mất
+    assert [_path(db, i) for i in semantic.missing_roots(db)] == ["D3"]  # chỉ Điều đổi chữ phải nhúng lại

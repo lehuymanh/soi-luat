@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import os
 import sqlite3
 from pathlib import Path
 
@@ -94,13 +95,22 @@ def seed_synonyms(conn: sqlite3.Connection) -> None:
 
 
 def backup_db(src: Path, dest: Path) -> None:
+    """Sao lưu ra tệp .tmp rồi mới đổi tên: lỗi giữa chừng (đĩa đầy) không để tệp cụt mang tên đích, không đè bản cũ."""
     dest.parent.mkdir(parents=True, exist_ok=True)
+    # tên tạm theo tiến trình: hai bản app cùng kho không ghi chung hay xoá tệp tạm của nhau
+    # shortcut: tệp tạm của tiến trình bị kill -9 không tự dọn, tối đa một tệp mỗi lần chết; dọn tay hoặc khi có báo cáo đĩa đầy
+    tmp = dest.with_name(f"{dest.name}.{os.getpid()}.tmp")
     src_conn = sqlite3.connect(str(src))
     try:
-        dest_conn = sqlite3.connect(str(dest))
+        dest_conn = sqlite3.connect(str(tmp))
         try:
             src_conn.backup(dest_conn)
         finally:
             dest_conn.close()
+        os.replace(tmp, dest)
+    except BaseException:
+        for p in (tmp, tmp.with_name(tmp.name + "-journal")):
+            p.unlink(missing_ok=True)
+        raise
     finally:
         src_conn.close()

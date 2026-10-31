@@ -8,6 +8,9 @@ from dataclasses import dataclass, field, replace
 
 from soiluat.fold import fold_search, normalize_display
 
+# Đổi đầu ra parser (path hoặc chữ của đơn vị) thì tăng số này: kho cũ được nâng cấp một lần khi mở app (jobs._migrate_chunk).
+PARSE_REV = "2"
+
 # "Điều 1. Tên", "Điều 4.Hiệu lực"
 DIEU_STD = re.compile(
     r"^Điều\s+(\d+[a-z]?)\.\s*(.*)$",

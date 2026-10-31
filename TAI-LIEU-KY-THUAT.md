@@ -93,6 +93,10 @@ Một tiến trình duy nhất: tìm kiếm chạy trong luồng request, nạp 
 
 Hiệu lực mặc định là `chua_ro`; app **không** tự kết luận văn bản còn hay hết hiệu lực.
 
+**Nâng cấp dữ liệu khi parser đổi.** Quy tắc: **đổi đầu ra parser (path hoặc chữ của đơn vị) thì tăng `PARSE_REV`** (`parse.py`). Kho có `app_meta.parse_rev` khác `PARSE_REV` được nâng cấp một lần khi mở app, trong luồng `soiluat-jobs` (`jobs._migrate_chunk`): sao lưu ra `data\backup\soiluat-truoc-parse<PARSE_REV>.db` (mỗi lần tăng `PARSE_REV` một bản riêng, không đè bản cũ; ghi qua tệp `.<pid>.tmp` nên hai bản app cùng kho không xoá tệp của nhau; lỗi mà chưa có bản nào thì không dựng lại), dựng lại từng văn bản mà parse mới khác đơn vị đang lưu (`rebuild.rebuild_if_changed`; bỏ qua `fallback_doan = 1`), duyệt hết không sót mới ghi `parse_rev`. Văn bản lỗi hoặc bị khoá ghi: thử lại một lần cuối lượt; ba văn bản lỗi liên tiếp thì bỏ cả lượt (khoá giữ lâu, không chờ 5 s cho từng văn bản). Còn sót thì báo ở thanh bên (số văn bản chưa nâng cấp, chi tiết ở title), không ghi cờ, và chỉ thử lại ở lần mở app sau; lỗi SQLite lúc ghi cờ cũng báo như vậy, luồng không chết im. Kho trống: ghi cờ ngay, không sao lưu.
+
+Dựng lại một văn bản (`rebuild_document`) giữ khoá ghi từ lúc đọc trang tới commit đơn vị (chữ đối chiếu vừa lưu không bị đè), commit rồi mới dựng gợi ý (truy vấn FTS không giữ khoá ghi cả kho). Giữ: liên kết (kể cả người và ngày duyệt), gợi ý hiệu lực đã duyệt, vector của Điều không đổi chữ. Không giữ: liên kết và gợi ý hiệu lực đã bác (bác là `DELETE`, không có dấu vết) nên hiện lại một lần ở văn bản được dựng lại, và liên kết đã duyệt có đường dẫn không còn trong parse mới; giữ cặp đã bác cần thêm bảng (P2). Trong lúc nâng cấp, tìm kiếm dùng chỉ mục tên Điều và ma trận vector bản cũ (dựng lại cho từng văn bản làm mỗi lần tìm chậm thêm 1–6 s); cả hai làm mới đúng một lần khi nâng cấp xong.
+
 ---
 
 ## 4. Luồng tìm kiếm

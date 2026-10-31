@@ -92,6 +92,8 @@ mark.m { background: none; color: inherit; text-decoration: underline; text-deco
 .busy { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--muted); }
 .busy::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--text); animation: pulse 1.1s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: .25; } }
+.u-note { margin: 0; padding: 6px 8px 0; color: var(--muted); font-size: 12px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+.u-note.warn { color: var(--warn-ink); }
 .local { margin: 0; padding: 6px 8px 0; color: var(--muted); font-size: 12px; display: flex; gap: 8px; align-items: center; }
 .local i { width: 6px; height: 6px; border-radius: 50%; background: var(--pos-ink); flex: none; }
 .main { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--border); border-right: 1px solid var(--border); }

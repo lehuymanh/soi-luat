@@ -59,8 +59,10 @@ def test_pick_port_skips_busy_port():
         srv.close()
 
 
-def test_main_reads_env_port(monkeypatch):
+def test_main_reads_env_port(monkeypatch, tmp_path):
     seen = {}
+    monkeypatch.setenv("SOILUAT_DATA", str(tmp_path))
+    monkeypatch.setattr(appmod.JOBS, "wake", lambda: None)  # không khởi luồng nền thật
     monkeypatch.setenv("SOILUAT_PORT", "8123")
     monkeypatch.setenv("SOILUAT_NO_BROWSER", "1")
     monkeypatch.setattr(appmod, "pick_port", lambda p: seen.setdefault("want", p))
@@ -71,6 +73,17 @@ def test_main_reads_env_port(monkeypatch):
     seen.clear()
     appmod.main(["--port", "9001"])
     assert seen["port"] == 9001
+
+
+def test_main_danh_thuc_luong_nen_de_nang_cap_du_lieu(monkeypatch, tmp_path):
+    seen = []
+    monkeypatch.setenv("SOILUAT_DATA", str(tmp_path))
+    monkeypatch.setenv("SOILUAT_NO_BROWSER", "1")
+    monkeypatch.setattr(appmod, "pick_port", lambda p: p)
+    monkeypatch.setattr(appmod.uvicorn, "run", lambda *a, **k: seen.append("run"))
+    monkeypatch.setattr(appmod.JOBS, "wake", lambda: seen.append("wake"))
+    appmod.main([])
+    assert seen == ["wake", "run"]  # luồng chạy ngay lúc mở app, không đợi file đầu tiên
 
 
 # --- nạp file ngay trong app (một process) ---
@@ -187,7 +200,7 @@ def test_status_endpoint_shape_and_ocr_cache(tmp_path, monkeypatch, jobs):
     client = TestClient(appmod.app)
     st = client.get("/api/status").json()
     assert set(st) == {"docs", "jobs", "mode"} and not calls  # không kèm OCR thì không nạp module OCR
-    assert set(st["jobs"]) == {"items", "total", "done", "active", "embed"}
+    assert set(st["jobs"]) == {"items", "total", "done", "active", "embed", "migrate"}
     assert set(st["mode"]) == {"mode", "installed", "pending"}
     assert client.get("/api/status", params={"ocr": "1"}).json()["ocr"]["langs"] == ["vie"]
     client.get("/api/status", params={"ocr": "1"})
@@ -203,6 +216,7 @@ def test_jobs_page_moved_and_home_has_buttons(tmp_path, monkeypatch):
     assert r.status_code == 307 and r.headers["location"] == "/#import"
     page = client.get("/").text
     assert 'id="btn-import"' in page and 'id="btn-settings"' in page and 'id="composer"' in page
+    assert 'id="migrate-line"' in page
     assert "0 văn bản" in page and "Kho chưa có văn bản" in page
 
 

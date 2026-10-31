@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import threading
 from dataclasses import dataclass, field
 
 from soiluat.fold import (
@@ -123,25 +124,36 @@ def _db_file(conn: sqlite3.Connection) -> str:
     return f":memory:{id(conn)}"
 
 
+_TITLE_LOCK = threading.Lock()  # tìm đồng thời dùng chung một lần dựng, không mỗi luồng một bản
+
+
 def _title_index(conn: sqlite3.Connection, accent: bool) -> PhraseIndex:
+    from soiluat.jobs import JOBS  # nạp chậm: jobs không import search ở mức module
+
     ver = tuple(conn.execute("SELECT IFNULL(MAX(id), 0), COUNT(*) FROM units").fetchone())
     key = (_db_file(conn), accent)
     hit = _TITLE_CACHE.get(key)
-    if hit and hit[0] == ver:
+    # đang nâng cấp dữ liệu: mỗi văn bản dựng lại đổi khoá mà tên Điều gần như không đổi, nên dùng bản cũ (dựng lại 1–2 s mỗi lần tìm);
+    # xong nâng cấp khoá lệch bản đã giữ nên lần tìm sau dựng lại đúng một lần
+    if hit and (hit[0] == ver or JOBS.migrate["running"]):
         return hit[1]
-    if accent:
-        rows = conn.execute(
-            "SELECT DISTINCT title FROM units WHERE level = 'dieu' AND title != ''"
-        )
-        titles = (search_accent(r[0]) for r in rows)
-    else:
-        rows = conn.execute(
-            "SELECT DISTINCT title_search FROM units WHERE level = 'dieu' AND title_search != ''"
-        )
-        titles = (r[0] for r in rows)
-    idx = phrase_index(t for t in titles if t and 1 < len(t.split()) <= 6)
-    _TITLE_CACHE[key] = (ver, idx)
-    return idx
+    with _TITLE_LOCK:
+        hit = _TITLE_CACHE.get(key)
+        if hit and hit[0] == ver:
+            return hit[1]
+        if accent:
+            rows = conn.execute(
+                "SELECT DISTINCT title FROM units WHERE level = 'dieu' AND title != ''"
+            )
+            titles = (search_accent(r[0]) for r in rows)
+        else:
+            rows = conn.execute(
+                "SELECT DISTINCT title_search FROM units WHERE level = 'dieu' AND title_search != ''"
+            )
+            titles = (r[0] for r in rows)
+        idx = phrase_index(t for t in titles if t and 1 < len(t.split()) <= 6)
+        _TITLE_CACHE[key] = (ver, idx)
+        return idx
 
 
 def vocab_indexes(conn: sqlite3.Connection, *, accent: bool) -> list[PhraseIndex]:

@@ -120,8 +120,16 @@
     $("#empty-kho")?.toggleAttribute("hidden", last.docs > 0);
     const busy = $("#busy"), e = j.embed;
     const n_busy = j.total - j.done;
-    busy.hidden = !j.active;
-    busy.textContent = n_busy ? `Nạp ${j.done}/${j.total}` : (e.running ? `Nhúng ${Math.round(100 * e.done / Math.max(e.total, 1))}%` : "");
+    const mg = j.migrate;  // nâng cấp dữ liệu kho cũ: tiến độ nằm trong chip (không đẩy bố cục), lỗi mới có dòng riêng
+    busy.hidden = !(n_busy || e.running || mg.running);
+    busy.textContent = n_busy ? `Nạp ${j.done}/${j.total}` : (e.running ? `Nhúng ${Math.round(100 * e.done / Math.max(e.total, 1))}%` : (mg.running ? "Nâng cấp" : ""));  // chữ ngắn: "Nâng cấp 38%" làm nhãn "Nạp văn bản" xuống dòng
+    busy.title = mg.running && !n_busy && !e.running ? `Nâng cấp dữ liệu ${mg.done}/${mg.total}` : "";
+    const ml = $("#migrate-line"), bad = !mg.running && mg.error;
+    ml.hidden = !bad;
+    if (bad && ml.title !== mg.error) {  // chỉ ghi khi đổi: trình đọc màn hình không đọc lại mỗi giây
+      ml.textContent = `Nâng cấp dữ liệu chưa xong${mg.failed ? ` (${mg.failed} văn bản)` : ""}; app thử lại khi mở lần sau.`;
+      ml.title = mg.error;
+    }
     $("#q-sum").textContent = j.total ? `Đã xử lý ${j.done}/${j.total} file` : "Chưa nạp file nào";
     $("#q-clear").hidden = !j.total;
     const ul = $("#q-list"); ul.replaceChildren();

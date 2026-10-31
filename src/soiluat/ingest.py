@@ -237,10 +237,14 @@ def _insert_pages(conn: sqlite3.Connection, doc_id: int, pages, job_id: int | No
             )
 
 
-def _after_units(conn: sqlite3.Connection, doc_id: int, so_hieu: str | None) -> None:
+def _after_units(
+    conn: sqlite3.Connection, doc_id: int, so_hieu: str | None, *, commit_before_fts: bool = False
+) -> None:
     from soiluat.links import suggest_citation_links, suggest_fts_links
 
     suggest_citation_links(conn, doc_id, so_hieu)
+    if commit_before_fts:  # chỉ dựng lại (rebuild_document): nhả khoá ghi trước các truy vấn FTS; nạp file giữ giao dịch cả nhóm
+        conn.commit()
     suggest_fts_links(conn, doc_id)
     suggest_effect_hints(conn, doc_id)
 
