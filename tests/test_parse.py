@@ -61,3 +61,25 @@ def test_parse_fallback_without_dieu():
 
 def test_find_so_hieu():
     assert find_so_hieu("xem 15/2020/NĐ-CP ngay") is not None
+
+
+def test_diem_nhieu_dong():
+    """N1a: dòng nối của một điểm thuộc về điểm đó, không bị dồn vào khoản cha."""
+    text = (
+        "Nghị định số 1/2020/NĐ-CP\n"
+        "Điều 1. Xử phạt người điều khiển xe\n"
+        "1. Phạt tiền từ 100.000 đồng đến 200.000 đồng đối với một trong các hành vi sau đây:\n"
+        "a) Người điều khiển xe mô tô, xe gắn máy không có hoặc\n"
+        "không mang theo Giấy chứng nhận bảo hiểm còn hiệu lực;\n"
+        "b) Người điều khiển xe mô tô không mang theo\n"
+        "Giấy đăng ký xe.\n"
+        "2. Phạt tiền từ 400.000 đồng đến 600.000 đồng đối với người điều khiển xe ô tô\n"
+        "không mang theo Giấy phép lái xe.\n"
+        "Điều 2. Hiệu lực\n"
+        "Nghị định này có hiệu lực từ ngày 01 tháng 01 năm 2021.\n"
+    )
+    u = {x.addr_part: x for x in parse_structure(text).units}
+    assert u["D1.K1"].text.strip() == "Phạt tiền từ 100.000 đồng đến 200.000 đồng đối với một trong các hành vi sau đây:"
+    assert "không mang theo Giấy chứng nhận bảo hiểm" in u["D1.K1.Đa"].text
+    assert "Giấy đăng ký xe" in u["D1.K1.Đb"].text and "bảo hiểm" not in u["D1.K1.Đb"].text
+    assert "không mang theo Giấy phép lái xe" in u["D1.K2"].text  # khoản không có điểm: không đổi

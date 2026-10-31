@@ -10,6 +10,7 @@ def test_single_spec_bundles_ocr_and_semantic_libs():
         assert f'"{name}"' in text
     assert '"pytesseract", "PIL"' not in text.split("excludes")[1]  # không còn loại khỏi gói
     assert "run_search.py" in text
+    assert '"static"' in text  # static/ phải vào gói, thiếu thì app không mở được
     assert not (ROOT / "pack" / "SoiLuatImporter.spec").exists()
 
 

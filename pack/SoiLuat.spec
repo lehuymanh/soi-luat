@@ -13,6 +13,11 @@ datas = collect_data_files("soiluat")
 seed = ROOT / "src" / "soiluat" / "synonyms_seed.csv"
 if seed.exists() and not any(Path(s).name == seed.name for s, _ in datas):
     datas.append((str(seed), "soiluat"))
+# static/ (JS, CSS, phông): thiếu thư mục thì StaticFiles ném lỗi lúc mở app
+for f in (ROOT / "src" / "soiluat" / "static").rglob("*"):
+    rel = f.parent.relative_to(ROOT / "src")
+    if f.is_file() and not any(Path(s) == f for s, _ in datas):
+        datas.append((str(f), str(rel)))
 hidden = collect_submodules("soiluat") + [
     "onnxruntime",
     "tokenizers",

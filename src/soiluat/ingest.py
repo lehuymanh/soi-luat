@@ -176,6 +176,11 @@ def suggest_effect_hints(conn: sqlite3.Connection, doc_id: int) -> None:
         "SELECT id, title, raw_text FROM units WHERE doc_id = ?",
         (doc_id,),
     ).fetchall()
+    # gợi ý đã duyệt còn sau khi dựng lại: không thêm bản chưa duyệt trùng (bai_bo không có đích nên không lọc)
+    kept = {r[0] for r in conn.execute(
+        "SELECT target_so_hieu FROM effect_hints WHERE source_doc_id = ? AND kind = 'thay_the' AND confirmed = 1",
+        (doc_id,),
+    )}
     for row in rows:
         blob = f"{row['title'] or ''} {row['raw_text'] or ''}"
         if not is_thi_hanh(row["title"] or "", row["raw_text"] or "") and not BAI_BO_RE.search(
@@ -184,6 +189,8 @@ def suggest_effect_hints(conn: sqlite3.Connection, doc_id: int) -> None:
             if not THAY_THE_RE.search(blob):
                 continue
         m = THAY_THE_RE.search(blob)
+        if m and m.group(1) in kept:
+            continue
         if m:
             conn.execute(
                 "INSERT INTO effect_hints(source_doc_id, source_unit_id, target_so_hieu, "

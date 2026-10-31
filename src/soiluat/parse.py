@@ -261,6 +261,7 @@ def _parse_lines(lines: list[str], body: str) -> ParseResult | None:
     used: set[str] = set()
     current_dieu: ParsedUnit | None = None
     current_khoan: ParsedUnit | None = None
+    current_diem: ParsedUnit | None = None  # dòng nối của điểm thuộc về điểm, không dồn vào khoản
     in_quotes = False
     q_dieu: int | None = None  # số Điều đang được trích trong khối ngoặc
     in_sign = False
@@ -280,7 +281,7 @@ def _parse_lines(lines: list[str], body: str) -> ParseResult | None:
         return out
 
     def add_line(line: str, i: int) -> None:
-        u = current_khoan or current_dieu
+        u = current_diem or current_khoan or current_dieu
         if u is None:
             return
         u.text += "\n" + line
@@ -332,7 +333,7 @@ def _parse_lines(lines: list[str], body: str) -> ParseResult | None:
             num, title, conf = dm
             in_sign = skip_upper = False
             current_dieu = new_unit("dieu", f"D{num}", title, title, None, conf, i)
-            current_khoan = None
+            current_khoan = current_diem = None
             continue
         if current_dieu is None:
             # trước Điều đầu tiên: bỏ phần mở đầu chuẩn, giữ khoản/điểm mồ côi (vd. ảnh trang 2)
@@ -375,6 +376,7 @@ def _parse_lines(lines: list[str], body: str) -> ParseResult | None:
         km = None if cont else KHOAN.match(line)
         if km and current_dieu is not None:
             num, rest = km.group(1), km.group(2)
+            current_diem = None
             current_khoan = new_unit(
                 "khoan", f"{current_dieu.addr_part}.K{num}", "", rest,
                 current_dieu.addr_part, 0.9, i,
@@ -386,7 +388,7 @@ def _parse_lines(lines: list[str], body: str) -> ParseResult | None:
             pm = DIEM_DOT.match(line)
         if pm and current_khoan is not None:
             letter, rest = pm.group(1).lower(), pm.group(2)
-            new_unit(
+            current_diem = new_unit(
                 "diem", f"{current_khoan.addr_part}.Đ{letter}", "", rest,
                 current_khoan.addr_part, 0.85, i,
             )

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import mimetypes
 import os
 import re
 import secrets
@@ -24,6 +25,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFi
 from fastapi.responses import (
     FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response,
 )
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 import uvicorn
@@ -43,6 +45,19 @@ CSRF_TOKEN = secrets.token_urlsafe(32)
 _ocr_cache: dict | None = None
 
 app = FastAPI(title="Soi Luật")
+# Windows lấy MIME từ registry; máy có registry lỗi trả text/plain và trình duyệt bỏ qua JS/CSS
+for _ext, _type in ((".js", "text/javascript"), (".css", "text/css"), (".woff2", "font/woff2")):
+    mimetypes.add_type(_type, _ext)
+
+
+class _NoCacheStatic(StaticFiles):
+    async def get_response(self, path, scope):
+        r = await super().get_response(path, scope)
+        r.headers["Cache-Control"] = "no-cache"  # sau khi nâng cấp app, trình duyệt phải hỏi lại app.js mới
+        return r
+
+
+app.mount("/static", _NoCacheStatic(directory=str(Path(__file__).parent / "static")), name="static")
 
 
 def _now() -> str:

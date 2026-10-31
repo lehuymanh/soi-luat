@@ -93,17 +93,22 @@ def rebuild_document(conn: sqlite3.Connection, doc_id: int) -> None:
             n.parent_addr = None
         parsed.units.append(n)
     n_pages = max([p["page_no"] for p in pages] or [1])
-    conn.execute("DELETE FROM units WHERE doc_id = ?", (doc_id,))
-    conn.execute("DELETE FROM effect_hints WHERE source_doc_id = ?", (doc_id,))
-    method = doc["extraction_method"] or "fallback"
-    persist_parsed(conn, doc_id, parsed, method, n_pages)
-    restore_links(conn, snap)
-    conn.execute(
-        "UPDATE documents SET struct_score = ?, fallback_doan = ? WHERE id = ?",
-        (parsed.s, 1 if parsed.tier == 3 else 0, doc_id),
-    )
-    _after_units(conn, doc_id, doc["so_hieu"])
-    conn.commit()
+    try:
+        conn.execute("DELETE FROM units WHERE doc_id = ?", (doc_id,))
+        # gợi ý đã duyệt giữ lại (source_unit_id thành NULL vì đơn vị được tạo lại; /review/hints không đọc cột này)
+        conn.execute("DELETE FROM effect_hints WHERE source_doc_id = ? AND confirmed = 0", (doc_id,))
+        method = doc["extraction_method"] or "fallback"
+        persist_parsed(conn, doc_id, parsed, method, n_pages)
+        restore_links(conn, snap)
+        conn.execute(
+            "UPDATE documents SET struct_score = ?, fallback_doan = ? WHERE id = ?",
+            (parsed.s, 1 if parsed.tier == 3 else 0, doc_id),
+        )
+        _after_units(conn, doc_id, doc["so_hieu"])
+        conn.commit()
+    except BaseException:
+        conn.rollback()  # lỗi giữa chừng không được để văn bản mất đơn vị khi lần commit sau chốt giao dịch dở
+        raise
 
 
 def rebuild_document_from_file(

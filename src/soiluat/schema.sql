@@ -192,6 +192,11 @@ CREATE INDEX IF NOT EXISTS idx_labels_unit ON unit_labels(unit_id);
 CREATE INDEX IF NOT EXISTS idx_links_duty ON links(duty_unit);
 CREATE INDEX IF NOT EXISTS idx_links_sanction ON links(sanction_unit);
 CREATE INDEX IF NOT EXISTS idx_pages_doc ON pages(doc_id);
+-- Khoá ngoại trỏ vào units: thiếu chỉ mục thì xoá một văn bản quét cả bảng (kho Zalo: 41,5 s → 0,01 s).
+CREATE INDEX IF NOT EXISTS idx_units_fine_source ON units(fine_source_unit);
+CREATE INDEX IF NOT EXISTS idx_regions_unit ON page_regions(unit_id);
+CREATE INDEX IF NOT EXISTS idx_qlog_unit ON query_log(selected_unit);
+CREATE INDEX IF NOT EXISTS idx_hints_unit ON effect_hints(source_unit_id);
 
 CREATE TRIGGER IF NOT EXISTS units_ai AFTER INSERT ON units BEGIN
   INSERT INTO units_fts(rowid, title_search, search_accent, search_text, context_search, context_accent)

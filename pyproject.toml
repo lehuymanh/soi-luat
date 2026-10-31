@@ -33,7 +33,7 @@ soiluat-health = "soiluat.health:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-soiluat = ["schema.sql", "synonyms_seed.csv", "templates/*.html"]
+soiluat = ["schema.sql", "synonyms_seed.csv", "templates/*.html", "static/*", "static/fonts/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
