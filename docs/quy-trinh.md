@@ -23,7 +23,7 @@ Viết 31/10/2026, cho bản 0.9.0. Người đọc: agent hoặc người sắp
 |---|---|---|
 | Luật ngắn, tự nạp vào mọi phiên và agent | [`CLAUDE.md`](../CLAUDE.md) | Con trỏ và luật cứng |
 | Tài liệu này | `docs/quy-trinh.md` | Cách làm, cổng đo, bẫy |
-| 23 skill của dự án | [`.claude/skills/`](../.claude/skills/) | Mỗi skill ép một thói quen đã từng bị bỏ quên (mục 7) |
+| 24 skill của dự án | [`.claude/skills/`](../.claude/skills/) | Mỗi skill ép một thói quen đã từng bị bỏ quên (mục 7) |
 | 4 workflow có tham số | [`.claude/workflows/`](../.claude/workflows/) | Cách giao việc cho nhiều agent (mục 6) |
 | Bộ đo và cổng | [`bench/`](../bench/) | Tìm kiếm, parser, trình đọc, giao diện, câu trả lời AI |
 
@@ -273,6 +273,7 @@ Skill của dự án nằm ở [`.claude/skills/<tên>/SKILL.md`](../.claude/ski
 | `vietnamese-decimal-format` | Viết bảng tiếng Việt có số thập phân | Dấu phẩy (`58,6`), kể cả phần trăm; đổi số từ đầu ra script trước khi viết |
 | `vietnamese-legal-number-check` | Kiểm số tiền, ngày trong văn bản luật | Thay tham chiếu cấu trúc bằng nhãn trước khi trích số; dấu chấm là phân cách nghìn khi sau nó đúng ba chữ số; số viết bằng chữ; số hiệu không phải số tiền; mỗi ca một test |
 | `vietnamese-legal-qa-bench` | Đo chất lượng tìm kiếm hay trả lời của Soi Luật | Chỉ đo qua script trong `bench/`; bảng dựng từ JSON thô; đo offline trước khi chạy mô hình; gold không commit; luôn `--tag`; `eval_real.py` chạy trên bản sao |
+| `workflow-script-authoring` | Sửa một script `.claude/workflows/*.js` | Kiểm cú pháp bằng `scripts/check_syntax.js` trước lượt chạy đầu; không đường dẫn phiên; trailer qua `args.trailer`; lượt đo trên 10 phút trả `CHỜ ĐO:` và gom vào `pending`; kiểm số agent trước khi chạy |
 
 Skill ngoài repo mà `CLAUDE.md` gọi tên: `/autoharness:learn` (biến sai sót thành skill), `/ponytail:ponytail` (viết mã nhỏ nhất, kèm test), các skill `superpowers:*` (lập kế hoạch, TDD, debug, soát, kiểm trước khi báo xong, chia việc cho agent), `workflow-authoring` (viết script workflow). taste-skill không phải skill đã cài: clone repo `leonxlnx/taste-skill` vào thư mục riêng và đọc `references/app-screens.md`; **không chạy script của nó** (mã tải về bị bộ phân loại quyền chặn, và đừng lách).
 
