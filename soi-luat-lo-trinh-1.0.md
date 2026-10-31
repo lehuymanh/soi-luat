@@ -1,6 +1,6 @@
 # Lộ trình nâng cấp Soi Luật (0.8 → 1.0)
 
-- **Ngày:** 29/10/2026, cập nhật 30/10/2026 · **Trạng thái:** đang làm P0 (tiến độ và số đo ở mục 6, P0). Chủ dự án đã chốt ba điểm ngày 29/10/2026 (mục 9): câu trả lời AI xong trong ≤ 45 giây; chọn mô hình theo benchmark công khai, không dùng người chấm pháp lý; có máy 16 GB để đo.
+- **Ngày:** 29/10/2026, cập nhật 31/10/2026 · **Trạng thái:** P0 xong phần máy làm được (số đo ở mục 6, P0). Còn chờ chủ dự án: duyệt mẫu giao diện, chốt cách tính cổng (mục 9, điều 10), đo trên máy 16 GB, 100 câu hỏi thật. **Phase tiếp: P1**, kế hoạch triển khai chi tiết ở `soi-luat-ke-hoach-p1.md`; bắt đầu khi mẫu được duyệt. Chủ dự án đã chốt ba điểm ngày 29/10/2026 (mục 9): câu trả lời AI xong trong ≤ 45 giây; chọn mô hình theo benchmark công khai, không dùng người chấm pháp lý; có máy 16 GB để đo.
 - **Đầu vào:** phản hồi người dùng (ảnh chụp Telegram ngày 29/10/2026); mã nguồn 0.8 (`src/soiluat/`, 234 test đếm từ mã; khi soạn chưa chạy lại `pytest` vì môi trường soạn chưa cài thư viện); số đo trong `bench/*/KET-QUA.md`.
 - **Máy mục tiêu mới:** PC Windows **16 GB RAM, không card rời** (chủ dự án chốt 29/10/2026). Máy đo chuẩn giữ nguyên: Ryzen 5 5600GT (6 nhân/12 luồng, AVX2, DDR4).
 - **Quan hệ với kế hoạch 0.8:** kế hoạch và checklist 0.8 (`soi-luat-ke-hoach.md`, `soi-luat-checklist.md`, `bench/KE-HOACH-SUA.md`) đã xoá khỏi repo ngày 29/10/2026; bản cuối nằm ở commit `904160d` trong lịch sử git. Lộ trình giữ cách nạp, tách Điều, tìm kiếm và dựng thẻ **như mã 0.8 đang chạy** (mô tả ở `TAI-LIEU-KY-THUAT.md`). Ở vài chỗ mã đã lệch kế hoạch cũ (thứ tự xếp thẻ, điều kiện chạy nhánh không dấu); lộ trình lấy mã làm chuẩn. Kế hoạch 0.8 loại LLM khỏi sản phẩm; bản 1.0 thêm mô hình sinh câu trả lời chạy ngay trên máy, theo các ràng buộc ở mục 5. Lý do đổi: máy mục tiêu lên 16 GB, và người dùng cần một câu trả lời dễ đọc thay vì một danh sách thẻ dài.
@@ -14,14 +14,14 @@
 | **P0** | Đo và chốt | nền cho mọi phase | 1 tuần | Mô hình chọn theo benchmark công khai được xác nhận trên máy 16 GB (xong ≤ 45 giây); có bộ đo câu trả lời chấm bằng máy; người dùng duyệt mẫu giao diện |
 | **P1** | Mở đúng đoạn, kết quả gọn, lịch sử chat | ① ③ ④ ⑦ | 3 tuần | Bấm trích dẫn là văn bản mở ngay trong app, cuộn tới và tô đúng đoạn; mỗi câu hỏi hiện sẵn tối đa 5 mục, không trùng; có "Cuộc trò chuyện mới" và lịch sử |
 | **P2** | Kho văn bản: tag, ghi chú, @, hiệu lực | ⑤ ⑥ ⑨ ⑩ | 3 tuần | Gõ @văn bản hoặc #tag để giới hạn phạm vi hỏi; gắn tag, viết ghi chú được; hiệu lực hiện ở mọi trích dẫn, kèm lý do |
-| **P3** | Trợ lý trả lời: LLM chạy CPU, có kiểm chứng | ② ⑥ ⑪ | 4 tuần | Câu trả lời 2–3 câu bằng lời thường, xong trong ≤ 45 giây, mỗi ý có nguồn bấm được; không có số liệu nào lệch nguồn; kho không có căn cứ thì nói không có |
+| **P3** | Trợ lý trả lời: LLM chạy CPU, có kiểm chứng | ② ⑥ ⑪ | 3 tuần (lõi đã có từ P0) | Câu trả lời 2–3 câu bằng lời thường, xong trong ≤ 45 giây, mỗi ý có nguồn bấm được; không có số liệu nào lệch nguồn; kho không có căn cứ thì nói không có |
 | **P4** | Liên kết văn bản kiểu Obsidian, hiệu lực theo Điều | ⑧ ⑨ | 3 tuần | Mỗi văn bản có bảng "Liên quan" (căn cứ, hướng dẫn, sửa đổi, thay thế, dẫn chiếu) và đồ thị cục bộ; Điều đã bị sửa đổi được đánh dấu |
 | **P5** | Chuyên nghiệp, chỉn chu, phát hành | tất cả | 2 tuần | Không còn cửa sổ đen; bộ cài và gói AI; người dùng thật dùng một tuần đạt cổng |
 | **Song song** | Độ chính xác tìm kiếm | nền cho P3 | xen kẽ P1–P3 | Thay đổi chỉ được giữ khi tốt hơn trên cả Zalo, gold và văn bản thật |
 
 Làm tuần tự một người: khoảng 16 tuần. P4 và nhánh độ chính xác chạy song song được với P2–P3 nếu có người thứ hai.
 
-**Mô hình (chọn theo benchmark công khai, mục 4):** **Qwen3-VL-4B-Instruct** (Apache-2.0), GGUF Q4_K_M chính hãng, chạy bằng llama.cpp trên CPU; dự phòng **Gemma 4 E4B** (QAT Q4_0). Lý do chính: điểm tiếng Việt cao nhất nhóm 4B ở chế độ trả lời kịp 45 giây (bảng SEA-HELM), nhất là phần hỏi đáp trích từ đoạn văn. Tốc độ chưa đo: P0 xác nhận trên máy 16 GB.
+**Mô hình (chọn theo benchmark công khai, mục 4):** **Qwen3-VL-4B-Instruct** (Apache-2.0), GGUF Q4_K_M chính hãng, chạy bằng llama.cpp trên CPU; dự phòng **Gemma 4 E4B** (QAT Q4_0). Lý do chính: điểm tiếng Việt cao nhất nhóm 4B ở chế độ trả lời kịp 45 giây (bảng SEA-HELM), nhất là phần hỏi đáp trích từ đoạn văn. P0 (vòng 2, máy ảo, `bench/llm/KET-QUA.md`): Qwen giữ vị trí chính; Gemma 4 E4B và ứng viên mới Nemotron-3.5-Bolt-E4B không hơn trên cùng bộ đo. Tốc độ chưa đo trên máy 16 GB.
 
 **Kho dữ liệu (mục 4b):** giữ SQLite + FTS5 làm kho duy nhất; vector tìm bằng NumPy như hiện tại, thêm USearch khi vượt ngưỡng RAM. Không dùng vector DB riêng hay đồ thị tri thức dựng bằng LLM kiểu Cognee, Graphiti (dựng mất nhiều tuần CPU); chỉ lấy ý tưởng quan hệ có thời hạn hiệu lực của Graphiti.
 
@@ -210,7 +210,7 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 
 | Bước | Trạng thái |
 |---|---|
-| 1. Xác nhận mô hình | **Vòng 2 trên máy ảo (sau 7 việc sửa), Qwen3-VL-4B, tập test:** dẫn đúng Điều 83,3 / 75,0 / 86,7% (vòng 1: 66,7 / 70,0 / 46,7%; Zalo / gold / văn bản thật); JSON dùng được 100% ở cả ba bộ (đọc ngay 78,8 / 95,0 / 96,7%; ở Zalo do câu bẫy dài chạm trần 200 token); khẳng định như đủ căn cứ khi đã bỏ Điều đúng 26,7 / 40 / 13,3% (vòng 1: 66,7 / 65 / 33,3%); từ chối hẳn 16,7 / 20 / 60%, tính cả câu nêu phạm vi hẹp hơn 73,3 / 60 / 86,7%; chữ Trung 0%. **Cổng chưa đạt trọn:** dẫn đúng đạt 2/3 bộ; JSON và từ chối đạt hay không tùy cách tính (mục 9, điều 10). Gemma 4 E4B (dự phòng) không hơn: dẫn đúng gộp ba bộ 48/65 so với 53/65 của Qwen, khẳng định sai 19/65 so với 18/65 (chênh lệch chưa vượt nhiễu), viết dài hơn và tốn thêm ~30% thời gian; giữ Qwen làm mô hình chính vì nhanh hơn và tệp nhỏ bằng nửa. Ứng viên mới tìm thêm, Nemotron-3.5-Bolt-E4B (23/10/2026), kém cả hai: dẫn đúng 44/65, khẳng định sai 24/65 (`bench/llm/CHON-MO-HINH.md` mục 7). Đổi mô hình cùng cỡ không sửa được lỗi phạm vi; hướng tiếp theo ở luồng xử lý. Chi tiết: `bench/llm/KET-QUA.md`. Còn lại: đo tốc độ, RAM, p95 45 giây trên máy 16 GB |
+| 1. Xác nhận mô hình | **Vòng 2 trên máy ảo (sau 7 việc sửa), Qwen3-VL-4B, tập test:** dẫn đúng Điều 83,3 / 75,0 / 86,7% (vòng 1: 66,7 / 70,0 / 46,7%; Zalo / gold / văn bản thật); JSON dùng được 100% ở cả ba bộ (đọc ngay 78,8 / 95,0 / 96,7%; ở Zalo do câu bẫy dài chạm trần 200 token); khẳng định như đủ căn cứ khi đã bỏ Điều đúng 26,7 / 40 / 13,3% (vòng 1: 66,7 / 65 / 33,3%); từ chối hẳn 16,7 / 20 / 60%, tính cả câu nêu phạm vi hẹp hơn 73,3 / 60 / 86,7%; chữ Trung 0%. **Cổng chưa đạt trọn:** dẫn đúng đạt 2/3 bộ; JSON và từ chối đạt hay không tùy cách tính (mục 9, điều 10). Gemma 4 E4B (dự phòng) không hơn: dẫn đúng gộp ba bộ 48/65 so với 53/65 của Qwen, khẳng định sai 19/65 so với 18/65 (chênh lệch chưa vượt nhiễu), viết dài hơn và tốn thêm ~30% thời gian; giữ Qwen làm mô hình chính vì nhanh hơn và tệp nhỏ bằng nửa. Ứng viên mới tìm thêm, Nemotron-3.5-Bolt-E4B (23/10/2026), kém cả hai: dẫn đúng 44/65, khẳng định sai 24/65 (`bench/llm/CHON-MO-HINH.md` mục 7). Đổi mô hình cùng cỡ không sửa được lỗi phạm vi; hướng tiếp theo ở luồng xử lý (mục 6, P3, "Việc trước P3"). Số test trên là của mã `b17461f`; sau đó bản soát sửa thêm 6 lỗi ở bộ kiểm và phần dựng ngữ cảnh (`bc9f9af`), sẽ đo lại cùng đợt việc trước P3. Chi tiết: `bench/llm/KET-QUA.md`. Còn lại: đo tốc độ, RAM, p95 45 giây trên máy 16 GB |
 | 2. Bộ đo câu trả lời | **Xong.** `bench/llm/run.py` (dẫn đúng, từ chối, tiền đề sai, JSON, số liệu, chữ CJK, thời gian) dùng chung mã với app: `src/soiluat/answer.py` (ngữ cảnh, lời nhắc, khuôn JSON, bộ kiểm số liệu) |
 | 3. Mốc tìm kiếm trên văn bản thật | **Xong.** Hit@1 (rộng) Normal 83,3%, Advance 72,6%; ~40 thẻ mỗi câu (`bench/van-ban-that/KET-QUA.md`); xem mục 2 điều 8 |
 | 4. ≥ 100 câu hỏi thật của văn phòng | Chưa (người dùng) |
@@ -303,13 +303,24 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 - Trích yếu đúng ≥ 18/21 văn bản thật (kiểm tay).
 - Người dùng thử gắn tag, viết ghi chú, dùng @ mà không cần hướng dẫn.
 
-### P3 — Trợ lý trả lời (4 tuần)
+### P3 — Trợ lý trả lời (3 tuần)
 
 **Giải quyết:** ② ⑥ ⑪.
 
+**Đã có từ P0** (`src/soiluat/answer.py`, 28 test trong `tests/test_answer.py`): dựng ngữ cảnh (tách câu dòng OCR dài, giữ câu dẫn), lời nhắc, khuôn JSON có `pham_vi` và chặn chữ CJK, gọi `llama-server`, cứu JSON bị cắt, bộ kiểm nguồn và số liệu. P3 còn: vòng đời `llama-server`, giao diện và SSE, lưu vào cuộc trò chuyện, hỏi tiếp, cổng. Vì vậy ước tính giảm từ 4 xuống 3 tuần.
+
+**Việc trước P3** (rút từ P0; máy làm được, xen kẽ trong P1–P2, mỗi việc chỉnh trên train rồi chấm test một lần):
+
+1. **Câu bẫy chạm trần token:** 17/20 câu bẫy bị cắt, 15 mất hết ý có nguồn. Đưa `cac_y` lên trước `tra_loi`, hoặc hạ trần `tra_loi` khi đã có `tien_de_sai`.
+2. **Lỗi phạm vi** (khẳng định như đủ căn cứ khi đã bỏ Điều đúng, 28% khi gộp; đổi mô hình cùng cỡ không sửa được): thử dùng điểm tìm kiếm thấp làm tín hiệu để hiện cảnh báo, không tốn thêm lần gọi mô hình. Đo trên train trước.
+3. **Tách câu bẫy train/test** trong `bench/llm/run.py` (hiện câu bẫy sinh từ cả kho, 6/20 câu bẫy test đã dùng khi chỉnh).
+4. **Chạy lại `bench/llm`** sau khi P1 sửa parser (chữ đưa vào mô hình đổi) và sau việc 1–2; mốc so là vòng 2 của P0.
+5. **Máy 16 GB** (người dùng): tốc độ, RAM, p95 45 giây với Qwen (README `bench/llm`).
+6. **≥ 100 câu hỏi thật** (người dùng), cần trước cổng P3.
+
 **Luồng một câu hỏi**
 
-1. Tìm như hiện nay (Advance trên máy 16 GB, theo phạm vi @/# nếu có). Kết quả gọn của P1 hiện ngay.
+1. Tìm như hiện nay (chế độ mặc định theo mục 9, điều 8; theo phạm vi @/# nếu có). Kết quả gọn của P1 hiện ngay.
 2. **Chặn sớm:** không có kết quả, hoặc kết quả đầu chỉ khớp theo nghĩa (tầng 7) với điểm thấp, thì trả "Không tìm thấy căn cứ trong kho" kèm gợi ý, **không gọi mô hình**.
 3. **Dựng ngữ cảnh:** 3–5 Điều đầu sau reranker. Mỗi Điều cắt còn tên Điều, các khoản/điểm khớp và khoản liền kề; kèm số hiệu, ngày ban hành, hiệu lực, và quan hệ sửa đổi nếu P4 đã có. Trần ~1.000 token để vừa 45 giây (mục 4). Dòng dài (bản OCR dính nhiều khoản/điểm) tách theo câu, câu đầu dòng là câu dẫn đi theo mọi câu được giữ; dòng chọn theo độ hiếm trong Điều của từ câu hỏi (P0 vòng 2: câu trích bằng chứng còn trong đoạn từ 53% lên 80% câu văn bản thật; đưa 3 đoạn thay 5 không thêm gì). Mỗi đoạn mang mã [1]…[5].
 4. **Gọi `llama-server` với JSON schema:**
@@ -345,7 +356,7 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 **Cổng P3** (bộ `bench/llm`, máy chuẩn, Office đang mở)
 
 - Nguồn hợp lệ 100% và số liệu khớp nguồn 100% (bắt buộc bằng bộ kiểm tự động).
-- Dẫn đúng Điều không thấp hơn mức đạt ở P0; từ chối đúng ≥ 90% khi đã bỏ Điều đúng khỏi ngữ cảnh; chỉ ra tiền đề sai ≥ 80% trên câu bẫy mức phạt (đều chấm bằng máy, mục 4).
+- Dẫn đúng Điều không thấp hơn mức đạt ở P0 (vòng 2: 83,3 / 75,0 / 86,7%); chỉ ra tiền đề sai ≥ 80% trên câu bẫy mức phạt; khi đã bỏ Điều đúng khỏi ngữ cảnh: khẳng định như đủ căn cứ ≤ 15% (P0 vòng 2: 28% khi gộp), câu "hẹp hơn" luôn có dải cảnh báo (đều chấm bằng máy, mục 4). Ngưỡng từ chối cũ (≥ 90% `du_can_cu = false`) thay bằng ngưỡng này nếu chủ dự án chốt cách tính ở mục 9, điều 10(b); nếu không thì giữ ngưỡng cũ.
 - Trên ≥ 100 câu thật của văn phòng: người dùng chấm "dùng được" ≥ 80% (đánh giá độ hữu ích, không phải chấm pháp lý).
 - Trả lời xong ≤ 45 giây tính từ lúc bấm Enter (p95, máy 16 GB, Office đang mở; chủ dự án chốt 29/10/2026); kết quả tìm hiện trước, trong ~5–9 giây. RAM toàn app ≤ 6 GB. Máy thật của người dùng đo lại ở P5 (máy một kênh RAM sinh chữ chậm hơn).
 - Tắt AI thì kết quả và độ trễ như P1.
@@ -434,7 +445,8 @@ Nguyên tắc: chỉ thêm, không xoá hay đổi cột; tự sao lưu trước
 
 ## 8. Thứ tự
 
-- Đường chính: P0 → P1 → P2 → P3 → P5.
+- Đường chính: P0 → P1 → P2 → P3 → P5. P1 không phụ thuộc kết quả đo mô hình: bắt đầu ngay khi chủ dự án duyệt mẫu giao diện, không chờ máy 16 GB.
+- "Việc trước P3" (mục 6, P3) chạy xen trong P1–P2 bằng máy; riêng việc chạy lại `bench/llm` làm sau khi P1 sửa parser.
 - P4 làm sau P2 (cần trích yếu và trình đọc); có người thứ hai thì làm song song với P3.
 - Nhánh độ chính xác xen kẽ; nên xong mục 1–3 trước cổng P3, nhưng đó không phải điều kiện cứng. Riêng mục 3 (reranker nhiều luồng) ảnh hưởng trực tiếp tới việc P3 có vừa 45 giây không, nên làm sớm.
 - Mỗi phase kết thúc bằng một bản chạy được giao người dùng thử (0.9, 0.10, …), không dồn tới cuối.
