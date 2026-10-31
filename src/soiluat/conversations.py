@@ -29,21 +29,24 @@ def refs_of(conn: sqlite3.Connection, ids: list[int], tiers: dict[int, int] | No
             for i in ids if i in rows]
 
 
-def resolve(conn: sqlite3.Connection, refs: list[list]) -> tuple[list[int], int]:
-    """Gắn lại ref với đơn vị hiện có theo (doc_id, path), chỉ nhận khi chữ khớp `h`. Trả (id theo thứ tự cũ, số ref hỏng).
-    Ref mức văn bản (path None, tin `kind = full`) chỉ kiểm văn bản còn không và trả chính doc_id."""
-    ids, bad = [], 0
-    for doc_id, path, h, *_ in refs:
+def match(conn: sqlite3.Connection, refs: list[list]):
+    """Gắn lại từng ref với đơn vị hiện có theo (doc_id, path), chỉ nhận khi chữ khớp `h`: sinh (ref, id) theo thứ tự cũ,
+    id là None khi ref hỏng. Ref mức văn bản (path None, tin `kind = full`) chỉ kiểm văn bản còn không và trả chính doc_id."""
+    for ref in refs:
+        doc_id, path, h = ref[:3]
         if path is None:
             row = conn.execute("SELECT id FROM documents WHERE id = ?", (doc_id,)).fetchone()
         else:
             row = conn.execute("SELECT id, raw_text FROM units WHERE doc_id = ? AND path = ?", (doc_id, path)).fetchone()
             row = row if row and _h(row[1]) == h else None
-        if row:
-            ids.append(row[0])
-        else:
-            bad += 1
-    return ids, bad
+        yield ref, row[0] if row else None
+
+
+def resolve(conn: sqlite3.Connection, refs: list[list]) -> tuple[list[int], int]:
+    """(id theo thứ tự cũ, số ref hỏng); hỏng thì bỏ."""
+    got = [i for _, i in match(conn, refs)]
+    ids = [i for i in got if i is not None]
+    return ids, len(got) - len(ids)
 
 
 def result_of(conn: sqlite3.Connection, q: str, filters: dict, s: dict, ctx: dict) -> dict:

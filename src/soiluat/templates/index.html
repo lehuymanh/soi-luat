@@ -40,8 +40,17 @@
 
   <main class="main" id="main">
   <div class="scroll" id="scroll"><div class="col">
-  <div class="thread" id="thread" aria-live="polite">
-    {% if q %}
+  <div class="thread" id="thread" aria-live="polite"{% if conversation_id %} data-cid="{{ conversation_id }}"{% endif %}>
+    {% if thread %}
+      <header class="title-row"><h1>{{ title }}</h1><p class="sub">{{ sub }}</p></header>
+      {% for m in thread %}
+      <div class="msg user"><div class="bubble">{{ m.q }}</div></div>
+      <div class="msg bot">
+        {%- if m.html is none %}<div class="later"><span class="note">Câu trả lời cũ, chưa dựng lại để trang mở nhanh.</span><button type="button" class="btn" data-mid="{{ m.mid }}" aria-label="Xem lại kết quả cho: {{ m.q }}">Xem lại</button></div>
+        {%- else %}{{ m.html | safe }}{% endif -%}
+      </div>
+      {% endfor %}
+    {% elif q %}
       <header class="title-row"><h1>{{ q }}</h1></header>
       <div class="msg user"><div class="bubble">{{ q }}</div></div>
       <div class="msg bot">{% include "_results.html" %}</div>

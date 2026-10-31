@@ -1,6 +1,8 @@
 """P1 H1: bảng lịch sử trò chuyện (conversations, messages), nâng cấp kho 0.8 an toàn."""
 
+import html
 import json
+import re
 import sqlite3
 import unicodedata
 from pathlib import Path
@@ -289,3 +291,221 @@ def test_ask_csrf_khi_tat_bypass(db, tmp_path, monkeypatch):
     assert c.post("/ask", headers={"Host": "evil.example"}, data={"q": "báo cáo"}).status_code == 400
     ok = c.post("/ask", headers={**h, "X-CSRF-Token": token}, data={"q": "báo cáo"})
     assert ok.status_code == 200 and "X-Conversation-Id" in ok.headers
+
+
+# ---- P1 H3: mở lại cuộc trò chuyện (GET /c/{id}, GET /c/{id}/m/{mid}) ----
+
+def _hoi(c, *qs, **filters):
+    """Hỏi lần lượt bằng POST /ask thật vào cùng một cuộc; trả (id cuộc, các mảnh HTML trả về)."""
+    cid, out = None, []
+    for q in qs:
+        r = _ask(c, q, cid, **filters)
+        cid = int(r.headers["X-Conversation-Id"])
+        out.append(r.text)
+    return cid, out
+
+
+def _sub(html):
+    return re.search(r'<p class="sub">(.*?)</p>', html)[1]
+
+
+def _hrefs(html):
+    return re.findall(r'class="addr" href="([^"]+)"', html)
+
+
+def _hai_van_ban(db, tmp_path):
+    """Hai văn bản có từ riêng: "kiểm toán nội bộ" chỉ ở A, "lưu trữ hồ sơ" chỉ ở B."""
+    a = _nap(db, tmp_path, "15/2020", noi="Đơn vị phải kiểm toán nội bộ")
+    b = _nap(db, tmp_path, "16/2020", noi="Cơ sở phải lưu trữ hồ sơ")
+    return a, b
+
+
+def _lam_hong(db, ref):
+    db.execute("UPDATE units SET raw_text = raw_text || ' chữ mới' WHERE doc_id = ? AND path = ?", (ref[0], ref[1]))
+    db.commit()
+
+
+def test_mo_lai_khong_tim_lai_du_muc(db, tmp_path, monkeypatch):
+    _hai_van_ban(db, tmp_path)
+    c = _client(tmp_path, monkeypatch)
+    cid, htmls = _hoi(c, "kiểm toán nội bộ", "lưu trữ hồ sơ")
+    monkeypatch.setattr(appmod, "cascade_search", lambda *a, **k: pytest.fail("mở lại không được tìm lại"))
+    r = c.get(f"/c/{cid}", follow_redirects=False)
+    assert r.status_code == 200 and "<h1>kiểm toán nội bộ</h1>" in r.text  # tên cuộc là câu đầu
+    assert r.text.count('class="msg bot"') == 2 and r.text.count('<form class="res"') == 2
+    assert r.text.count('<div class="bubble">') == 2 and "không còn đúng nguồn" not in r.text
+    assert _hrefs(r.text) == _hrefs(htmls[0]) + _hrefs(htmls[1]) and len(_hrefs(htmls[0])) > 1  # cùng mục, cùng thứ tự
+    assert re.fullmatch(r"\d\d/\d\d/\d{4}, \d\d:\d\d · 2 câu hỏi", _sub(r.text))  # Normal: không ghi "tìm theo nghĩa", không ghi "Advance"
+    assert f'data-cid="{cid}"' in r.text  # JS ghi tiếp vào đúng cuộc này
+
+
+def test_mo_lai_van_dung_sau_rebuild_document(db, tmp_path, monkeypatch):
+    d1 = _nap(db, tmp_path, "15/2020", noi="Đơn vị phải kiểm toán nội bộ")
+    _nap(db, tmp_path, "16/2020", noi="Cơ sở phải lưu trữ hồ sơ")  # nạp muộn hơn: không có nó thì id đơn vị của d1 không đổi
+    c = _client(tmp_path, monkeypatch)
+    cid, (truoc,) = _hoi(c, "kiểm toán nội bộ")
+    cu = _unit_ids(db, d1)
+    rebuild_document(db, d1)
+    moi = _unit_ids(db, d1)
+    assert set(cu).isdisjoint(moi)  # id đơn vị đã đổi hết: ref chỉ còn tìm lại được bằng (doc_id, path)
+    r = c.get(f"/c/{cid}")
+    assert "không còn đúng nguồn" not in r.text and _hrefs(r.text) == _hrefs(truoc)
+    uids = {int(u) for u in re.findall(r'name="uid" value="(\d+)"', r.text)}
+    assert uids and uids <= set(moi)  # ô "Chọn xuất" mang id mới, không phải id đã chết
+
+
+def test_mo_lai_hieu_luc_lay_tu_du_lieu_hien_tai(db, tmp_path, monkeypatch):
+    d1 = _nap(db, tmp_path, "15/2020")
+    c = _client(tmp_path, monkeypatch)
+    cid, (truoc,) = _hoi(c, "báo cáo định kỳ")
+    assert "Hết hiệu lực" not in truoc
+    db.execute("UPDATE documents SET hieu_luc = 'het' WHERE id = ?", (d1,))
+    db.commit()
+    assert "Hết hiệu lực" in c.get(f"/c/{cid}").text  # không lưu thẻ dựng sẵn
+
+
+def test_mo_lai_ref_hong_co_dai_canh_bao_theo_tung_tin(db, tmp_path, monkeypatch):
+    _hai_van_ban(db, tmp_path)
+    c = _client(tmp_path, monkeypatch)
+    cid, _ = _hoi(c, "kiểm toán nội bộ", "lưu trữ hồ sơ", loai="nghi_dinh")
+    rows = db.execute("SELECT result_json FROM messages WHERE conversation_id = ? AND role = 'bot' ORDER BY id", (cid,)).fetchall()
+    res = json.loads(rows[1][0])
+    n = len(res["refs"])
+    for ref in res["refs"][:2]:
+        _lam_hong(db, ref)
+    r = c.get(f"/c/{cid}")
+    assert r.text.count("không còn đúng nguồn") == 1  # chỉ tin thứ hai
+    assert f"<b>2/{n} kết quả không còn đúng nguồn</b> vì văn bản đã nạp lại hoặc xoá. Hãy hỏi lại để có kết quả mới." in r.text
+    assert 'data-ask="lưu trữ hồ sơ"' in r.text and ">Hỏi lại</button>" in r.text
+    assert json.loads(re.search(r"data-filters='([^']*)'", r.text)[1]) == res["filters"]  # hỏi lại giữ bộ lọc của tin đó
+    assert "Đang lọc" in r.text and 'class="card' in r.text  # ref còn lại vẫn hiện
+    assert r.text.index("không còn đúng nguồn") > r.text.rindex('<div class="bubble">')  # dải nằm ở đầu câu trả lời của tin hỏng
+
+
+def test_mo_lai_het_ref_chi_con_dai_canh_bao(db, tmp_path, monkeypatch):
+    _nap(db, tmp_path, "15/2020")
+    c = _client(tmp_path, monkeypatch)
+    cid, _ = _hoi(c, "báo cáo định kỳ")
+    refs = _bot(db, cid)["refs"]
+    db.execute("UPDATE units SET raw_text = raw_text || ' đổi'")  # nạp lại mà chữ đổi hết
+    db.commit()
+    r = c.get(f"/c/{cid}")
+    assert f"<b>{len(refs)}/{len(refs)} kết quả không còn đúng nguồn</b>" in r.text
+    assert 'class="card' not in r.text and "Không tìm thấy đoạn nào" not in r.text  # không nói "không tìm thấy" bên cạnh dải này
+
+
+def test_mo_lai_cau_khong_ra_ket_qua_van_hien_nhu_luc_hoi(db, tmp_path, monkeypatch):
+    _nap(db, tmp_path, "15/2020")
+    c = _client(tmp_path, monkeypatch)
+    cid, _ = _hoi(c, "xyzzy quux")
+    r = c.get(f"/c/{cid}")
+    assert "Không tìm thấy đoạn nào khớp «xyzzy quux»" in r.text and "không còn đúng nguồn" not in r.text
+
+
+def test_mo_lai_tin_toan_van(db, tmp_path, monkeypatch):
+    d1 = _nap(db, tmp_path, "20/2020", n_dieu=12)
+    c = _client(tmp_path, monkeypatch)
+    cid, _ = _hoi(c, "20/2020/NĐ-CP")
+    monkeypatch.setattr(appmod, "assemble_cards", lambda *a, **k: pytest.fail("kind = full không qua assemble_cards"))
+    r = c.get(f"/c/{cid}")
+    assert f'<a class="btn" href="/doc/{d1}" data-doc>Mở toàn văn</a>' in r.text and 'class="card' not in r.text
+    db.execute("DELETE FROM documents WHERE id = ?", (d1,))
+    db.commit()
+    r = c.get(f"/c/{cid}")
+    assert "<b>1/1 kết quả không còn đúng nguồn</b>" in r.text and "Mở toàn văn" not in r.text
+
+
+def test_mo_lai_giu_nhan_khop_ro_chi_khi_the_dau_con_la_ref_dau(db, tmp_path, monkeypatch):
+    _nap(db, tmp_path, "15/2020")
+    c = _client(tmp_path, monkeypatch)
+    cid, _ = _hoi(c, "báo cáo định kỳ")
+    mid, raw = db.execute("SELECT id, result_json FROM messages WHERE conversation_id = ? AND role = 'bot'", (cid,)).fetchone()
+    res = json.loads(raw)
+
+    def dat(**kw):
+        db.execute("UPDATE messages SET result_json = ? WHERE id = ?", (json.dumps({**res, **kw}, ensure_ascii=False), mid))
+        db.commit()
+
+    assert "Khớp rõ" not in c.get(f"/c/{cid}").text and "tìm theo nghĩa" not in _sub(c.get(f"/c/{cid}").text)  # Normal không chấm
+    dat(refs=[[*res["refs"][0][:3], 7, 0, 0], *res["refs"][1:]])  # đoạn chỉ do vector tìm ra (tầng 7): cũng là Advance dù không có nhãn
+    r = c.get(f"/c/{cid}")
+    assert _sub(r.text).endswith("tìm theo nghĩa") and "Khớp rõ" not in r.text
+    dat(sure=True)
+    r = c.get(f"/c/{cid}")
+    assert "Khớp rõ" in r.text and _sub(r.text).endswith("1 câu hỏi · tìm theo nghĩa")  # cuộc này đã tìm bằng Advance; không ghi tên chế độ
+    dat(sure=False)
+    assert "Chưa chắc chắn" in c.get(f"/c/{cid}").text
+    _lam_hong(db, res["refs"][0])  # thẻ đầu không còn là ref đầu đã lưu: nhãn nói về cái khác
+    r = c.get(f"/c/{cid}")
+    assert "Chưa chắc chắn" not in r.text and "Khớp rõ" not in r.text and "không còn đúng nguồn" in r.text
+
+
+def test_mo_lai_chi_dung_san_3_tin_gan_nhat_va_xem_lai_tung_tin(db, tmp_path, monkeypatch):
+    _hai_van_ban(db, tmp_path)
+    c = _client(tmp_path, monkeypatch)
+    qs = ["kiểm toán nội bộ", "lưu trữ hồ sơ", "kiểm toán nội bộ lần 2", "lưu trữ hồ sơ lần 2", "kiểm toán nội bộ lần 3"]
+    cid, htmls = _hoi(c, *qs)
+    mids = [r[0] for r in db.execute("SELECT id FROM messages WHERE conversation_id = ? AND role = 'bot' ORDER BY id", (cid,))]
+    goc, dem = appmod.assemble_cards, []
+    monkeypatch.setattr(appmod, "assemble_cards", lambda *a, **k: (dem.append(1), goc(*a, **k))[1])
+    r = c.get(f"/c/{cid}")
+    assert len(dem) == 3 and r.text.count('<form class="res"') == 3  # chỉ 3 tin cuối được dựng
+    assert re.findall(r'data-mid="(\d+)"', r.text) == [str(m) for m in mids[:2]] and r.text.count(">Xem lại</button>") == 2
+    assert r.text.count('<div class="bubble">') == 5  # câu hỏi của tin cũ vẫn hiện
+    dem.clear()
+    f = c.get(f"/c/{cid}/m/{mids[0]}")
+    assert f.status_code == 200 and len(dem) == 1 and _hrefs(f.text) == _hrefs(htmls[0]) and "<h1" not in f.text
+    # tin hỏng thì mảnh "Xem lại" cũng mang dải cảnh báo
+    _lam_hong(db, _bot(db, cid)["refs"][0])
+    assert "không còn đúng nguồn" in c.get(f"/c/{cid}/m/{mids[4]}").text
+    # cuộc có đúng 3 tin: dựng hết, không có nút
+    cid3, _ = _hoi(c, *qs[:3])
+    assert "data-mid" not in c.get(f"/c/{cid3}").text
+
+
+def test_mo_lai_id_la(db, tmp_path, monkeypatch):
+    _nap(db, tmp_path, "15/2020")
+    c = _client(tmp_path, monkeypatch)
+    cid, _ = _hoi(c, "báo cáo định kỳ")
+    cid2, _ = _hoi(c, "lưu trữ hồ sơ")
+    r = c.get("/c/9999", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/"
+    assert c.get("/c/99999999999999999999").status_code == 404  # quá cỡ số nguyên SQLite: như các route khác, không 500
+    ids = [(r[0], r[1]) for r in db.execute("SELECT id, role FROM messages WHERE conversation_id = ? ORDER BY id", (cid,))]
+    user_mid, bot_mid = ids[0][0], ids[1][0]
+    assert c.get(f"/c/{cid}/m/{bot_mid}").status_code == 200
+    assert c.get(f"/c/{cid}/m/{user_mid}").status_code == 404  # tin người dùng không có kết quả
+    assert c.get(f"/c/{cid2}/m/{bot_mid}").status_code == 404  # tin của cuộc khác
+    assert c.get(f"/c/{cid}/m/9999").status_code == 404
+
+
+def test_mo_lai_mang_csrf_token_that_khi_tat_bypass(db, tmp_path, monkeypatch):
+    _nap(db, tmp_path, "15/2020")
+    c = _client(tmp_path, monkeypatch)
+    cid, _ = _hoi(c, "báo cáo định kỳ")
+    monkeypatch.delenv("SOILUAT_ALLOW_TEST_HOST")
+    h = {"Host": "127.0.0.1:8000"}
+    r = c.get(f"/c/{cid}", headers=h)
+    assert f'name="csrf_token" value="{appmod.CSRF_TOKEN}"' in r.text  # không rỗng: "Xuất Word" trong cuộc cũ không ra 403
+    uid = re.search(r'name="uid" value="(\d+)"', r.text)[1]
+    assert c.post("/export", headers=h, data={"uid": uid, "csrf_token": appmod.CSRF_TOKEN}).status_code == 200
+    f = c.get(f"/c/{cid}/m/{db.execute('SELECT MIN(id) FROM messages WHERE role = ?', ('bot',)).fetchone()[0]}", headers=h)
+    assert f'name="csrf_token" value="{appmod.CSRF_TOKEN}"' in f.text
+
+
+def test_mo_lai_thoat_html_cau_hoi_va_ten_cuoc(db, tmp_path, monkeypatch):
+    _nap(db, tmp_path, "15/2020")
+    c = _client(tmp_path, monkeypatch)
+    q = "báo cáo <img src=x onerror=alert(1)> \"định\" 'kỳ'"
+    cid, _ = _hoi(c, q, "báo cáo", "định kỳ", "lưu trữ")  # câu đầu thành tên cuộc và tin cũ ("Xem lại")
+    first, raw = db.execute("SELECT id, result_json FROM messages WHERE conversation_id = ? AND role = 'bot' ORDER BY id", (cid,)).fetchone()
+    refs = json.loads(raw)["refs"]
+    assert refs
+    for ref in refs[:1]:
+        _lam_hong(db, ref)
+    for page in (c.get(f"/c/{cid}").text, c.get(f"/c/{cid}/m/{first}").text):
+        assert "<img src=x" not in page
+    assert "<h1>báo cáo &lt;img src=x onerror=alert(1)&gt;" in c.get(f"/c/{cid}").text
+    f = c.get(f"/c/{cid}/m/{first}")
+    assert "không còn đúng nguồn" in f.text
+    assert html.unescape(re.search(r'data-ask="([^"]*)"', f.text)[1]) == q  # nút "Hỏi lại" gửi đúng chữ đã hỏi

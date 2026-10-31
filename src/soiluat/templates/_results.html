@@ -20,10 +20,16 @@
     ("hiệu lực từ " ~ (dt.ngay_hieu_luc | ngay)) if dt and dt.ngay_hieu_luc, fname(c.file_path)] | select | join(" · ") }}
 {%- endmacro %}
 {% set L = items if items is defined else cards %}
+{% if stale %}
+  {# tin mở lại từ cuộc trò chuyện (P1 H3) có ref không còn đúng nguồn; "Hỏi lại" gửi lại đúng câu hỏi và bộ lọc của tin #}
+  <div class="band stale" role="note"><span><b>{{ stale.bad }}/{{ stale.total }} kết quả không còn đúng nguồn</b> vì văn bản đã nạp lại hoặc xoá. Hãy hỏi lại để có kết quả mới.</span><button type="button" class="btn" data-ask="{{ q }}" data-filters='{{ stale.filters | tojson }}'>Hỏi lại</button></div>
+{% endif %}
 {% if q2_note %}
   <p class="band" role="note">{{ q2_note }}</p>
 {% endif %}
-{% if q and not L %}
+{% if stale and not L %}
+  {# mọi ref đã hỏng: chỉ còn dải cảnh báo, không nói "không tìm thấy" #}
+{% elif q and not L %}
   {% if empty_kho %}
   <div class="none">
     <h2>Kho chưa có văn bản</h2>

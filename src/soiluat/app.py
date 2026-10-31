@@ -186,7 +186,7 @@ def _full_docs(conn: sqlite3.Connection, q: str, s: dict, loai: str = "", co_qua
 def _ctx(conn: sqlite3.Connection, q: str, s: dict, loai: str = "", co_quan: str = "", hieu_luc: str = "") -> dict:
     """Thẻ và mục gọn từ kết quả tìm (P1 K1)."""
     r, ids = s["result"], s["ids"]
-    full = _full_docs(conn, q, s, loai, co_quan, hieu_luc)
+    full = None if s.get("kind") == "list" else _full_docs(conn, q, s, loai, co_quan, hieu_luc)  # mở lại: kind đã lưu, không đoán lại
     idset = set(ids)
     cards = [] if full is not None else assemble_cards(
         conn, ids, synonym_note=r.note,
@@ -210,43 +210,69 @@ def _log_query(conn: sqlite3.Connection, q: str, n: int) -> None:
         conn.rollback()
 
 
+def _kho(conn: sqlite3.Connection) -> dict:
+    """Trạng thái kho cho trang và ghi chú đầu kết quả: số văn bản, kho chưa có văn bản xử phạt, số liên kết chờ duyệt."""
+    n_docs = int(conn.execute("SELECT COUNT(*) AS n FROM documents").fetchone()["n"] or 0)
+    n_che = conn.execute("SELECT COUNT(*) AS n FROM unit_labels WHERE label = 'CHE_TAI'").fetchone()["n"]
+    note = "Kho chưa có văn bản xử phạt — phần lớn thẻ là rủi ro chưa rõ chế tài (loại 3)." if n_docs and not n_che else ""
+    return {"n_docs": n_docs, "empty_kho": n_docs == 0, "kho_note": note,  # n_queue: số trên thanh bên, cùng hàng chờ với trang /review
+            "n_queue": conn.execute("SELECT COUNT(*) FROM links WHERE confirmed = 0").fetchone()[0]}
+
+
+def _msg_ctx(conn: sqlite3.Connection, q: str, s: dict, loai: str, co_quan: str, hieu_luc: str, kho: dict) -> dict:
+    """Mọi biến `_results.html` cần cho một câu trả lời, từ `s` (tìm mới, hoặc dựng lại từ ref đã lưu ở H3) và kho."""
+    ctx = {**_ctx(conn, q, s, loai, co_quan, hieu_luc), "n_found": s["n_found"]}  # n_found: đoạn tìm được trước bộ lọc ("Không còn kết quả sau khi lọc")
+    note = kho["kho_note"]
+    if ctx["cut_note"]:
+        note = (note + " " if note else "") + ctx["cut_note"]
+    hints = [] if ctx["items"] else [r["term"] for r in conn.execute("SELECT term FROM synonyms WHERE approved = 1 LIMIT 8")]
+    return {**ctx, **kho, "q": q, "loai": loai, "co_quan": co_quan, "hieu_luc": hieu_luc, "hints": hints,
+            "q2_note": note, "sure": s["sure"]}
+
+
 def _search_ctx(q: str, loai: str, co_quan: str, hieu_luc: str, ask: bool = False, cid: int | None = None) -> dict:
     """`ask`: POST /ask, lưu thành tin của cuộc `cid` (None = cuộc mới); `conversation_id` trong kết quả là cuộc đã lưu."""
     conn = get_conn()
+    kho = _kho(conn)
     saved = None
-    ctx = {"cards": [], "items": [], "n_items": 0, "n_found": 0, "cut_note": "", "dates": {}, "n": {"n1": 0, "n2": 0, "n3": 0, "n4": 0}}
-    hints: list[str] = []
-    q2_note = ""
-    sure = None
-    n_docs = int(conn.execute("SELECT COUNT(*) AS n FROM documents").fetchone()["n"] or 0)
-    empty_kho = n_docs == 0
-    n_che = conn.execute("SELECT COUNT(*) AS n FROM unit_labels WHERE label = 'CHE_TAI'").fetchone()["n"]
-    if not empty_kho and int(n_che or 0) == 0:
-        q2_note = "Kho chưa có văn bản xử phạt — phần lớn thẻ là rủi ro chưa rõ chế tài (loại 3)."
+    out = {"cards": [], "items": [], "n_items": 0, "n_found": 0, "cut_note": "", "dates": {}, "n": {"n1": 0, "n2": 0, "n3": 0, "n4": 0},
+           **kho, "q": q, "loai": loai, "co_quan": co_quan, "hieu_luc": hieu_luc, "hints": [], "q2_note": kho["kho_note"], "sure": None}
     if q.strip():
         s = _search(conn, q, loai, co_quan, hieu_luc)
-        sure = s["sure"]
-        ctx = {**_ctx(conn, q, s, loai, co_quan, hieu_luc), "n_found": s["n_found"]}  # n_found: đoạn tìm được trước bộ lọc ("Không còn kết quả sau khi lọc")
-        if ctx["cut_note"]:
-            q2_note = (q2_note + " " if q2_note else "") + ctx["cut_note"]
+        out = _msg_ctx(conn, q, s, loai, co_quan, hieu_luc, kho)
         # "Mở toàn văn": số văn bản, để gõ số hiệu không lọt vào trang "Truy vấn bỏ sót" (lọc result_count = 0)
-        _log_query(conn, q, len(ctx["items"]) if not ctx["cards"] else len(ctx["cards"]))
+        _log_query(conn, q, len(out["items"]) if not out["cards"] else len(out["cards"]))
         if ask:  # tìm xong và ghi nhật ký xong mới lưu: không giữ khoá ghi suốt phần tìm (Advance ~9 s)
             try:
                 filters = {"loai": loai, "co_quan": co_quan, "hieu_luc": hieu_luc}
-                saved = conversations.save(conn, cid, q, conversations.result_of(conn, q, filters, s, ctx), _now())
+                saved = conversations.save(conn, cid, q, conversations.result_of(conn, q, filters, s, out), _now())
             except sqlite3.Error:  # đang nạp file giữ khoá ghi: vẫn trả kết quả, nói rõ chưa lưu (không nuốt im như nhật ký)
-                q2_note = (q2_note + " " if q2_note else "") + "Chưa lưu được vào lịch sử (đang nạp file)."
-        if not ctx["items"]:
-            hints = [r["term"] for r in conn.execute("SELECT term FROM synonyms WHERE approved = 1 LIMIT 8")]
-    # số trên thanh bên "Liên kết chờ duyệt": cùng hàng chờ với trang /review
-    n_queue = conn.execute("SELECT COUNT(*) FROM links WHERE confirmed = 0").fetchone()[0]
+                out["q2_note"] = (out["q2_note"] + " " if out["q2_note"] else "") + "Chưa lưu được vào lịch sử (đang nạp file)."
     conn.close()
-    return {
-        **ctx, "q": q, "loai": loai, "co_quan": co_quan, "hieu_luc": hieu_luc, "hints": hints,
-        "q2_note": q2_note, "sure": sure, "empty_kho": empty_kho, "n_docs": n_docs, "n_queue": n_queue,
-        "conversation_id": saved,
-    }
+    return {**out, "conversation_id": saved}
+
+
+def _render_results(ctx: dict) -> str:
+    """`_results.html` ra chuỗi. Phải qua đây, không `get_template(...).render(ctx)` trần: `csrf_token` chỉ được chèn ở
+    `_tpl`, mà form "Chọn xuất" cần nó (thiếu thì "Xuất Word" trong cuộc cũ ra 403)."""
+    return TEMPLATES.get_template("_results.html").render({**ctx, "csrf_token": CSRF_TOKEN})
+
+
+def _reopen(conn: sqlite3.Connection, res: dict, kho: dict) -> str:
+    """Dựng lại một tin trả lời từ ref đã lưu (P1 H3), không tìm lại: thứ tự cũ, bỏ ref hỏng; hiệu lực, ghi chú và dòng
+    "Còn N mục nữa" tính từ dữ liệu hiện tại. Có ref hỏng thì thêm dải cảnh báo (biến `stale` của `_results.html`)."""
+    got = list(conversations.match(conn, res["refs"]))
+    ok = [(ref, i) for ref, i in got if i is not None]
+    f = res["filters"]
+    r = SimpleNamespace(note=res["note"], intent=res["intent"], ids=[],  # ids rỗng: `_full_docs` tự tính lại các văn bản khớp số hiệu
+                        tiers={i: ref[3] for ref, i in ok}, fold_ids={i for ref, i in ok if ref[4]}, f2_ids={i for ref, i in ok if ref[5]})
+    # nhãn tin cậy nói về kết quả đầu: ref đầu hỏng thì thẻ đầu là cái khác, bỏ nhãn (cùng luật `_search`)
+    s = {"kind": res["kind"], "result": r, "ids": [i for _, i in ok], "n_found": res["n_found"], "n_ids": res["n_ids"],
+         "sure": res["sure"] if got and got[0][1] is not None else None}
+    ctx = _msg_ctx(conn, res["q"], s, f["loai"], f["co_quan"], f["hieu_luc"], kho)
+    if len(ok) < len(got):
+        ctx["stale"] = {"bad": len(got) - len(ok), "total": len(got), "filters": f}
+    return _render_results(ctx)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -260,11 +286,55 @@ def home(
     ctx = _search_ctx(q, loai, co_quan, hieu_luc)
     if request.headers.get("HX-Request"):
         return _tpl(request, "_results.html", ctx)
+    return _index(request, ctx)
+
+
+def _index(request: Request, ctx: dict):
+    """Trang chính (`index.html`): `ctx` của kết quả hoặc của cuộc trò chuyện, cộng chế độ tìm, đuôi file và cơ quan ban hành."""
     conn = get_conn()
     co_quans = [r[0] for r in conn.execute(
         "SELECT DISTINCT co_quan FROM documents WHERE co_quan IS NOT NULL AND co_quan != '' ORDER BY co_quan")]
     conn.close()
     return _tpl(request, "index.html", {**ctx, "mode": _mode_status(), "suffixes": ",".join(sorted(SUFFIXES)), "co_quans": co_quans})
+
+
+PREBUILT = 3  # tin gần nhất dựng sẵn khi mở cuộc; tin cũ hơn hiện nút "Xem lại". Đo 31/10/2026: dựng một tin ~230 ms (compact ~200), cuộc 10 câu ~2,3-2,6 s
+
+
+@app.get("/c/{cid}", response_class=HTMLResponse)
+def open_conversation(request: Request, cid: int):
+    """Mở lại cuộc trò chuyện từ ref đã lưu, không tìm lại (P1 H3). Không có cuộc: về trang chủ."""
+    conn = get_conn()
+    try:
+        c = conn.execute("SELECT title, created_at FROM conversations WHERE id = ?", (cid,)).fetchone()
+        if c is None:
+            return RedirectResponse("/", status_code=303)
+        kho = _kho(conn)
+        rows = conn.execute("SELECT id, result_json FROM messages WHERE conversation_id = ? AND role = 'bot' ORDER BY id", (cid,)).fetchall()
+        thread, advance = [], False
+        for k, row in enumerate(rows):
+            res = json.loads(row["result_json"])
+            # result_json không ghi chế độ tìm: kết quả có chấm "Khớp rõ" hoặc có đoạn chỉ do vector tìm ra (tầng 7) là của Advance
+            advance = advance or res["sure"] is not None or any(ref[3] == 7 for ref in res["refs"])
+            thread.append({"q": res["q"], "mid": row["id"], "html": None if k < len(rows) - PREBUILT else _reopen(conn, res, kho)})
+    finally:
+        conn.close()
+    when = datetime.fromisoformat(c["created_at"]).astimezone().strftime("%d/%m/%Y, %H:%M")  # giờ máy, không phải UTC lưu trong kho
+    sub = f"{when} · {len(rows)} câu hỏi" + (" · tìm theo nghĩa" if advance else "")
+    return _index(request, {**kho, "q": "", "conversation_id": cid, "thread": thread, "title": c["title"], "sub": sub})
+
+
+@app.get("/c/{cid}/m/{mid}", response_class=HTMLResponse)
+def reopen_message(cid: int, mid: int):
+    """Một tin cũ của cuộc, dựng lúc bấm "Xem lại" (cùng `_reopen` với trang cuộc)."""
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT result_json FROM messages WHERE id = ? AND conversation_id = ? AND role = 'bot'", (mid, cid)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Không có tin này")
+        return HTMLResponse(_reopen(conn, json.loads(row["result_json"]), _kho(conn)))
+    finally:
+        conn.close()
 
 
 @app.post("/ask", response_class=HTMLResponse)

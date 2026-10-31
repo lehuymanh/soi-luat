@@ -20,11 +20,14 @@
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); composer.requestSubmit(); }
   });
   composer.addEventListener("submit", e => { e.preventDefault(); const q = qbox.value; qbox.value = ""; qbox.style.height = "auto"; ask(q); });
-  document.addEventListener("click", e => { const c = e.target.closest("[data-ask]"); if (c) ask(c.dataset.ask); });
+  document.addEventListener("click", e => {
+    const c = e.target.closest("[data-ask]");
+    if (c) ask(c.dataset.ask, c.dataset.filters && JSON.parse(c.dataset.filters));  // "Hỏi lại" mang theo bộ lọc của tin đó
+  });
 
   /* Các lần hỏi xếp thành một chuỗi: cuộc mới chưa có id tới khi có câu trả lời đầu, hai lần Enter nhanh sẽ tạo hai cuộc. */
-  let cid = "", queue = Promise.resolve();
-  function ask(q) {
+  let cid = thread.dataset.cid || "", queue = Promise.resolve();  // cuộc mở lại từ /c/{id} có sẵn id: câu mới ghi tiếp vào đó
+  function ask(q, filters) {
     q = q.trim();
     if (!q) return;
     $("#hello")?.remove();
@@ -39,7 +42,7 @@
     thread.append(u, b);
     u.scrollIntoView({ behavior: "smooth", block: "start" });
     const fd = new FormData(); fd.set("q", q);
-    for (const n of ["loai", "co_quan", "hieu_luc"]) { const v = composer.elements[n].value.trim(); if (v) fd.set(n, v); }
+    for (const n of ["loai", "co_quan", "hieu_luc"]) { const v = (filters ? filters[n] || "" : composer.elements[n].value).trim(); if (v) fd.set(n, v); }
     queue = queue.then(async () => {  // không bao giờ từ chối: lỗi hiện trong khung trả lời, chuỗi vẫn chạy tiếp
       if (cid) fd.set("conversation_id", cid);
       try {
@@ -53,6 +56,18 @@
       }
       u.scrollIntoView({ behavior: "smooth", block: "start" });
     });
+  }
+
+  /* Cuộc mở lại: chỉ 3 tin cuối dựng sẵn (dựng một tin ~0,2 s); tin cũ hơn dựng khi bấm "Xem lại". */
+  async function replay(btn) {
+    const box = btn.closest(".msg.bot");
+    btn.disabled = true; btn.textContent = "Đang dựng…";
+    try {
+      const r = await fetch(`/c/${cid}/m/${btn.dataset.mid}`);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      box.innerHTML = await r.text();
+      box.tabIndex = -1; box.focus({ preventScroll: true });  // nút đã biến mất: giữ focus ở khung kết quả vừa hiện
+    } catch (err) { btn.disabled = false; btn.textContent = "Không dựng được, bấm để thử lại"; }
   }
 
   const fbtn = $("#btn-filters"), fbox = $("#filters");
@@ -76,6 +91,8 @@
       else { more.hidden = true; shown.querySelector("a.addr")?.focus(); }  // nút ẩn thì focus về BODY: đưa tới mục mới hiện
       return;
     }
+    const later = e.target.closest("[data-mid]");
+    if (later) { replay(later); return; }
     const lg = e.target.closest("[data-legend]");
     if (lg) { const dl = lg.closest(".risk").nextElementSibling; dl.hidden = !dl.hidden; lg.setAttribute("aria-expanded", String(!dl.hidden)); return; }
     const uf = e.target.closest("[data-unfilter]");
