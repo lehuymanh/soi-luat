@@ -259,7 +259,7 @@ def bench_server(data: Path, res: Path, qs: list[dict], tag: str, cores: list[in
                     else:
                         lat.setdefault(q["group"], []).append(dt)
             t2 = time.perf_counter()
-            r = cli.get(f"/unit/1")
+            r = cli.get("/doc/1?u=1")
             open_unit_ms = (time.perf_counter() - t2) * 1000
             mi = p.memory_info()
             rss_after = mi.rss

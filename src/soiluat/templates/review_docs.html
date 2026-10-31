@@ -11,7 +11,7 @@
   <h1>Văn bản trong kho</h1>
   <p>Sửa hiệu lực tại đây. Muốn sửa ranh giới hoặc chữ OCR: sửa file nguồn rồi nạp lại.</p>
   {% for item in items %}
-    <div class="doc">
+    <div class="doc" id="d{{ item.doc.id }}">
       <p>
         <b>{{ item.doc.file_path }}</b>
         · {{ item.doc.so_hieu or "chưa có số hiệu" }}
@@ -39,7 +39,7 @@
       </form>
       {% for u in item.units %}
         <div class="unit">
-          <a href="/unit/{{ u.id }}">{{ u.path }}</a>
+          <a href="/doc/{{ item.doc.id }}?path={{ u.path | urlencode }}&amp;u={{ u.id }}#u{{ u.id }}">{{ u.path }}</a>
           ({{ u.level }}, tin cậy {{ "%.2f"|format(u.boundary_confidence or 0) }})
           — {{ (u.title or u.raw_text or "")[:160] }}
         </div>

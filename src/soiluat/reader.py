@@ -134,7 +134,7 @@ def build_view(conn: sqlite3.Connection, doc_id: int, sel_id: int | None, q: str
             continue
         lines.append(item(r))
         if r["level"] == "dieu":
-            toc.append({"id": r["id"], "label": addr(r["path"]), "path": r["path"]})
+            toc.append({"id": r["id"], "label": addr(r["path"]), "path": r["path"], "title": lines[-1]["title"]})
     for ln in lines:
         ln["notes"] = notes.get(ln["id"], [])
     if doc is not None and doc["fallback_doan"]:

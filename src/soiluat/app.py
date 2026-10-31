@@ -30,8 +30,8 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 import uvicorn
 
-from soiluat import crossrank, pageimg, semantic
-from soiluat.cards import assemble_cards, summarize
+from soiluat import crossrank, pageimg, reader, semantic
+from soiluat.cards import _ocr_unverified, assemble_cards, summarize
 from soiluat.config import HOST, PORT, data_dir, db_path
 from soiluat.db import backup_db, connect, init_schema
 from soiluat.export_word import card_pages, export_cards, page_label
@@ -40,7 +40,7 @@ from soiluat.jobs import JOBS, SUFFIXES
 from soiluat.search import DIEU_CAP, apply_doc_filters, cascade_search
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
-TEMPLATES.env.globals.update(page_label=page_label, card_pages=card_pages)
+TEMPLATES.env.globals.update(page_label=page_label, card_pages=card_pages, addr=reader.addr)
 CSRF_TOKEN = secrets.token_urlsafe(32)
 _ocr_cache: dict | None = None
 
@@ -536,48 +536,57 @@ def set_so_hieu(
     return RedirectResponse("/review/docs", status_code=303)
 
 
-@app.get("/unit/{unit_id}", response_class=HTMLResponse)
-def unit_view(request: Request, unit_id: int):
+@app.get("/unit/{unit_id}")
+def unit_view(unit_id: int):
+    """Liên kết cũ (0.8, thẻ Word đã xuất) mở trình đọc tại đúng đơn vị."""
     conn = get_conn()
-    u = conn.execute("SELECT * FROM units WHERE id = ?", (unit_id,)).fetchone()
-    if u is None:
-        conn.close()
-        return HTMLResponse("Không tìm thấy đơn vị.", status_code=404)
-    doc = conn.execute(
-        "SELECT * FROM documents WHERE id = ?", (u["doc_id"],)
-    ).fetchone()
-    pages = conn.execute(
-        "SELECT page_no, kind, ocr_status, verification_status FROM pages "
-        "WHERE doc_id = ? AND page_no BETWEEN ? AND ? ORDER BY page_no",
-        (u["doc_id"], u["page_from"] or 1, u["page_to"] or u["page_from"] or 1),
-    ).fetchall()
-    notes = _unit_notes(conn, u)
-    try:
-        conn.execute(
-            "UPDATE query_log SET selected_unit = ?, selected_doc_id = ?, selected_path = ? "
-            "WHERE id = (SELECT id FROM query_log ORDER BY id DESC LIMIT 1)",
-            (unit_id, u["doc_id"], u["path"]),
-        )
-        conn.commit()
-    except sqlite3.OperationalError:  # đang nạp file giữ khoá ghi
-        conn.rollback()
+    u = conn.execute("SELECT doc_id, path FROM units WHERE id = ?", (unit_id,)).fetchone()
     conn.close()
-    ud = dict(u)
-    dd = dict(doc) if doc else {}
-    ud["addr"] = display_addr(dd.get("so_hieu"), ud.get("path") or "")
-    for nt in notes:
-        nt["addr"] = display_addr(None, nt["path"])
-    return _tpl(
-        request,
-        "unit.html",
-        {
-            "u": ud,
-            "doc": dd,
-            "pages": [dict(p) for p in pages],
-            "notes": notes,
-            "can_view": pageimg.can_view(dd.get("file_path")),
-        },
-    )
+    if u is None:
+        return HTMLResponse("Không tìm thấy đơn vị.", status_code=404)
+    q = urlencode({"path": u["path"], "u": unit_id})
+    return RedirectResponse(f"/doc/{u['doc_id']}?{q}#u{unit_id}", status_code=303)
+
+
+HL_PILL = {"con": ("Còn hiệu lực", "pos"), "het": ("Hết hiệu lực", "neg")}
+
+
+@app.get("/doc/{doc_id}", response_class=HTMLResponse)
+def doc_view(request: Request, doc_id: int, u: int | None = None, path: str = "", q: str = "",
+             page: int | None = None):
+    """Trình đọc: toàn văn, đơn vị chọn được tô và cuộn tới. Không ghi DB."""
+    conn = get_conn()
+    try:
+        if conn.execute("SELECT 1 FROM documents WHERE id = ?", (doc_id,)).fetchone() is None:
+            return HTMLResponse("Không tìm thấy văn bản.", status_code=404)
+        sel = reader.resolve_sel(conn, doc_id, u, path)
+        view = reader.build_view(conn, doc_id, sel, q)
+        d = view["doc"]
+        su = conn.execute("SELECT * FROM units WHERE id = ?", (sel,)).fetchone() if sel else None
+        pf, pt = (su["page_from"], su["page_to"]) if su else (1, 2**31)
+        pages = conn.execute(
+            "SELECT page_no, kind, ocr_status, verification_status, raw_text, reviewed_text FROM pages "
+            "WHERE doc_id = ? ORDER BY page_no", (doc_id,)
+        ).fetchall()
+        ocr_warn = _ocr_unverified(conn, pf, pt, doc_id)
+    finally:
+        conn.close()
+    fname = Path(d["file_path"].split("#vb", 1)[0]).name
+    name = " ".join(x for x in (reader.LOAI.get(d["loai"] or "", ""), d["so_hieu"] or "") if x) or fname
+    if su is None:
+        where, cite = "Toàn văn", name
+    else:
+        where = reader.addr(su["path"])
+        cite = reader.cite(d["so_hieu"], d["loai"], su["path"]) if d["so_hieu"] else f"{where} {fname}"
+    has_img = pageimg.can_view(d["file_path"]) and pageimg.source_file(d["file_path"]) is not None
+    in_sel = [p for p in pages if su and (su["page_from"] or 0) <= p["page_no"] <= (su["page_to"] or su["page_from"] or 0)]
+    ctx = {
+        "view": view, "d": d, "su": su, "name": name, "fname": fname, "where": where, "cite": cite,
+        "pill": HL_PILL.get(d["hieu_luc"], ("Hiệu lực chưa rõ", "neu")), "ocr_warn": ocr_warn,
+        "pages": in_sel, "raw_pages": [] if has_img else pages, "q": q, "page": page or pf,
+        "full": not request.headers.get("HX-Request"),
+    }
+    return _tpl(request, "doc.html" if ctx["full"] else "_reader.html", ctx)
 
 
 @app.get("/page/{doc_id}/{page_no}")
@@ -597,27 +606,6 @@ def page_image(doc_id: int, page_no: int):
             return HTMLResponse("Không có trang này.", status_code=404)
         return Response(png, media_type="image/png", headers=hdr)
     return FileResponse(src, media_type="image/png" if kind == "png" else "image/jpeg", headers=hdr)
-
-
-def _unit_notes(conn, u) -> list[dict]:
-    """Đơn vị ghi_chu treo dưới Điều chứa unit (hoặc dưới chính unit nếu không có Điều)."""
-    root = u
-    cur = u
-    while cur is not None and cur["level"] != "dieu" and cur["parent_id"]:
-        cur = conn.execute("SELECT * FROM units WHERE id = ?", (cur["parent_id"],)).fetchone()
-    if cur is not None and cur["level"] == "dieu":
-        root = cur
-    rows = conn.execute(
-        """
-        WITH RECURSIVE sub(id) AS (
-          SELECT ? UNION SELECT x.id FROM units x JOIN sub ON x.parent_id = sub.id
-        )
-        SELECT id, path, page_from, page_to, reviewed_text, raw_text FROM units
-        WHERE level = 'ghi_chu' AND parent_id IN (SELECT id FROM sub) ORDER BY id
-        """,
-        (root["id"],),
-    ).fetchall()
-    return [dict(r) for r in rows]
 
 
 @app.get("/missed", response_class=HTMLResponse)

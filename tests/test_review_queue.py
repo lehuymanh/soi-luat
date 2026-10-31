@@ -80,25 +80,6 @@ def test_missed_queries_and_htmx_fragment(tmp_path, monkeypatch):
     assert "báo cáo" in frag.text.lower() or "Điều" in frag.text
 
 
-def test_unit_view_writes_query_log_selection(tmp_path, monkeypatch):
-    client, _, uid, _ = _client(tmp_path, monkeypatch)
-    client.get("/", params={"q": "bao cao"})
-    r = client.get(f"/unit/{uid}")
-    assert r.status_code == 200
-    from soiluat.config import db_path
-    from soiluat.db import connect
-
-    conn = connect(db_path())
-    row = conn.execute(
-        "SELECT selected_unit, selected_doc_id, selected_path FROM query_log "
-        "ORDER BY id DESC LIMIT 1"
-    ).fetchone()
-    conn.close()
-    assert row["selected_unit"] == uid
-    assert row["selected_doc_id"]
-    assert row["selected_path"]
-
-
 def test_filter_hieu_luc_http(tmp_path, monkeypatch):
     client, doc_id, _, _ = _client(tmp_path, monkeypatch)
     client.post(f"/docs/{doc_id}/hieu-luc", data={"hieu_luc": "con"})
