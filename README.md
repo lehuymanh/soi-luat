@@ -16,6 +16,8 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
+Linux: `python3 -m venv .venv && . .venv/bin/activate`, rồi cùng lệnh `pip install`; OCR cần thêm `sudo apt install tesseract-ocr tesseract-ocr-vie` (tên gói chưa thử trên máy trống) và `export SOILUAT_TESSDATA=/usr/share/tesseract-ocr/5/tessdata`.
+
 Tuỳ chọn:
 
 ```text
@@ -133,7 +135,7 @@ Các trang duyệt mở từ Cài đặt → Quản lý kho.
 ## Kiểm thử
 
 ```text
-pytest
+python -m pytest -q
 ```
 
 ## Sao lưu

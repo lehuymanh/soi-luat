@@ -5,7 +5,7 @@ App tra cứu văn bản pháp luật Việt Nam chạy offline (Python, SQLite 
 - **Bàn giao**: đọc `docs/README.md` (bản đồ tài liệu, vào từ đây), rồi `docs/nghien-cuu/ghi-nho.md` trước khi làm tiếp lộ trình, đo lại tìm kiếm hay câu trả lời AI, hoặc chạy job dài.
 - **Kế hoạch**: `docs/ke-hoach/lo-trinh-1.0.md` (các giai đoạn; quyết định còn mở ở mục 9); khi làm P1 thì theo `docs/ke-hoach/ke-hoach-p1.md`.
 - **Quy trình** (harness, skill, cổng kiểm, cách giao việc): `docs/quy-trinh.md`.
-- **Kiểm tra**: `python -m pytest`.
+- **Kiểm tra**: `python -m pytest -q`. Cách dựng môi trường Python và số test đúng: `docs/nghien-cuu/ghi-nho.md` mục 4, bước 2 và 9.
 - **Câu hỏi gold `vle`** không có giấy phép: giữ ngoài repo.
 
 ## Quy trình

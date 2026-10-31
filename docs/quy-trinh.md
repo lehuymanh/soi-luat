@@ -38,7 +38,7 @@ Các dòng dưới đây lấy từ `CLAUDE.md` và từ nguyên tắc chính x�
 | Tài liệu, commit, PR viết bằng tiếng Việt | Chủ dự án và người dùng cuối đọc tiếng Việt; một ngôn ngữ cho mã, chữ trên giao diện và tài liệu. Skill hiện viết bằng tiếng Anh (do `/autoharness:learn` sinh ra); đó là ngoại lệ | Mục 12 |
 | Đọc `docs/README.md` rồi `ghi-nho.md` trước khi làm tiếp lộ trình, đo lại tìm kiếm hay câu trả lời AI, chạy job dài | Có số đo đã chốt không cần chạy lại ("không đo lại khi mã liên quan chưa đổi"); có bẫy làm hỏng cả buổi chạy | [`ghi-nho.md`](nghien-cuu/ghi-nho.md) mục 1, 3, 5 |
 | Có kế hoạch được duyệt mới làm; quyết định mở ở lộ trình mục 9 phải hỏi | Duyệt kế hoạch không duyệt cái kế hoạch để mở; bước cần quyết định là chỗ hỏi sai | skill `execute-approved-plan` |
-| `python -m pytest` trước khi báo xong | Báo "xong" của agent con là lời khai, không phải kết quả | skill `execute-approved-plan` |
+| `python -m pytest -q` trước khi báo xong | Báo "xong" của agent con là lời khai, không phải kết quả | skill `execute-approved-plan` |
 | Gold `vle` giữ ngoài repo | ViLegalExperts chưa ghi giấy phép; `.gitignore` chặn `bench/zalo/ket_qua_gold*.json`; chỉ commit kết quả suy ra | [`bench/gold/README.md`](../bench/gold/README.md) |
 | Sai sót thì gọi `/autoharness:learn` ngay trong lượt | Bài học nằm trong chat sẽ mất; thành skill thì lượt sau có | mục 12 |
 | Viết mã theo `/ponytail:ponytail` | Thay đổi nhỏ nhất đủ việc, kèm test; mã thừa là nơi lỗi ẩn | `superpowers:test-driven-development` đi cùng |
@@ -85,15 +85,17 @@ Gặp lỗi lạ thì dùng `superpowers:systematic-debugging` trước khi sử
 **Cuối mỗi vòng** (trước khi báo xong, trước khi hết phiên): đây là bước làm harness tốt lên sau mỗi vòng.
 
 1. Có sai sót trong vòng mà chưa gọi `/autoharness:learn` thì gọi.
-2. Đồng bộ skill. Hệ thống skill ghi bài học vào `.claude/skills/` của repo, hoặc vào bản chung của máy `~/.claude/skills/`; bản chung mất khi container bị thu hồi. So hai nơi:
+2. Đồng bộ skill. Hệ thống skill ghi bài học vào `.claude/skills/` của repo, hoặc vào bản chung của máy `~/.claude/skills/`; bản chung mất khi container bị thu hồi. So hai nơi theo **cả thư mục** từng skill (không chỉ `SKILL.md`: `references/` và `scripts/` cũng đổi), bỏ `.ledger.jsonl`, `.sidecar.json` và `references/evidence-*`:
 
    ```bash
-   for d in ~/.claude/skills/*/; do n=$(basename "$d"); [ -f "$d/SKILL.md" ] || continue
-     if [ -d ".claude/skills/$n" ]; then cmp -s "$d/SKILL.md" ".claude/skills/$n/SKILL.md" || echo "khác: $n"
+   for d in ~/.claude/skills/*/; do n=$(basename "$d")
+     [ -f "$d/SKILL.md" ] || { echo "bỏ qua (không có SKILL.md): $n"; continue; }
+     if [ -d ".claude/skills/$n" ]; then
+       diff -rq -x .ledger.jsonl -x .sidecar.json -x 'evidence-*' "$d" ".claude/skills/$n" | sed "s|^|khác: $n: |"
      else echo "chỉ ở máy: $n"; fi; done
    ```
 
-   Cùng tên mà khác: đọc cả hai, giữ bản mới hơn trong `.claude/skills/`. Chỉ ở máy mà thuộc dự án: chép vào repo (bỏ qua skill của công cụ như `session-start-hook`). Skill mới thì thêm một hàng vào bảng mục 7.
+   `~/.claude/skills/synced` (không có `SKILL.md`) là dữ liệu của plugin, không phải skill: lệnh bỏ qua nó. Cùng tên mà khác: đọc cả hai, giữ bản mới hơn trong `.claude/skills/`. Chỉ ở máy mà thuộc dự án: chép vào repo (bỏ qua skill của công cụ như `session-start-hook`). Skill mới thì thêm một hàng vào bảng mục 7.
 3. `git status --short`: tệp `SKILL.md` mà hệ thống vừa ghi vào `.claude/skills/` cũng phải commit (`.ledger.jsonl`, `.sidecar.json`, `references/evidence-*.md` đã bị bỏ qua).
 4. Bẫy mới chưa có skill nào giữ: thêm một hàng vào mục 11.
 5. Cập nhật `docs/nghien-cuu/ghi-nho.md` mục 1.1 (trạng thái, bước đầu tiên của phiên sau) và trạng thái, số đo trong kế hoạch.
@@ -101,12 +103,12 @@ Gặp lỗi lạ thì dùng `superpowers:systematic-debugging` trước khi sử
 
 ## 4. Cổng đo
 
-Mọi lệnh chạy từ gốc repo, **trên bản sao kho** (kho thật và kho đo gốc không bao giờ bị ghi), với `python -I`. Đo trước và sau trên cùng một bản dựng. `<zalo-q>` là thư mục câu hỏi và qrels của Zalo, `<data zalo>` là thư mục có `soiluat.db` của kho Zalo, `<realdocs>` là thư mục kho 21 văn bản thật (có `data/soiluat.db` và `queries.json`); vị trí ở mục 8.
+Mọi lệnh chạy từ gốc repo, **trên bản sao kho** (kho thật và kho đo gốc không bao giờ bị ghi), với `python -I`. Đo trước và sau trên cùng một bản dựng. `<zalo-q>` là thư mục câu hỏi và qrels của Zalo (`queries.jsonl`, `qrels_test.jsonl`, `qrels_train.jsonl`; `<zalo>` ở `bench/README.md`), `<gold_vle>` là thư mục gold (`queries.jsonl`, `qrels_gold.jsonl`), `<data zalo>` là thư mục có `soiluat.db` của kho Zalo, `<realdocs>` là thư mục kho 21 văn bản thật (có `data/soiluat.db` và `queries.json`); vị trí ở mục 8.
 
 | Cổng | Chạy khi | Lệnh | Qua khi | Mốc ghi ở |
 |---|---|---|---|---|
 | Test | Mọi thay đổi | `python -m pytest -q` | Xanh; số test bị bỏ qua không tăng | [`ghi-nho.md`](nghien-cuu/ghi-nho.md) mục 1 |
-| **Quy tắc 7 (tìm kiếm)** | Đổi `search.py`, `sohieu.py`, `query.py`, `semantic.py`, `fold.py`, `crossrank.py`, hoặc bất cứ thứ gì làm đổi thứ hạng | Zalo test: `SOILUAT_SEMANTIC=0 python -I bench/zalo/eval.py <zalo-q> <data zalo> test --tag <thẻ> --only hien_tai,hien_tai_muc,hien_tai_muc_dai_dien`. Gold: cùng lệnh với `<gold_vle>` và đối số `gold` (thẻ khác). Văn bản thật: `SOILUAT_SEMANTIC=0 python -I bench/van-ban-that/eval_real.py <realdocs> normal` | Thay đổi nhằm cải thiện tìm kiếm: tốt hơn trên cả Zalo lẫn gold và không tụt trên văn bản thật (nguyên văn quy tắc). Thay đổi không nhằm đổi thứ hạng (dọn mã, tăng tốc): Hit@1 và Hit@5 không thấp hơn trước trên cùng bản dựng, như đợt dọn mã v0.9.0. Chênh nhỏ mà theo chữ thấp hơn thì phải có **ngoại lệ có tên** do chủ dự án duyệt bằng văn bản (PS-06, HT-02) | [Sổ thí nghiệm, "Tiêu chí giữ"](nghien-cuu/so-thu-nghiem.md); [`ke-hoach-p1.md`](ke-hoach/ke-hoach-p1.md) mục "Đã kiểm / chưa kiểm" |
+| **Quy tắc 7 (tìm kiếm)** | Đổi `search.py`, `sohieu.py`, `query.py`, `semantic.py`, `fold.py`, `crossrank.py`, hoặc bất cứ thứ gì làm đổi thứ hạng | Zalo test: `SOILUAT_SEMANTIC=0 python -I bench/zalo/eval.py <zalo-q> <data zalo> test --tag <thẻ> --only hien_tai,hien_tai_muc,hien_tai_muc_dai_dien`. Gold: `SOILUAT_SEMANTIC=0 python -I bench/zalo/eval.py <gold_vle> <data zalo> gold --tag <thẻ> --only hien_tai,hien_tai_muc,hien_tai_muc_dai_dien` (ghi `bench/zalo/ket_qua_gold_<thẻ>.json`, bị `.gitignore` chặn). Văn bản thật: `SOILUAT_SEMANTIC=0 python -I bench/van-ban-that/eval_real.py <realdocs> normal` | Thay đổi nhằm cải thiện tìm kiếm: tốt hơn trên cả Zalo lẫn gold và không tụt trên văn bản thật (nguyên văn quy tắc). Thay đổi không nhằm đổi thứ hạng (dọn mã, tăng tốc): Hit@1 và Hit@5 không thấp hơn trước trên cùng bản dựng, như đợt dọn mã v0.9.0. Chênh nhỏ mà theo chữ thấp hơn thì phải có **ngoại lệ có tên** do chủ dự án duyệt bằng văn bản (PS-06, HT-02) | [Sổ thí nghiệm, "Tiêu chí giữ"](nghien-cuu/so-thu-nghiem.md); [`ke-hoach-p1.md`](ke-hoach/ke-hoach-p1.md) mục "Đã kiểm / chưa kiểm" |
 | Parser | Đổi `parse.py` hay thứ làm đổi đầu ra parser | Trước và sau: `python -I bench/van-ban-that/cau_truc_chi_tiet.py --db <realdocs>/data/soiluat.db --out <audit.json>` và so bảng TỔNG; `python -I bench/van-ban-that/cau_truc.py <realdocs>/data` (Điều tách được so với 344 Điều thật); `python -I bench/parse_khac.py <data zalo>` (đếm văn bản có chữ đổi so với kho đã lưu) | Số Điều tách được không giảm; mọi loại lỗi trong bảng TỔNG không xấu đi. `parse_khac` ra 0 văn bản đổi nghĩa là kho cũ không cần nâng cấp; ra khác 0 thì tăng `PARSE_REV` ([`kien-truc.md`](kien-truc.md)) và chạy cổng quy tắc 7 | [`bench/van-ban-that/KET-QUA.md`](../bench/van-ban-that/KET-QUA.md), [Sổ thí nghiệm PS-06, PS-07](nghien-cuu/so-thu-nghiem.md) |
 | Trình đọc | Đổi `/doc`, `reader.py`, `/page` | `python -I bench/doc_open.py <data zalo> [--n 100]` | p95 mở trình đọc không quá 1 giây trên bản sao Zalo (cổng P1) | [`ke-hoach-p1.md`](ke-hoach/ke-hoach-p1.md) mục 2, bảng "Cổng P1" |
 | Giao diện | Đổi template, JS, CSS | Bật app trên kho thử, rồi `NODE_PATH=$(npm root -g) node bench/kiem_anh.js http://127.0.0.1:<cổng> <thư mục ảnh> [đường dẫn ...]`. Mẫu HTML tĩnh: `NODE_PATH=$(npm root -g) node .claude/skills/html-mockup-visual-check/scripts/shoot.js <tệp.html> <thư mục ảnh>` | Cuộn ngang 0, đúng một h1, 0 yêu cầu ra ngoài `127.0.0.1`, 0 lỗi JS, phông tải được. **Rồi mở từng ảnh bằng Read**: đọc mã không thay được nhìn ảnh | skill `html-mockup-visual-check`, `local-web-app-static-assets` |
@@ -143,30 +145,24 @@ Giới hạn chi phí: mỗi workflow dưới khoảng 10 agent (mỗi script t�
 2. Chép hai dòng trailer từ lời nhắc ghi công **của phiên bạn** vào `args.trailer` (mục 9).
 3. Commit phần mã mà workflow sẽ đọc hay chạy. Đừng sửa tệp nguồn trong lúc một agent soát đang đọc chúng (skill `background-job-orchestration`).
 4. `df -h /` nếu workflow sẽ chép kho.
-5. Truyền `args` là **đối tượng JSON**, không phải chuỗi đã mã hoá.
+5. Truyền `args` là **đối tượng JSON**, không phải chuỗi đã mã hoá, và truyền `args.python = <venv>/bin/python` (mặc định `python` của hệ thống không có pytest; cách dựng venv: [`ghi-nho.md` mục 4](nghien-cuu/ghi-nho.md), bước 2).
 6. **Lượt đo dài không nằm trong agent.** Zalo test và gold (25 đến 40 phút mỗi lượt trên máy 4 nhân), `bench/llm` (hàng giờ) do người điều phối chạy nền với dấu `EXIT=`. Agent chỉ chạy cổng nhanh (pytest, văn bản thật, `parse_khac`), commit, rồi trả nguyên lệnh đo dài trong kết quả, mở đầu bằng `CHỜ ĐO:`. Báo trước cho chủ dự án lượt đo mất bao lâu. Lý do: mục 11, hàng "Stalled".
 
 **Sau khi chạy workflow**
 
 1. `git status --short`: tệp agent con tạo ra còn chưa được `git add` (skill `git-delivery`).
 2. Tự chạy `python -m pytest -q`, đọc `git show` của từng commit, nhìn ảnh và số mà agent nêu. "Xong" của agent con là lời khai.
-3. Kết quả rỗng hay không đọc được: đọc `journal.jsonl` của lượt chạy (`subagents/workflows/wf_*/journal.jsonl`): dòng `started` nối `key` với `label`, dòng `result` cùng `key` mang dữ liệu. Đừng regex tệp thông báo.
+3. Kết quả rỗng hay không đọc được: đọc `journal.jsonl` của lượt chạy, ở `~/.claude/projects/<thư mục dự án>/<mã phiên>/subagents/workflows/wf_*/journal.jsonl` (`<thư mục dự án>` là đường dẫn repo với `/` thành `-`, ví dụ `-home-user-soi-luat`). Dòng `started` nối `key` với `label`, dòng `result` cùng `key` mang dữ liệu. Đừng regex tệp thông báo.
 4. Phát hiện bị bác bỏ ghi một dòng lý do; phát hiện còn đứng đi vào bước sửa của skill `review-findings-fix-loop` (nếu workflow chưa tự sửa).
 5. Push từng commit đã kiểm. Agent con không push.
 6. Có lệnh `CHỜ ĐO:` thì chạy nền, so với mốc trên cùng bản dựng, rồi giữ hay hoàn commit đó trước khi push (skill `vietnamese-legal-qa-bench`: đối chứng trước khi đổ lỗi cho mã mới).
+7. **Workflow bị huỷ hay dừng giữa chừng** (`status: killed`, lượt điều phối bị ngắt): chạy tiếp, đừng chạy lại từ đầu. Giữ `runId` trong kết quả mà công cụ Workflow trả khi gọi. Gọi lại `Workflow({ scriptPath: ".claude/workflows/plan-step-tdd.js", resumeFromRunId: "<runId>", args: { ... } })` với **đúng `args` cũ**. Agent đã xong được phát lại từ bộ nhớ đệm, nên bước đã commit không bị làm lại. Kết quả trong bộ nhớ đệm có thể rỗng: đọc `journal.jsonl` (bước 3) và `git log` trước khi coi là không còn gì để cứu.
 
 Các script cũ của phiên 0.9.0 (cứng đường dẫn phiên và mã commit) không được giữ; việc chúng làm đã gom vào 4 script có tham số bên dưới. Ba mẫu chưa thành script, ghi lại cách làm để viết lại khi cần (xem skill `workflow-authoring`): (a) tính lại số báo cáo bằng hai agent độc lập từ JSON thô, `ghi-nho.md` mục 3.5; (b) tìm mô hình: bốn hướng quét song song, một bước xếp hạng theo lỗi đang gặp, hai agent kiểm chứng ngược tại nguồn, `ghi-nho.md` mục 3.6; (c) hai thẩm phán độc lập phân loại từng câu trả lời lỗi (có căn cứ, một phần, không căn cứ), skill `benchmark-split-hygiene`.
 
 ## 6. Workflow có sẵn
 
-Nằm ở [`.claude/workflows/`](../.claude/workflows/). Là JavaScript thuần (không TypeScript), `meta` là literal thuần, không đường dẫn phiên, không mã commit cứng. Gọi bằng công cụ Workflow với `scriptPath` (dùng đường dẫn tuyệt đối nếu đường dẫn tương đối không mở được), `args` là đối tượng JSON:
-
-```js
-Workflow({
-  scriptPath: ".claude/workflows/review-lenses.js",
-  args: { range: "abc1234..HEAD", lenses: ["bugs", "tests", "security"] },
-})
-```
+Nằm ở [`.claude/workflows/`](../.claude/workflows/). Là JavaScript thuần (không TypeScript), `meta` là literal thuần, không đường dẫn phiên, không mã commit cứng. Gọi bằng công cụ Workflow với `scriptPath` (dùng đường dẫn tuyệt đối nếu đường dẫn tương đối không mở được), `args` là đối tượng JSON. Mỗi mục con dưới đây có một lời gọi chạy được: thay đường dẫn Python bằng venv của bạn, và `trailer` bằng hai dòng chép nguyên văn từ lời nhắc ghi công của phiên. Bị ngắt giữa chừng thì chạy tiếp bằng `resumeFromRunId` (mục 5, "Sau khi chạy workflow", bước 7).
 
 Ba script có bước soát (`review-lenses`, `ponytail-audit`, và `plan-step-tdd` qua `review-lenses`) chia trách nhiệm giống nhau: **id phát hiện do mã gán** (không tin mô hình), người hoài nghi mặc định `confirmed=false` khi không dựng lại được lỗi, và mọi chỗ mất kết quả (agent chết, góc nhìn trả rỗng) được ghi vào `failed` thay vì im lặng. `ui-prototype-research` không có người hoài nghi riêng: agent sửa phải thử bác bỏ từng vấn đề trước khi sửa, và log báo khi một người soát mất kết quả.
 
@@ -187,6 +183,17 @@ Tìm theo từng góc nhìn (chỉ đọc), rồi mỗi góc có một người 
 
 Trả về: `{scope, confirmed[], rejected[], unverified[], failed[], not_read[]}`. Mỗi mục `confirmed` có `lens, id, title, file, lines, group (must|should|nice), scenario, fix, reason`.
 
+```js
+Workflow({
+  scriptPath: ".claude/workflows/review-lenses.js",
+  args: {
+    range: "30d68e8..HEAD",
+    lenses: ["bugs", "tests", "security"],
+    python: "/tmp/claude-0/venv/bin/python",
+  },
+})
+```
+
 ### 6.2 `ponytail-audit.js`: kiểm toàn repo
 
 Cả repo, theo các góc nhìn `correct`, `security`, `data`, `lean`; mỗi góc có người hoài nghi; tuỳ chọn sửa các mục "Phải sửa" đã xác nhận (test hỏng trước, mỗi lô một commit local). Dùng trước khi phát hành. Agent: 2 mỗi góc cộng một agent mỗi lô sửa (mặc định 4 góc, một lô: 9 agent).
@@ -202,7 +209,19 @@ Cả repo, theo các góc nhìn `correct`, `security`, `data`, `lean`; mỗi gó
 | `gates` | chuỗi | trống | Thêm lệnh cổng đo riêng; mặc định agent theo mục 4 |
 | `python`, `pytest`, `scratch` | chuỗi | như trên | |
 
-Trả về: `{findings[] (mỗi mục có confirmed, group, verdict, verified_fix), not_read[], failed[], fixed[]}`. Mục cần chủ dự án quyết hoặc cần bảng mới mà lộ trình xếp ở phase sau được ghi `deferred`, không làm.
+Trả về: `{findings[] (mỗi mục có confirmed, group, verdict, verified_fix), not_read[], failed[], fixed[], pending[]}`. `pending` là danh sách id mục sửa mà báo cáo có lệnh `CHỜ ĐO:`; chính lệnh nằm ở `fixed[].result.items[].note`. Mục cần chủ dự án quyết hoặc cần bảng mới mà lộ trình xếp ở phase sau được ghi `deferred`, không làm.
+
+```js
+Workflow({
+  scriptPath: ".claude/workflows/ponytail-audit.js",
+  args: {
+    lenses: ["correct", "security"],
+    maxFindings: 6,
+    python: "/tmp/claude-0/venv/bin/python",
+    // muốn sửa mục "Phải sửa" đã xác nhận: thêm fix: true và trailer: "Co-Authored-By: ...\nClaude-Session: ..."
+  },
+})
+```
 
 ### 6.3 `plan-step-tdd.js`: làm tuần tự các bước của một kế hoạch
 
@@ -221,7 +240,22 @@ Mỗi bước một agent: đọc mục kế hoạch, test trước, cài nhỏ 
 | `paths`, `context`, `python`, `pytest`, `scratch` | | như `review-lenses` | |
 | `reviewScriptPath` | chuỗi | `.claude/workflows/review-lenses.js` | Nơi tìm `review-lenses` nếu tra theo tên không được |
 
-Trả về: `{built[] (mỗi bước có status, commit, tests, measurements, not_done), review, fixed}`. Bước `blocked` có `not_done` ghi lý do; kiểm `git status` vì agent có thể để lại thay đổi chưa commit.
+Trả về: `{built[] (mỗi bước có status, commit, tests, measurements, not_done), review, fixed, pending[], failed[]}`. `pending` là danh sách khoá bước hay id mục sửa mà báo cáo có lệnh `CHỜ ĐO:`; chính lệnh nằm ở `built[].report.measurements` hoặc `fixed.items[].note`. Bước `blocked` có `not_done` ghi lý do; kiểm `git status` vì agent có thể để lại thay đổi chưa commit.
+
+```js
+Workflow({
+  scriptPath: ".claude/workflows/plan-step-tdd.js",
+  args: {
+    plan: "docs/ke-hoach/ke-hoach-p1.md",
+    steps: ["N0", "K1"],
+    trailer: "Co-Authored-By: <mô hình> <noreply@anthropic.com>\nClaude-Session: <đường dẫn phiên>",
+    python: "/tmp/claude-0/venv/bin/python",
+    lenses: ["bugs", "tests"],
+  },
+})
+```
+
+Khoá `N0`, `K1` là chữ đầu tiêu đề mục trong kế hoạch (`#### N0. ...`); 2 bước, 2 góc soát và 1 agent sửa là 7 agent.
 
 ### 6.4 `ui-prototype-research.js`: mẫu giao diện khái niệm
 
@@ -243,6 +277,22 @@ Nghiên cứu web theo vài góc nhìn (dẫn URL đã mở), tổng hợp thàn
 | `reviewLenses` | mảng 2 phần tử | `taste`, `needs` | `{key, prompt}` thay cho hai góc soát |
 
 Trả về: `{brief, prototype, research[], build, issues[], fixed}`. Mẫu chỉ được vẽ cái kế hoạch sẽ xây; thứ chưa có ghi "ví dụ" hoặc "mới".
+
+```js
+Workflow({
+  scriptPath: ".claude/workflows/ui-prototype-research.js",
+  args: {
+    topic: "Màn hình Kho văn bản: gắn thẻ và ghi chú vào một Điều",
+    out: "mau/khai-niem-kho.html",
+    scratch: "/tmp/claude-0/work/mau-kho",
+    researchLenses: [
+      { key: "the", q: "App ghi chú và quản lý tài liệu gắn thẻ ra sao: chọn thẻ, lọc theo thẻ, sửa hàng loạt?" },
+      { key: "ghi-chu", q: "Ghi chú gắn vào một đoạn của tài liệu hiện ở đâu và mở lại thế nào mà không che chữ gốc?" },
+    ],
+    inputs: ["mau/giao-dien-1.0.html"],
+  },
+})
+```
 
 ## 7. Skill
 
@@ -283,9 +333,9 @@ Mọi đường dẫn `/tmp/claude-0/...` dưới đây là của phiên soạn 
 
 | Thứ | Cách dùng |
 |---|---|
-| Python | Venv riêng (phiên soạn: `/tmp/claude-0/venv/bin/python`, 3.13). Chạy bench với `python -I`. Advance cần `pip install -e ".[nghia]"` |
+| Python | Venv riêng (phiên soạn: `/tmp/claude-0/venv/bin/python`, 3.13). Cách dựng, các extra (`dev`, `ocr`, `nghia`, `bench`) và số test đúng: [`ghi-nho.md` mục 4](nghien-cuu/ghi-nho.md), bước 2 và 9. Chạy bench với `python -I`. Hệ thống `python` trơn không có pytest: truyền đường dẫn venv cho workflow (`args.python`, mục 5) |
 | Node Playwright | `NODE_PATH=$(npm root -g) node ...`; Chromium ở `/opt/pw-browsers`. Kiểm trước: `NODE_PATH=$(npm root -g) node -e "require('playwright')"`. Python Playwright có thể không có dù Node có: đừng viết script Python trước khi `python3 -c "import playwright"` qua |
-| Tesseract | `SOILUAT_TESSDATA=/usr/share/tesseract-ocr/5/tessdata` cho trang JPG tiếng Việt |
+| Tesseract | `SOILUAT_TESSDATA=/usr/share/tesseract-ocr/5/tessdata` cho trang JPG tiếng Việt; `python -m soiluat.importer --check-ocr` phải in `"ok": true` trước `import_real.py` hay `stress10` (cài gói và lệnh: [`ghi-nho.md` mục 4](nghien-cuu/ghi-nho.md), bước 2) |
 | Biến môi trường của app và bench | `SOILUAT_DATA` (thư mục kho), `SOILUAT_SEMANTIC=0` (chế độ Normal), `SOILUAT_MODEL_DIR` và `SOILUAT_RERANK_DIR` (Advance; thiếu thì lượt chạy không phải Advance), `SOILUAT_ALLOW_TEST_HOST=1` (cho `TestClient`, Host là `testserver`), `SOILUAT_PORT`, `SOILUAT_NO_BROWSER` |
 | Mạng | Ra ngoài qua proxy của agent. Gọi localhost thì bỏ proxy: `curl --noproxy '*'`; Python `urllib.request.build_opener(urllib.request.ProxyHandler({}))` |
 | PowerShell | Biến môi trường viết `$env:SOILUAT_SEMANTIC="0"`; ví dụ trong tài liệu dùng cú pháp bash |
@@ -302,7 +352,16 @@ Mọi đường dẫn `/tmp/claude-0/...` dưới đây là của phiên soạn 
 
 **Đĩa.** Lúc viết, ổ `/` đầy 96% và chỉ còn 1,7 GB trống: không chép nổi một bản kho Zalo cùng lúc với việc khác. Chạy `df -h /` trước mỗi lần chép kho; giữ trống ít nhất 1 GB; xoá bản sao và bản sao lưu (`db.backup_db` ghi cạnh kho) ngay khi số đo đã được ghi lại. Bản sao cũ từng làm ổ đầy tới 99% giữa một lượt chạy. Dọn nốt: JSON kết quả gắn thẻ của lượt thử, `__pycache__`, thư mục scratch của agent đã xong.
 
-**Máy chủ thử.** Bật và lưu PID ngay: `uvicorn ... & echo $! > <tệp pid>`; dừng bằng `kill "$(cat <tệp pid>)"`. Đừng `pkill -f <mẫu>` hay `kill $(pgrep -f <mẫu>)` khi mẫu (kể cả chuỗi cổng) có trong chính dòng lệnh của shell: shell khớp chính nó và bị giết (exit 144). Phải tìm theo mẫu thì dùng mẹo ngoặc: `pgrep -f "[p]ort=8773"`.
+**Máy chủ thử.** Bật trong một shell phụ có `exec`, lưu PID ngay, rồi kiểm PID trước khi `kill`:
+
+```bash
+(cd <gốc repo> && SOILUAT_DATA=<kho thử> SOILUAT_NO_BROWSER=1 exec python -m soiluat --port 8791) > <tệp log> 2>&1 & echo $! > <tệp pid>
+cat /proc/$(cat <tệp pid>)/cmdline | tr '\0' ' '   # phải ra "... -m soiluat --port 8791", không phải "bash -c ..."
+curl --noproxy '*' -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8791/   # 200
+kill "$(cat <tệp pid>)"
+```
+
+Bẫy PID: `cd X && cmd & echo $!` bọc cả danh sách `cd X && cmd` vào một shell phụ, nên `$!` là PID của shell bọc, không phải của app (đã thử: `/proc/<pid>/cmdline` ra dòng `bash -c ...`, và `kill` PID đó để app chạy mồ côi). `exec` làm app thay chính shell phụ, nên `$!` đúng là app. Cổng `--port` bận thì app tự thử 20 cổng kế tiếp: đọc URL thật trong tệp log. `SOILUAT_NO_BROWSER=1` để app không mở trình duyệt. Đừng `pkill -f <mẫu>` hay `kill $(pgrep -f <mẫu>)` khi mẫu (kể cả chuỗi cổng) có trong chính dòng lệnh của shell: shell khớp chính nó và bị giết (exit 144). Phải tìm theo mẫu thì dùng mẹo ngoặc: `pgrep -f "[s]oiluat --port 8791"`.
 
 **Cây mã dùng chung.** Nhiều agent cùng làm trên một cây: chỉ đụng tệp mà việc của bạn nêu tên; `git add` đúng các tệp đó (không `git add -A`, không `git stash`, không `git checkout .`); gặp `index.lock` thì đợi vài giây rồi thử lại.
 
@@ -320,7 +379,7 @@ Mọi đường dẫn `/tmp/claude-0/...` dưới đây là của phiên soạn 
 
 **PR** (skill `stacked-draft-pr`)
 
-- PR nháp là mặc định. PR xếp chồng đặt `base` là nhánh của PR cha, để diff chỉ có việc mới. Ví dụ: PR nháp #2 xếp trên PR lộ trình #1 ([`ghi-nho.md`](nghien-cuu/ghi-nho.md) mục 1).
+- PR nháp là mặc định cho PR **mới**; chỉ chủ dự án chuyển sang sẵn sàng soát. PR xếp chồng đặt `base` là nhánh của PR cha, để diff chỉ có việc mới. Ví dụ: PR #2 xếp trên PR lộ trình #1; cả hai đã được chuyển khỏi bản nháp ([`ghi-nho.md`](nghien-cuu/ghi-nho.md) mục 1).
 - Tìm mẫu PR trong `.github/`, `docs/` trước; không có thì viết thân trực tiếp.
 - Thân PR chỉ ghi số đã đo; số chưa có ghi "đang chờ" rồi cập nhật khi có. Trượt cổng thì nói ở **tiêu đề và đoạn đầu**, không chỉ trong bảng phía dưới. Thấy dòng sai trong thân vừa viết thì sửa ngay trong lượt.
 - Nêu PR cha và thứ tự merge (khi PR cha merge, GitHub đổi `base` của PR xếp chồng về nhánh mặc định). Kết thân bằng dòng ghi công theo lời nhắc của phiên.
@@ -331,11 +390,19 @@ Mọi đường dẫn `/tmp/claude-0/...` dưới đây là của phiên soạn 
 
 Theo skill `release-version-sync`; kế hoạch P1 có thêm các việc Z0, Z1 cho Windows ([`ke-hoach-p1.md`](ke-hoach/ke-hoach-p1.md)).
 
-1. **Chủ dự án xác nhận số phiên bản** (0.9.0 đã chốt ngày 31/10/2026, commit `eb7df1d`). Chạy `git tag` và liệt kê các GitHub Release, so với số app đang báo. Số yêu cầu thấp hơn số app đã báo thì hỏi trước khi đổi gì, vì bản đã cài sẽ thấy hạ cấp.
-2. Đặt số phiên bản trong **một commit** ở mọi nơi: `src/soiluat/__init__.py` (`__version__`), `pyproject.toml`, `pack/SoiLuat.iss`, `README.md`. Grep cả bốn: từng có lần `0.8.0` ở `pyproject.toml` mà `0.7.0` ở `__init__`.
+1. **Chủ dự án xác nhận số phiên bản** (0.9.0 đã chốt ngày 31/10/2026, commit `eb7df1d`). Chạy `git ls-remote --tags origin` (tag trên GitHub; `git tag` chỉ thấy tag đã kéo về) và `gh api repos/<owner>/<repo>/releases --jq length` (số GitHub Release), so với số app đang báo. Đừng dùng `gh release list`: trong phiên Claude Code nó ra 403 vì GraphQL bị chặn. Ngày 31/10/2026 cả hai lệnh ra rỗng và 0. Số yêu cầu thấp hơn số app đã báo thì hỏi trước khi đổi gì, vì bản đã cài sẽ thấy hạ cấp.
+2. Đặt số phiên bản trong **một commit** ở mọi nơi: `src/soiluat/__init__.py` (`__version__`), `pyproject.toml`, `pack/SoiLuat.iss`, `README.md`. Dạng số khác nhau theo nơi: `pack/SoiLuat.iss` (`#define AppVer`) và `README.md` dùng dạng ngắn `0.9` (major.minor), còn `__init__.py` và `pyproject.toml` dùng `0.9.0`. Grep cả bốn: từng có lần `0.8.0` ở `pyproject.toml` mà `0.7.0` ở `__init__`.
 3. Ghi chú phát hành vào [`CHANGELOG.md`](../CHANGELOG.md); cập nhật `docs/kien-truc.md` và `README.md` cho khớp mã.
 4. Chạy toàn bộ pytest và các cổng đo mục 4 mà bản này chạm tới.
-5. Dựng wheel và sdist ở máy này (`python -m build`, cài `build` nếu chưa có; `pyproject.toml` dùng `setuptools`).
+5. Dựng wheel và sdist ở máy này. `build` đã nằm trong extra `dev` (`pyproject.toml` dùng `setuptools`). Dựng từ `git archive HEAD` trong một thư mục scratch để tệp chưa commit không lọt vào gói, rồi liệt kê wheel: `schema.sql`, `synonyms_seed.csv`, `static/` (cả `static/fonts/`) và `templates/` phải nằm trong đó.
+
+   ```bash
+   S=<thư mục scratch>; mkdir -p $S/arch && git archive HEAD | tar -x -C $S/arch && (cd $S/arch && python -m build)
+   unzip -l $S/arch/dist/*.whl | grep -E 'schema.sql|synonyms_seed.csv|/static/|/templates/'
+   diff <(git ls-files src/soiluat | grep -v '\.py$' | sed 's#^src/##' | sort) <(unzip -Z1 $S/arch/dist/*.whl | grep -v -e '\.py$' -e dist-info | sort)   # phải trống
+   ```
+
+   Ở 0.9.0 wheel có 61 mục và `diff` trống (kiểm 31/10/2026).
 6. **Installer Windows chỉ dựng được bằng `pack/build.ps1` trên máy Windows.** Môi trường Linux thì nói thẳng là chưa dựng, đừng viết như đã có. Sau khi có gói: mở gói, kiểm `/static/app.js` và một tệp `/static/fonts/*.woff2` ra 200 và trình đọc mở được (Z0).
 7. Đẩy tag và ghi chú phát hành. Không công cụ nào tạo được đối tượng GitHub Release thì báo chủ dự án tạo từ tag.
 8. Không merge PR; chủ dự án quyết.
@@ -348,11 +415,11 @@ Gộp từ các skill và từ các phiên làm bản 0.9.0; bảng bẫy cũ �
 
 | Bẫy | Hậu quả | Cách tránh |
 |---|---|---|
-| `pkill -f <mẫu>` (hay `kill $(pgrep -f <mẫu>)`) khi dòng lệnh của shell có chứa mẫu | Giết chính shell đang gõ (exit 144), mọi lệnh sau chết | Lưu PID khi bật (`$!`), `kill` theo PID; cần tìm thì `pgrep -f "[l]lama_cpp.server"` |
+| `pkill -f <mẫu>` (hay `kill $(pgrep -f <mẫu>)`) khi dòng lệnh của shell có chứa mẫu | Giết chính shell đang gõ (exit 144), mọi lệnh sau chết | Lưu PID khi bật (`$!`), `kill` theo PID; bật bằng `(cd X && exec cmd) & echo $!` vì `cd X && cmd & echo $!` lưu nhầm PID của shell bọc (mục 8); cần tìm thì `pgrep -f "[l]lama_cpp.server"` |
 | Chép bản sao kho cũ mà không xoá | Ổ đầy tới 99% giữa lượt chạy; lúc viết chỉ còn 1,7 GB trống | `df -h /` trước khi chép; trống từ 1 GB; xoá bản sao ngay khi đã ghi số |
 | Container khởi động lại giữa chừng (hai lần trong P0) | Mọi tiến trình nền chết | Commit và push sớm; job dài ghi `EXIT=0` từng phần và bỏ qua phần đã xong |
 | Hai job nặng cùng lúc trên máy 4 nhân | Sinh chữ chậm khoảng 10 lần; client time out và mọi yêu cầu xếp hàng sau cũng time out | Chạy một job nặng mỗi lúc; workflow chỉ 2 agent nặng song song; lượt có `TimeoutError` thì bỏ, không báo số |
-| Giao diện báo agent con "Stalled" | "Stalled" nghĩa là agent mấy phút liền không có đầu ra, không phải lỗi. Lượt dọn mã 31/10/2026 (`wf_5378f4c2-7b2`): agent tự chạy đo Zalo và gold (25 đến 40 phút mỗi lượt) rồi chờ bằng vòng `sleep` 5 phút, bị báo Stalled hơn một giờ. Lượt điều phối bị ngắt thì cả workflow bị huỷ (`status: killed`): agent chết với thay đổi chưa commit, hai tiến trình đo chạy mồ côi. Ở lượt soát toàn repo, một agent chờ đo độ trễ 3,9 phút cũng bị báo thoáng qua | Lượt đo trên 10 phút không giao cho agent trong workflow (mục 5, trước khi chạy workflow, bước 6). Đừng chạy lại ngay (sẽ trùng commit): đọc `journal.jsonl` và `git log`. Workflow đã bị huỷ thì đọc `subagents/workflows/wf_*/agent-*.jsonl` để biết agent đã chạy gì; để tiến trình mồ côi chạy xong nếu đầu vào còn đúng và dùng lại kết quả; tự kiểm lại phần sửa còn trong cây (test hỏng trên mã cũ, toàn bộ pytest) rồi mới commit, như `a13af05` |
+| Giao diện báo agent con "Stalled" | "Stalled" nghĩa là agent mấy phút liền không có đầu ra, không phải lỗi. Lượt dọn mã 31/10/2026 (`wf_5378f4c2-7b2`): agent tự chạy đo Zalo và gold (25 đến 40 phút mỗi lượt) rồi chờ bằng vòng `sleep` 5 phút, bị báo Stalled hơn một giờ. Lượt điều phối bị ngắt thì cả workflow bị huỷ (`status: killed`): agent chết với thay đổi chưa commit, hai tiến trình đo chạy mồ côi. Ở lượt soát toàn repo, một agent chờ đo độ trễ 3,9 phút cũng bị báo thoáng qua | Lượt đo trên 10 phút không giao cho agent trong workflow (mục 5, trước khi chạy workflow, bước 6). Đừng chạy lại ngay (sẽ trùng commit). **Trước hết chạy tiếp**: `Workflow({ scriptPath, resumeFromRunId: "<runId>", args })` với đúng `args` cũ; agent đã xong phát lại từ bộ nhớ đệm, bước đã commit không bị làm lại (mục 5, "Sau khi chạy workflow", bước 7). **Cứu tay sau đó**, khi không còn `runId` hay chạy tiếp vẫn thiếu: đọc `journal.jsonl` và `git log`; workflow đã bị huỷ thì đọc `subagents/workflows/wf_*/agent-*.jsonl` để biết agent đã chạy gì; để tiến trình mồ côi chạy xong nếu đầu vào còn đúng và dùng lại kết quả; tự kiểm lại phần sửa còn trong cây (test hỏng trên mã cũ, toàn bộ pytest) rồi mới commit, như `a13af05` |
 | Lệnh nền chờ quá 10 phút ở foreground | Bị cắt ở 600 giây, đầu ra chỉ còn thông báo | `run_in_background: true` từ đầu cho mọi lần chờ dài |
 | `$(grep -c ... \|\| echo 0)` | Ra hai số 0, điều kiện chờ không bao giờ đúng, chạy lặng lẽ tới hết giờ | `n=$(grep -c ... log); n=${n:-0}` |
 | Máy chủ mô hình khởi động bằng lệnh nền có hạn 2 giờ | Hết giờ thì mọi lời gọi sau `Connection refused` và bị chấm sai | `setsid nohup ... & disown`; bỏ lượt chạy đã hỏng và chạy lại |
@@ -424,13 +491,10 @@ Gộp từ các skill và từ các phiên làm bản 0.9.0; bảng bẫy cũ �
 
 **Thêm skill.** Sai sót thì gọi `/autoharness:learn` trong chính lượt đó. Skill nằm ở `.claude/skills/<tên>/SKILL.md` (đầu tệp có `name`, `description` bắt đầu bằng "Use when ...", `category`). `.gitignore` bỏ qua `.ledger.jsonl`, `.sidecar.json` và `references/evidence-*.md`. Thêm skill thì thêm một dòng vào bảng ở mục 7.
 
-**Thêm hay sửa workflow.** Giữ ba điều: tham số qua `args` (mọi đường dẫn, mã commit, trailer là tham số, không viết cứng); `export const meta` là literal thuần; không ghi chú kiểu TypeScript. Kiểm trước khi commit:
+**Thêm hay sửa workflow.** Giữ ba điều: tham số qua `args` (mọi đường dẫn, mã commit, trailer là tham số, không viết cứng); `export const meta` là literal thuần; không ghi chú kiểu TypeScript. Kiểm cú pháp trước khi commit và trước lượt chạy đầu (thân script là hàm async có `return` ở cấp cao nhất, nên script kiểm bọc lại trước khi parse), rồi grep đường dẫn phiên:
 
 ```bash
-for f in .claude/workflows/*.js; do
-  # thân script là hàm async (có return ở cấp cao nhất), nên bọc lại để kiểm cú pháp
-  node -e 'const fs=require("fs");const s=fs.readFileSync(process.argv[1],"utf8").replace(/^export const meta = /m,"const meta = ");const AF=Object.getPrototypeOf(async function(){}).constructor;new AF("agent","parallel","pipeline","phase","log","args","budget","workflow",s)' "$f" && echo "cú pháp ổn: $f"
-done
+node .claude/skills/workflow-script-authoring/scripts/check_syntax.js .claude/workflows/*.js   # mỗi tệp in "ok"
 grep -nE '/tmp/claude|/root/|session_0|Co-Authored-By: Claude' .claude/workflows/*.js   # phải không in gì
 ```
 

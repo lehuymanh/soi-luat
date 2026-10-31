@@ -1,6 +1,10 @@
 """Đo tìm kiếm trên câu hỏi thật Zalo AI 2021 Legal: cách hiện tại vs BM25 OR.
 
-python bench/zalo/eval.py ZALO_DIR DATA_DIR [test|train] [--limit N]
+python bench/zalo/eval.py ZALO_DIR DATA_DIR [test|train|gold] [--limit N] [--tag THẺ] [--only CÁCH,CÁCH]
+
+ZALO_DIR chứa queries.jsonl và qrels_<tập>.jsonl (tập gold: thư mục gold của build_vle.py, qrels_gold.jsonl).
+--tag THẺ: ghi bench/zalo/ket_qua_<tập>_<THẺ>.json; không có thì ghi đè ket_qua_<tập>.json (tệp test đang được commit).
+--only: chỉ chạy các cách tìm nêu tên (khoá của METHODS), ví dụ hien_tai,hien_tai_muc,hien_tai_muc_dai_dien.
 
 Một câu "đúng" khi Điều đáp án (mã văn bản + số Điều) nằm trong 10 kết quả đầu (đơn vị gom theo Điều).
 """

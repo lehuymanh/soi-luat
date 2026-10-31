@@ -17,7 +17,7 @@ Viết lần đầu 31/10/2026 ở cuối P0, viết lại cùng ngày ở cuố
 
 ### 1.1 Đang ở đâu và bước đầu tiên
 
-- **Bản 0.9.0** (`src/soiluat/__init__.py`), nhánh `claude/funny-feynman-xvg6dm`. `pytest`: **471 qua, 7 bỏ qua** (chạy 31/10/2026 ở mã `a13af05`; các commit sau đó không đổi `src/` và `tests/`). 7 test bị bỏ qua vì thiếu Word COM, Tesseract hoặc mô hình thật, giống `main`. Trước đó: 443 qua (`fdad4d3`), cuối P0: 258 qua. PR nháp lehuymanh/soi-luat#2 xếp trên PR lộ trình lehuymanh/soi-luat#1 (ghi ngày 31/10/2026, chưa kiểm lại trên GitHub). Agent không merge PR.
+- **Bản 0.9.0** (`src/soiluat/__init__.py`), nhánh `claude/funny-feynman-xvg6dm`. `python -m pytest -q`: **471 qua, 7 bỏ qua** (chạy 31/10/2026 ở mã `a13af05`, đo lại cùng ngày ở cây mã sau `30d68e8`; các commit sau `a13af05` không đổi hành vi: `src/` và `tests/` chỉ khác một ghi chú trong `sohieu.py`, commit `52cbbd2`). Số này đo với `.[dev,ocr,nghia]` và **không** đặt `SOILUAT_TESSDATA`; chỉ cài `.[dev]` thì 441 qua, 9 bỏ qua; đặt `SOILUAT_TESSDATA` thì 473 qua, 5 bỏ qua. Lý do từng test bỏ qua: mục 4, bước 9. Trước đó: 443 qua (`fdad4d3`), cuối P0: 258 qua. PR lehuymanh/soi-luat#2 (base `claude/hopeful-keller-jcw0pr`) xếp trên PR lộ trình lehuymanh/soi-luat#1 (base `main`). Cả hai không còn là bản nháp (chủ dự án chuyển #2 sang sẵn sàng soát ngày 31/10/2026); kiểm lại 31/10/2026: `gh api repos/lehuymanh/soi-luat/pulls/<số> --jq .draft` ra `false` cho cả #1 và #2, cả hai còn mở, chưa merge. Agent không merge PR.
 - **P0 xong** phần máy làm được. **P1 xong phần mã** (lộ trình mục 6, P1; từng việc và số đo ở `docs/ke-hoach/ke-hoach-p1.md`). Chưa gắn tag, chưa dựng bộ cài (`git tag` trống ngày 31/10/2026). Ghi chú phát hành đã nháp ở `CHANGELOG.md`.
 - **Còn thiếu để phát hành 0.9.0 và đóng P1**, đều cần thứ mà môi trường soạn không có: (a) dựng bộ cài bằng `pack/build.ps1` trên Windows và thử gói (Z0); (b) xem tay trên Edge và Chrome Windows (Z1); (c) 3 đến 5 người dùng thật làm 9 việc (`docs/ke-hoach/ke-hoach-p1.md`, Phụ lục A; chưa có tên người thử); (d) chạy lại `bench/llm` hai nhánh trước và sau sửa parser (B1, khoảng 15 giờ máy; parser đã chốt nên được phép bắt đầu).
 - Mã trả lời AI (`src/soiluat/answer.py`) **vẫn chưa gắn vào app**; chỉ `bench/llm/run.py` gọi nó. P3 sẽ gắn. Số đo LLM của P0 là của mã `b17461f`; sau đó bản soát sửa thêm 6 lỗi (`bc9f9af`). Lần đo kế tiếp phải chạy trên mã mới và trên parser mới (chữ đưa vào mô hình đã đổi).
@@ -198,17 +198,58 @@ Lệnh của từng cổng, tiêu chí qua và cách ghi số: `docs/quy-trinh.m
 Dựng lại để đo (Linux, CPU):
 
 1. **Đĩa:** `df -h /` trước. Mỗi bản kho Zalo 1,4 đến 1,6 GB. Giữ trống từ 1 GB; luôn chép bản sao rồi mới ghi, không bao giờ ghi vào kho gốc.
-2. **Python:** venv riêng (từ 3.11; phiên soạn dùng 3.13). `pip install -e ".[dev]"`; thêm `".[ocr]"` cho OCR, `".[nghia]"` cho Advance. Cho `bench/llm`: `pip install llama-cpp-python==0.3.36` (bản PyPI; dựng llama.cpp từ git bị chặn trong môi trường này; bản 0.3.36 có kiến trúc `qwen3vl` và `gemma4`). Chạy bench bằng `python -I`.
+2. **Python:** venv riêng (từ 3.11; phiên soạn dùng 3.13). Đây là chỗ duy nhất ghi cách dựng; `CLAUDE.md` và `docs/quy-trinh.md` mục 8 trỏ về đây. Chạy bench bằng `python -I`.
+
+   ```bash
+   python3 -m venv <venv>
+   <venv>/bin/pip install -e '.[dev,ocr,nghia]'  # pytest, build, OCR, Advance: đủ để ra 471 qua, 7 bỏ qua (bước 9)
+   <venv>/bin/pip install -e '.[bench]'          # thêm khi dựng kho Zalo và gold (pandas, pyarrow)
+   <venv>/bin/pip install pymupdf openpyxl       # chỉ cho bench/stress10/gen.py (10 tệp đã commit, thường không cần chạy)
+   sudo apt install tesseract-ocr tesseract-ocr-vie   # Linux; tên gói chưa thử trên máy trống (xem dưới)
+   export SOILUAT_TESSDATA=/usr/share/tesseract-ocr/5/tessdata
+   <venv>/bin/python -m soiluat.importer --check-ocr   # phải in "ok": true trước import_real.py hay stress10
+   ```
+
+   Chú thích: `pytesseract` nằm trong `.[ocr]`. `pymupdf` cung cấp module `fitz`; thiếu nó thì hai test của `tests/test_e_gaps.py` bị bỏ qua. `gen.py` còn cần `openpyxl` (import ở đầu tệp, không nằm trong extra nào) và phông Arial của Windows (`ARIAL` ở dòng 19 là đường dẫn Windows). Tên gói apt khớp `dpkg -S` trên máy soạn (`tesseract-ocr` có `/usr/bin/tesseract`, `tesseract-ocr-vie` có `vie.traineddata`) nhưng chưa thử cài trên máy trống. Ở máy soạn, không đặt `SOILUAT_TESSDATA` thì `--check-ocr` ra `"ok": false` dù tệp `vie` đã có, và `stress10` ra 18/20 (`docs/quy-trinh.md` mục 11). Cho `bench/llm`: `pip install llama-cpp-python==0.3.36` (bản PyPI; dựng llama.cpp từ git bị chặn trong môi trường này; bản 0.3.36 có kiến trúc `qwen3vl` và `gemma4`).
 3. **Công cụ ngoài:** Tesseract có gói `vie` (thiếu thì đặt `SOILUAT_TESSDATA`); Node có Playwright cho `bench/kiem_anh.js` (`NODE_PATH=$(npm root -g) node ...`).
 4. **Kho đo:**
-   - **Zalo:** tải `GreenNode/zalo-ai-legal-text-retrieval-vn` từ Hugging Face (cần mạng), dựng bằng `python bench/zalo/build_db.py <thư mục zalo> <data>` (~510 giây, 427 nghìn đơn vị; dựng bằng parser hiện tại nên đã là kho "sau"). Thư mục câu hỏi gồm `queries.jsonl` và `qrels_test.jsonl` (thêm `qrels_train.jsonl` nếu cần chỉnh). Chi tiết: `bench/zalo/KET-QUA.md`.
-   - **Gold `vle`:** `python -I bench/gold/build_vle.py <zalo> <ViLegalExperts> <ra> --n 500`; chỉ giữ trên máy (`bench/gold/README.md`).
+   - **Zalo:** dùng **một** thư mục `<zalo>` có đủ bốn tệp. `corpus_test-00000-of-00001.parquet` là corpus: chỉ `build_db.py` và `build_vle.py` đọc, từ tham số đầu. `queries.jsonl`, `qrels_test.jsonl`, `qrels_train.jsonl` là câu hỏi và đáp án: `eval.py` và `embed_needed.py` đọc từ tham số đầu (`qrels_<tập>.jsonl`, tập `test` hay `train`; tập `gold` đọc `qrels_gold.jsonl` trong thư mục gold), cùng `tune.py`, `why_miss.py`, `app_ram.py`; `build_vle.py` chỉ đọc `queries.jsonl`. Tham số thứ hai của các script này là `<data>`, thư mục nhận hay có `soiluat.db`. Tải từ Hugging Face (MIT, cần mạng và `pip install huggingface_hub` để có lệnh `hf`), rồi đổi tên, vì tên tệp trên Hugging Face khác tên script cần. Bố cục kiểm ngày 31/10/2026 ở bản `12d76d4` (danh sách tệp, cột `id, title, text` của corpus, khoá `_id` và `query-id, corpus-id` của JSONL); `build_vle.py` chạy được trên bản tải này (500 câu), còn `build_db.py` (~510 giây) chưa chạy lại trên nó:
+
+     ```bash
+     hf download GreenNode/zalo-ai-legal-text-retrieval-vn corpus/test-00000-of-00001.parquet queries.jsonl qrels/test.jsonl qrels/train.jsonl --repo-type dataset --local-dir <hf_zalo>
+     mkdir -p <zalo>
+     cp <hf_zalo>/corpus/test-00000-of-00001.parquet <zalo>/corpus_test-00000-of-00001.parquet
+     cp <hf_zalo>/queries.jsonl <zalo>/
+     cp <hf_zalo>/qrels/test.jsonl <zalo>/qrels_test.jsonl
+     cp <hf_zalo>/qrels/train.jsonl <zalo>/qrels_train.jsonl
+     python -I bench/zalo/build_db.py <zalo> <data>   # ~510 giây, 427 nghìn đơn vị; dựng bằng parser hiện tại nên đã là kho "sau"
+     ```
+
+     `bench/llm/run.py` đọc được cả `qrels/<tập>.jsonl` (bố cục gốc), nên với nó không cần đổi tên. Chi tiết số đo: `bench/zalo/KET-QUA.md`.
+   - **Gold `vle`:** `<ViLegalExperts>` là thư mục có trực tiếp `test_data.json` và `dev_data.json` (không có thư mục con `QA_single_context/`). Chỉ giữ trên máy (`bench/gold/README.md`). Bố cục kiểm ngày 31/10/2026 ở bản `0bb255d`: tải hai tệp (khoảng 111 MB) rồi chạy `build_vle.py` ra 500 câu (từ 35.505 còn 5.437 đạt, như `bench/gold/README.md`):
+
+     ```bash
+     hf download DatNguyenAIML/ViLegalExperts QA_single_context/test_data.json QA_single_context/dev_data.json --repo-type dataset --local-dir <hf_vle>
+     mkdir -p <ViLegalExperts>
+     cp <hf_vle>/QA_single_context/test_data.json <hf_vle>/QA_single_context/dev_data.json <ViLegalExperts>/
+     python -I bench/gold/build_vle.py <zalo> <ViLegalExperts> <gold> --n 500   # <gold> ngoài repo; ghi queries.jsonl, qrels_gold.jsonl
+     ```
    - **Văn bản thật:** tải 21 PDF theo `bench/van-ban-that/manifest.json` (cần header `Referer: https://vanban.chinhphu.vn/`), đặt trong `<realdocs>/files/` cùng `manifest.json` và `queries.json` (bản có sẵn ở `bench/van-ban-that/`), rồi `python bench/van-ban-that/import_real.py <realdocs>`. Bộ chữ `vie` khác bản làm số Điều tách được lệch (lần dựng P0 trên Linux ra 321/344 so với 341/344 trên Windows: `bench/van-ban-that/KET-QUA.md`). Kho cần vector cho Advance: `python -m soiluat.importer --nhung` với `SOILUAT_DATA=<realdocs>/data`.
 5. **Mô hình Advance (AITeamVN):** `python pack/export_models.py <OUT_DIR>` (cần mạng, torch và vài GB trống); trỏ `SOILUAT_MODEL_DIR` tới `<OUT_DIR>/aiteamvn-embedding` và `SOILUAT_RERANK_DIR` tới `<OUT_DIR>/aiteamvn-reranker`. Thiếu hai biến này thì lượt chạy không phải Advance. Kho Zalo chỉ nhúng Điều cần: `bench/zalo/embed_needed.py`.
 6. **Mô hình sinh (Hugging Face, tải bằng `huggingface_hub`):** `Qwen/Qwen3-VL-4B-Instruct-GGUF` tệp `Qwen3VL-4B-Instruct-Q4_K_M.gguf`; `google/gemma-4-E4B-it-qat-q4_0-gguf` tệp `gemma-4-E4B_q4_0-it.gguf`; `bartowski/NVIDIA-Nemotron-3.5-Bolt-E4B-GGUF` tệp `NVIDIA-Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf`.
 7. **Máy chủ:** `python -m llama_cpp.server --model <gguf> --n_ctx 4096 --n_threads 4 --host 127.0.0.1 --port 8080`; đợi `/v1/models` trả lời (`curl --noproxy '*'`). Khởi động bằng `setsid nohup ... &` để sống qua giới hạn 2 giờ của lệnh nền; lưu PID, dừng bằng `kill <PID>`.
 8. **Chấm:** ba lệnh ở `bench/llm/KET-QUA.md`, mục "Chạy lại"; lệnh B1 (hai nhánh từ worktree cố định) ở `docs/ke-hoach/ke-hoach-p1.md`, Phụ lục B. Trên máy 16 GB (Windows, `llama-server`): `bench/llm/README.md`.
-9. **Kiểm nhanh môi trường:** `python -m pytest -q` ra đúng số qua và bỏ qua ở mục 1.1 (nhiều test bị bỏ qua hơn nghĩa là thiếu Tesseract, Word COM hay mô hình thật, không phải lỗi mã).
+9. **Kiểm nhanh môi trường:** `python -m pytest -q -rs` (`-rs` in lý do bỏ qua) ra dòng cuối `471 passed, 7 skipped` khi đã cài `.[dev,ocr,nghia]` (bước 2) và chưa đặt `SOILUAT_TESSDATA`. Số khác là do môi trường, không phải lỗi mã:
+   - Chỉ cài `.[dev]`: 441 qua, 9 bỏ qua. So với bảy dòng dưới thì thêm ba: `tests/test_jobs.py` và `tests/test_semantic.py` bị bỏ cả tệp vì không có `numpy` (mỗi tệp tính một), `tests/test_a_ocr.py:89` vì không có `pytesseract`. Bớt một: dòng 7, vì cả `tests/test_semantic.py` đã bị bỏ.
+   - Đặt `SOILUAT_TESSDATA` (bước 2): hai test OCR thật chạy, ra 473 qua, 5 bỏ qua.
+   - Bảy test bị bỏ qua ở 471/7 (số dòng ở cây mã sau `30d68e8`):
+     1. `tests/test_a_formats.py:165`: không có `win32com.client` (Word COM, chỉ có trên Windows).
+     2. `tests/test_a_ocr.py:135`: "máy không có Tesseract + vie" (hết khi đặt `SOILUAT_TESSDATA`).
+     3. `tests/test_a_ocr.py:205`: "máy không có Tesseract + vie + osd" (hết khi đặt `SOILUAT_TESSDATA`).
+     4. `tests/test_crossrank.py:122`: cần `SOILUAT_RERANK_DIR` trỏ tới mô hình thật.
+     5. `tests/test_e_gaps.py:100`: không có `fitz` (`pip install pymupdf`).
+     6. `tests/test_e_gaps.py:133`: không có `fitz`.
+     7. `tests/test_semantic.py:178`: cần `SOILUAT_MODEL_DIR` trỏ tới mô hình thật.
 
 Thời lượng trên máy ảo 4 nhân: Qwen ~50 đến 60 giây mỗi lần gọi, Gemma và Bolt ~65 đến 80 giây; ba bộ test = 150 lần gọi. Một vòng B1 hai nhánh ước ~15 giờ máy.
 

@@ -20,7 +20,7 @@ Soi Luật là app tra cứu văn bản pháp luật Việt Nam **chạy hoàn t
 | Mục | Trạng thái |
 |---|---|
 | Phiên bản | **0.9.0** (`src/soiluat/__init__.py`; số do chủ dự án chọn ngày 31/10/2026). Ghi chú phát hành: [`../CHANGELOG.md`](../CHANGELOG.md) |
-| Nhánh | `claude/funny-feynman-xvg6dm`; PR nháp xếp chồng, danh sách ở [`nghien-cuu/ghi-nho.md`](nghien-cuu/ghi-nho.md) mục 1 |
+| Nhánh | `claude/funny-feynman-xvg6dm`; PR lehuymanh/soi-luat#2 xếp trên PR lộ trình #1, cả hai không còn là bản nháp (kiểm 31/10/2026), trạng thái ở [`nghien-cuu/ghi-nho.md`](nghien-cuu/ghi-nho.md) mục 1 |
 | Giai đoạn | **P0 xong** phần máy làm được. **P1 xong phần mã**: trình đọc mở đúng đoạn, kết quả gọn, lịch sử trò chuyện, giao diện mới, parser đúng hơn, nâng cấp dữ liệu tự động |
 | Còn lại để phát hành 0.9.0 | Dựng bộ cài Windows (`pack/build.ps1`, chỉ chạy được trên Windows) và thử gói (việc Z0); xem tay trên Edge và Chrome Windows (Z1); 3 đến 5 người dùng thật làm 9 việc (cổng người dùng); chạy lại `bench/llm` hai nhánh trước và sau sửa parser (B1, khoảng 15 giờ máy). Chi tiết ở [`ke-hoach/ke-hoach-p1.md`](ke-hoach/ke-hoach-p1.md), mục "Nhóm Z", B1 và "Phụ lục A" |
 | Quyết định chờ chủ dự án | [`ke-hoach/lo-trinh-1.0.md`](ke-hoach/lo-trinh-1.0.md) **mục 9**, phần "Còn mở" (cách tính cổng câu trả lời AI, chế độ tìm mặc định, người thử, máy 8 GB, gói AI, chứng thư ký số, người duyệt hiệu lực, ý tưởng dự án và ghi chú rủi ro ở điều 14). Thêm các câu hỏi của kế hoạch P1 ở mục 1 (hỏi a, b và người thử). Danh sách gom theo từng câu hỏi nằm cuối [`nghien-cuu/so-thu-nghiem.md`](nghien-cuu/so-thu-nghiem.md), mục "Câu hỏi còn mở" |
