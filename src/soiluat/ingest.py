@@ -176,10 +176,14 @@ def suggest_effect_hints(conn: sqlite3.Connection, doc_id: int) -> None:
         "SELECT id, title, raw_text FROM units WHERE doc_id = ?",
         (doc_id,),
     ).fetchall()
-    # gợi ý đã duyệt còn sau khi dựng lại: không thêm bản chưa duyệt trùng (bai_bo không có đích nên không lọc)
+    # gợi ý đã duyệt còn sau khi dựng lại: không thêm bản chưa duyệt trùng; thay_the khoá theo đích,
+    # bai_bo không có đích nên khoá theo chữ trích (chữ trích của thay_the đổi theo PARSE_REV, không dùng để khoá)
     kept = {r[0] for r in conn.execute(
         "SELECT target_so_hieu FROM effect_hints WHERE source_doc_id = ? AND kind = 'thay_the' AND confirmed = 1",
         (doc_id,),
+    )}
+    kept_bai_bo = {r[0] for r in conn.execute(
+        "SELECT snippet FROM effect_hints WHERE source_doc_id = ? AND kind = 'bai_bo'", (doc_id,)
     )}
     for row in rows:
         blob = f"{row['title'] or ''} {row['raw_text'] or ''}"
@@ -197,7 +201,8 @@ def suggest_effect_hints(conn: sqlite3.Connection, doc_id: int) -> None:
                 "kind, snippet, confirmed) VALUES (?, ?, ?, 'thay_the', ?, 0)",
                 (doc_id, row["id"], m.group(1), blob[:400]),
             )
-        elif BAI_BO_RE.search(blob) and is_thi_hanh(row["title"] or "", row["raw_text"] or ""):
+        elif (BAI_BO_RE.search(blob) and is_thi_hanh(row["title"] or "", row["raw_text"] or "")
+              and blob[:400] not in kept_bai_bo):
             conn.execute(
                 "INSERT INTO effect_hints(source_doc_id, source_unit_id, target_so_hieu, "
                 "kind, snippet, confirmed) VALUES (?, ?, ?, 'bai_bo', ?, 0)",
@@ -243,7 +248,7 @@ def _after_units(
     from soiluat.links import suggest_citation_links, suggest_fts_links
 
     suggest_citation_links(conn, doc_id, so_hieu)
-    if commit_before_fts:  # chỉ dựng lại (rebuild_document): nhả khoá ghi trước các truy vấn FTS; nạp file giữ giao dịch cả nhóm
+    if commit_before_fts:  # nhả khoá ghi trước các truy vấn FTS (rebuild_document và ingest_group)
         conn.commit()
     suggest_fts_links(conn, doc_id)
     suggest_effect_hints(conn, doc_id)
@@ -326,7 +331,7 @@ def _store_doc(
     else:
         conn.execute("DELETE FROM pages WHERE doc_id = ?", (doc_id,))
         conn.execute("DELETE FROM units WHERE doc_id = ?", (doc_id,))
-        conn.execute("DELETE FROM effect_hints WHERE source_doc_id = ?", (doc_id,))
+        conn.execute("DELETE FROM effect_hints WHERE source_doc_id = ? AND confirmed = 0", (doc_id,))  # gợi ý đã duyệt giữ lại, như rebuild_document
         # không đụng hieu_luc; ngày đã có giữ lại nếu lần này không trích được
         conn.execute(
             """
@@ -374,7 +379,9 @@ def ingest_group(
         conn.execute("DELETE FROM documents WHERE id = ?", (extra,))
     restore_links(conn, snap)
     for doc_id, so_hieu in done:
-        _after_units(conn, doc_id, so_hieu)
+        # nhả khoá ghi trước truy vấn FTS (văn bản xử phạt lớn: hàng chục giây). Lỗi sau lần commit này để văn bản đã lưu
+        # với job 'failed' (hay 'running' nếu app tắt): ingest_path nạp lại đúng file đó thay vì báo "không đổi"
+        _after_units(conn, doc_id, so_hieu, commit_before_fts=True)
     conn.commit()
     warn = None
     n_ocr = sum(1 for p in pages if p.ocr_status == "cho_ocr")
@@ -403,6 +410,14 @@ def _flags_change_result(
     )
 
 
+def _last_job_unfinished(conn: sqlite3.Connection, rel: str, sha: str) -> bool:
+    """Lần nạp gần nhất của đúng file này chưa xong: lỗi sau khi văn bản đã lưu (xem ingest_group) hoặc app bị tắt giữa chừng."""
+    row = conn.execute(
+        "SELECT status FROM import_jobs WHERE file_path = ? AND sha256 = ? ORDER BY id DESC LIMIT 1", (rel, sha)
+    ).fetchone()
+    return row is not None and row["status"] in ("running", "failed")
+
+
 def ingest_path(
     conn: sqlite3.Connection,
     path: Path,
@@ -423,7 +438,7 @@ def ingest_path(
         return int(same_hash["id"])
     if same_hash and not _flags_change_result(
         conn, group_ids(conn, rel), run_ocr, force_doan
-    ):
+    ) and not _last_job_unfinished(conn, rel, sha):
         return int(same_hash["id"])  # cùng file, nội dung không đổi
 
     job_id = start_job(conn, rel, sha)

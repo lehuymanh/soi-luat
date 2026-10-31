@@ -16,10 +16,9 @@ from pathlib import Path
 
 from soiluat import semantic
 from soiluat.config import data_dir, db_path
+from soiluat.extract import SUPPORTED_SUFFIXES
 from soiluat.parse import PARSE_REV
 
-# trùng importer.SUPPORTED_SUFFIXES (có test giữ hai tập khớp nhau)
-SUFFIXES = frozenset(".docx .doc .rtf .pdf .txt .md .jpg .jpeg .png .tif .tiff .bmp .xlsx".split())
 LABELS = {
     "cho": "Chờ", "dang_nap": "Đang nạp…", "du": "Xong", "can_ocr": "Cần OCR", "trung": "Trùng",
     "khong_doi": "Không đổi", "loi": "Lỗi", "bo_qua": "Bỏ qua",
@@ -77,7 +76,7 @@ class Jobs:
                 for f in files:
                     self._seq += 1
                     it = Item(self._seq, f.name, f, ocr, doan)
-                    if f.suffix.lower() not in SUFFIXES:
+                    if f.suffix.lower() not in SUPPORTED_SUFFIXES:
                         it.state, it.note = "bo_qua", f"đuôi {f.suffix or '(không có)'} không hỗ trợ"
                     else:
                         self._queue.append(it)
@@ -169,8 +168,15 @@ class Jobs:
                 if item is not None:
                     self._import(conn, root, item, import_one)
                     continue
-                if self._migrate_chunk(conn) or self._embed_chunk(conn):
+                if self._migrate_chunk(conn):
                     continue
+                try:
+                    if self._embed_chunk(conn):
+                        continue
+                except Exception as e:  # noqa: BLE001 (khoá ghi giữ quá 5 s, đĩa đầy, onnx lỗi: luồng nền không được chết im)
+                    conn.rollback()  # nhả khoá ghi nếu lỗi nằm giữa lần ghi vector
+                    self._todo = None  # đếm lại và thử lại sau lượt chờ 60 s hoặc lần wake() kế
+                    self.embed.update(running=False, error=f"{type(e).__name__}: {e}")
                 with self._cv:
                     if not self._queue and not self._stop:
                         self._cv.wait(timeout=60)

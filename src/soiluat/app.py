@@ -5,7 +5,6 @@ Phần nạp (trích chữ, OCR) chỉ nạp khi dùng lần đầu (soiluat.job
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import mimetypes
 import os
@@ -36,12 +35,13 @@ import uvicorn
 from soiluat import conversations, crossrank, pageimg, reader, semantic
 from soiluat.cards import OCR_LABEL, _ocr_unverified, assemble_cards, compact, doc_groups, summarize
 from soiluat.config import HOST, PORT, data_dir, db_path
-from soiluat.db import backup_db, connect, init_schema
+from soiluat.db import BUSY_MS, backup_db, connect, init_schema
 from soiluat.export_word import card_pages, export_units, page_label
-from soiluat.fold import display_addr
-from soiluat.jobs import JOBS, SUFFIXES
+from soiluat.extract import SUPPORTED_SUFFIXES, sha256_file
+from soiluat.fold import display_addr, fold_search
+from soiluat.jobs import JOBS
 from soiluat.search import DIEU_CAP, _so_hieu_docs, apply_doc_filters, cascade_search, filter_docs, filtered_doc_ids, lookup_so_hieu
-from soiluat.sohieu import find_dieu_so
+from soiluat.sohieu import find_dieu_so, so_hieu_search_key
 
 
 def _ngay(s):
@@ -58,6 +58,7 @@ TEMPLATES.env.globals.update(
     fname=lambda p: re.split(r"[\\/]", (p or "").split("#vb", 1)[0])[-1], LOAI=reader.LOAI, OCR_LABEL=OCR_LABEL,
 )
 CSRF_TOKEN = secrets.token_urlsafe(32)
+STEM_MAX = 100  # ký tự tối đa của tên file lưu (không tính đuôi)
 SHOW_CAP = 25  # mục hiện tối đa trên trang (5 đầu, "Xem thêm" từng 10); nhiều hơn thì dòng "còn nữa"
 _ocr_cache: dict | None = None
 
@@ -93,14 +94,24 @@ def _host_ok(host_header: str) -> bool:
     return name in allowed
 
 
+def _csrf_cookie(request: Request) -> str:
+    """Cookie không phân biệt cổng: hai bản app (cổng 8000, 8001) dùng chung một cookie sẽ ghi đè token của nhau.
+    app.js đọc đúng tên này theo `location.port`."""
+    return f"soiluat_csrf_{request.url.port or ''}"
+
+
 class HostGuard(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
-        if not _host_ok(request.headers.get("host") or ""):
+        host = request.headers.get("host") or ""
+        if not _host_ok(host):
             return PlainTextResponse("Bad Host", status_code=400)
+        origin = request.headers.get("origin")  # trình duyệt luôn gửi khi POST; curl và test thì không
+        if request.method not in ("GET", "HEAD") and origin and origin != f"http://{host}":
+            return PlainTextResponse("Bad Origin", status_code=403)  # chặn trước khi đọc thân (tải lên lớn)
         response = await call_next(request)
         if not _test_bypass():
             response.set_cookie(
-                "soiluat_csrf",
+                _csrf_cookie(request),
                 CSRF_TOKEN,
                 samesite="strict",
                 httponly=False,
@@ -120,7 +131,7 @@ async def _id_qua_lon(request, exc):
 def _check_csrf(request: Request, token: str = "") -> None:
     if _test_bypass():
         return
-    cookie = request.cookies.get("soiluat_csrf")
+    cookie = request.cookies.get(_csrf_cookie(request))
     header = request.headers.get("x-csrf-token") or token
     if cookie != CSRF_TOKEN or header != CSRF_TOKEN:
         raise HTTPException(status_code=403, detail="CSRF")
@@ -206,11 +217,14 @@ def _ctx(conn: sqlite3.Connection, q: str, s: dict, loai: str = "", co_quan: str
 
 
 def _log_query(conn: sqlite3.Connection, q: str, n: int) -> None:
+    conn.execute("PRAGMA busy_timeout=300")  # chỉ là một dòng nhật ký: đang nạp file giữ khoá ghi thì bỏ ngay, không chờ BUSY_MS
     try:
         conn.execute("INSERT INTO query_log(query_raw, result_count, created_at) VALUES (?,?,?)", (q, n, _now()))
         conn.commit()
-    except sqlite3.OperationalError:  # đang nạp file giữ khoá ghi: bỏ một dòng nhật ký, không làm hỏng kết quả
+    except sqlite3.OperationalError:  # bỏ một dòng nhật ký, không làm hỏng kết quả
         conn.rollback()
+    finally:
+        conn.execute(f"PRAGMA busy_timeout={BUSY_MS}")  # lưu lịch sử trò chuyện sau đó vẫn chờ đủ
 
 
 def _kho(conn: sqlite3.Connection) -> dict:
@@ -308,7 +322,7 @@ def _index(request: Request, ctx: dict):
         groups, hmore = conversations.history(conn, "", _now())
     finally:
         conn.close()
-    return _tpl(request, "index.html", {**ctx, "mode": _mode_status(), "suffixes": ",".join(sorted(SUFFIXES)), "co_quans": co_quans,
+    return _tpl(request, "index.html", {**ctx, "mode": _mode_status(), "suffixes": ",".join(sorted(SUPPORTED_SUFFIXES)), "co_quans": co_quans,
                                         "groups": groups, "hmore": hmore})
 
 
@@ -498,24 +512,6 @@ def reject_link(
     return RedirectResponse("/review", status_code=303)
 
 
-@app.get("/review/pages", response_class=HTMLResponse)
-def review_pages(request: Request):
-    conn = get_conn()
-    rows = conn.execute(
-        """
-        SELECT p.id, p.page_no, p.kind, p.ocr_status, p.verification_status,
-               p.raw_text, d.file_path, d.so_hieu
-        FROM pages p
-        JOIN documents d ON d.id = p.doc_id
-        WHERE p.extraction_method LIKE '%ocr%'
-           OR p.ocr_status IN ('cho_ocr','ocr_xong','can_duyet')
-        ORDER BY p.id
-        """
-    ).fetchall()
-    conn.close()
-    return _tpl(request, "review_pages.html", {"rows": [dict(r) for r in rows]})
-
-
 @app.get("/review/hints", response_class=HTMLResponse)
 def review_hints(request: Request):
     conn = get_conn()
@@ -578,8 +574,6 @@ def add_subject(
         kind = "uu_tien"
     phrase = phrase.strip()
     if phrase:
-        from soiluat.fold import fold_search
-
         conn = get_conn()
         try:
             conn.execute(
@@ -729,8 +723,6 @@ def set_so_hieu(
     csrf_token: str = Form(""),
 ):
     _check_csrf(request, csrf_token)
-    from soiluat.sohieu import so_hieu_search_key
-
     so = so_hieu.strip()
     conn = get_conn()
     conn.execute(
@@ -844,15 +836,8 @@ def ocr_status(refresh: bool = False) -> dict:
 def _safe_name(name: str) -> str:
     base = Path((name or "").replace("\\", "/")).name
     base = re.sub(r'[<>:"/\|?*\x00-\x1f]', "_", base).strip(" .")
-    return base or "tai-lieu"
-
-
-def _sha(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
+    p = Path(base)
+    return (p.stem[:STEM_MAX] + p.suffix) or "tai-lieu"  # tên dài làm đường dẫn vượt MAX_PATH (Windows): 500 và bỏ cả lô
 
 
 def _store_upload(up: UploadFile, folder: Path) -> Path:
@@ -860,20 +845,24 @@ def _store_upload(up: UploadFile, folder: Path) -> Path:
     trùng tên khác nội dung: 'tên (2).đuôi'. Giữ bản gốc để còn xem trang gốc đối chiếu."""
     folder.mkdir(parents=True, exist_ok=True)
     tmp = folder / f".{uuid.uuid4().hex}.part"
-    with open(tmp, "wb") as out:
-        shutil.copyfileobj(up.file, out)
-    name = _safe_name(up.filename or "")
-    stem, suf = Path(name).stem, Path(name).suffix
-    dest, n, sha = folder / name, 1, ""
-    while dest.exists():
-        sha = sha or _sha(tmp)
-        if _sha(dest) == sha:
-            tmp.unlink()
-            return dest
-        n += 1
-        dest = folder / f"{stem} ({n}){suf}"
-    tmp.replace(dest)
-    return dest
+    try:
+        with open(tmp, "wb") as out:
+            shutil.copyfileobj(up.file, out)
+        name = _safe_name(up.filename or "")
+        stem, suf = Path(name).stem, Path(name).suffix
+        dest, n, sha = folder / name, 1, ""
+        while dest.exists():
+            sha = sha or sha256_file(tmp)
+            if sha256_file(dest) == sha:
+                tmp.unlink()
+                return dest
+            n += 1
+            dest = folder / f"{stem} ({n}){suf}"
+        tmp.replace(dest)
+        return dest
+    except BaseException:
+        tmp.unlink(missing_ok=True)  # đĩa đầy hay tên quá dài: không để .part mồ côi
+        raise
 
 
 @app.get("/api/status")
@@ -903,7 +892,7 @@ def import_files(
 ):
     """Nhận nhiều file (hoặc cả thư mục) từ trình duyệt, lưu vào data/files rồi xếp hàng nạp."""
     _check_csrf(request, csrf_token)
-    ok = [f for f in files if Path(_safe_name(f.filename or "")).suffix.lower() in SUFFIXES]
+    ok = [f for f in files if Path(_safe_name(f.filename or "")).suffix.lower() in SUPPORTED_SUFFIXES]
     paths = [_store_upload(f, data_dir() / "files") for f in ok]
     res = JOBS.submit(paths, ocr=bool(ocr), doan=bool(doan)) if paths else {"queued": 0, "skipped": 0}
     res["skipped"] += len(files) - len(ok)

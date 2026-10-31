@@ -52,21 +52,6 @@ def test_review_docs_hieu_luc(tmp_path, monkeypatch):
     assert "15/2020" in r4.text
 
 
-def test_review_ocr_page_rebuilds(tmp_path, monkeypatch):
-    client, _, _, page_id = _client(tmp_path, monkeypatch)
-    from soiluat.config import db_path
-    from soiluat.db import connect
-    from soiluat.rebuild import set_page_reviewed
-
-    conn = connect(db_path())
-    new = "Điều 99. Văn bản đã sửa unique_review_token\n1. Phải đối chiếu."
-    set_page_reviewed(conn, page_id, new)
-    conn.close()
-    found = client.get("/", params={"q": "unique_review_token"})
-    assert found.status_code == 200
-    assert "unique_review_token" in found.text or "Điều 99" in found.text
-
-
 def test_missed_queries_and_htmx_fragment(tmp_path, monkeypatch):
     client, _, _, _ = _client(tmp_path, monkeypatch)
     client.get("/", params={"q": "xyzkhongco123"})
@@ -166,3 +151,84 @@ def test_f2_luu_hieu_luc_va_so_hieu_quay_ve_dung_van_ban(tmp_path, monkeypatch):
     for path, data in ((f"/docs/{doc_id}/hieu-luc", {"hieu_luc": "con"}), (f"/docs/{doc_id}/so-hieu", {"so_hieu": "15/2020/NĐ-CP"})):
         r = client.post(path, data=data, follow_redirects=False)
         assert r.status_code == 303 and r.headers["location"] == f"/review/docs?id={doc_id}"
+
+
+def _rows(sql, *args):
+    from soiluat.config import db_path
+    from soiluat.db import connect
+
+    conn = connect(db_path())
+    try:
+        return [tuple(r) for r in conn.execute(sql, args)]
+    finally:
+        conn.close()
+
+
+def test_f7_moi_route_post_deu_goi_check_csrf():
+    """F7: route ghi mới thiếu `_check_csrf` thì test này đỏ (các test CSRF khác chỉ kể tên từng route). Kiểm theo mã nguồn:
+    gửi form rỗng không phân biệt được 403 với 422 vì có route kiểm tham số trước token."""
+    import inspect
+
+    from soiluat.app import app
+
+    posts = [r for r in app.routes if "POST" in getattr(r, "methods", ())]
+    assert len(posts) >= 20
+    thieu = [r.path for r in posts if "_check_csrf(" not in inspect.getsource(r.endpoint)]
+    assert thieu == []
+
+
+def test_f7_duyet_lien_ket_dung_thi_roi_hang_cho_sai_thi_xoa(tmp_path, monkeypatch):
+    client, _ = _nhieu(tmp_path, monkeypatch, n=2)
+    dung, sai = [r[0] for r in _rows(
+        "SELECT l.id FROM links l JOIN units u ON u.id = l.sanction_unit WHERE u.path LIKE 'X%' ORDER BY l.id")]
+    assert f"/links/{dung}/confirm" in client.get("/review").text
+    r = client.post(f"/links/{dung}/confirm", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/review"
+    (confirmed, at), = _rows("SELECT confirmed, reviewed_at FROM links WHERE id = ?", dung)
+    assert confirmed == 1 and at
+    r = client.post(f"/links/{sai}/reject", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/review"
+    assert _rows("SELECT id FROM links WHERE id IN (?, ?)", dung, sai) == [(dung,)]
+    page = client.get("/review").text
+    assert f"/links/{dung}/" not in page and f"/links/{sai}/" not in page  # đã duyệt hoặc đã xoá thì rời hàng chờ
+
+
+def test_f7_duyet_goi_y_hieu_luc_dung_thi_roi_hang_cho_sai_thi_xoa(tmp_path, monkeypatch):
+    client, doc_id, _, _ = _client(tmp_path, monkeypatch)
+    from soiluat.config import db_path
+    from soiluat.db import connect
+
+    conn = connect(db_path())
+    conn.execute("DELETE FROM effect_hints")
+    conn.executemany(
+        "INSERT INTO effect_hints(source_doc_id, target_so_hieu, kind, snippet) VALUES (?, ?, 'thay_the', ?)",
+        [(doc_id, "1/2000/NĐ-CP", "gợi ý đúng"), (doc_id, "2/2000/NĐ-CP", "gợi ý sai")],
+    )
+    conn.commit()
+    conn.close()
+    dung, sai = [r[0] for r in _rows("SELECT id FROM effect_hints ORDER BY id")]
+    assert "gợi ý đúng" in client.get("/review/hints").text
+    r = client.post(f"/hints/{dung}/confirm", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/review/hints"
+    (confirmed, at), = _rows("SELECT confirmed, reviewed_at FROM effect_hints WHERE id = ?", dung)
+    assert confirmed == 1 and at
+    r = client.post(f"/hints/{sai}/reject", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/review/hints"
+    assert _rows("SELECT id FROM effect_hints") == [(dung,)]
+    page = client.get("/review/hints").text
+    assert "gợi ý đúng" not in page and "gợi ý sai" not in page  # trang chỉ liệt kê gợi ý chưa duyệt
+
+
+def test_f7_luat_chu_the_them_roi_xoa(tmp_path, monkeypatch):
+    client, _, _, _ = _client(tmp_path, monkeypatch)
+    r = client.post("/subjects", data={"phrase": " doanh nghiệp nhỏ ", "kind": "ha_uu_tien"}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/review/subjects"
+    client.post("/subjects", data={"phrase": "kiểu lạ", "kind": "khong-co"})  # kind lạ về uu_tien
+    client.post("/subjects", data={"phrase": "   ", "kind": "uu_tien"})  # rỗng: bỏ qua
+    assert _rows("SELECT phrase, kind, approved FROM subject_rules ORDER BY id") == [
+        ("doanh nghiệp nhỏ", "ha_uu_tien", 1), ("kiểu lạ", "uu_tien", 1)]
+    assert "doanh nghiệp nhỏ" in client.get("/review/subjects").text
+    rid = _rows("SELECT id FROM subject_rules WHERE phrase = 'doanh nghiệp nhỏ'")[0][0]
+    r = client.post(f"/subjects/{rid}/delete", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/review/subjects"
+    assert _rows("SELECT phrase FROM subject_rules") == [("kiểu lạ",)]

@@ -3,12 +3,9 @@
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
-
 from types import SimpleNamespace
 
 from soiluat import semantic
-from soiluat.fold import fold_search, search_accent
 from soiluat.parse import ParsedUnit, parse_pages
 
 
@@ -130,8 +127,8 @@ def rebuild_document(conn: sqlite3.Connection, doc_id: int) -> None:
     from soiluat.ingest import persist_parsed, _after_units
 
     try:
-        # khoá ghi từ lúc đọc trang tới commit: chữ đối chiếu hay xác nhận liên kết vừa lưu không bị dựng lại đè bằng bản cũ
-        # (set_page_reviewed đã mở giao dịch bằng UPDATE nên không bắt đầu lại)
+        # khoá ghi từ lúc đọc trang tới commit: xác nhận liên kết vừa lưu không bị dựng lại đè bằng bản cũ
+        # (nơi gọi đã mở giao dịch thì không bắt đầu lại)
         if not conn.in_transaction:
             conn.execute("BEGIN IMMEDIATE")
         snap = snapshot_links(conn, doc_id)
@@ -170,42 +167,3 @@ def rebuild_document(conn: sqlite3.Connection, doc_id: int) -> None:
     except BaseException:
         conn.rollback()
         raise
-
-
-def rebuild_document_from_file(
-    conn: sqlite3.Connection,
-    doc_id: int,
-    path: Path,
-    rel: str,
-    sha: str,
-    *,
-    run_ocr: bool = False,
-    force_doan: bool = False,
-) -> int:
-    """Nạp lại file vào doc_id (và các văn bản cùng file #vb2…), giữ links đã duyệt."""
-    from soiluat.ingest import group_ids, ingest_group
-
-    old = conn.execute("SELECT file_path FROM documents WHERE id = ?", (doc_id,)).fetchone()
-    ids = group_ids(conn, old["file_path"]) if old else []
-    if doc_id not in ids:
-        ids = [doc_id]
-    first, _ = ingest_group(
-        conn, path, rel, sha, ids, run_ocr=run_ocr, force_doan=force_doan
-    )
-    return first
-
-
-def set_page_reviewed(conn: sqlite3.Connection, page_id: int, text: str) -> int:
-    row = conn.execute("SELECT doc_id FROM pages WHERE id = ?", (page_id,)).fetchone()
-    if row is None:
-        return 0
-    conn.execute(
-        """
-        UPDATE pages SET reviewed_text = ?, search_accent = ?, search_text = ?,
-          ocr_status = 'da_doi_chieu', verification_status = 'da_doi_chieu'
-        WHERE id = ?
-        """,
-        (text, search_accent(text), fold_search(text), page_id),
-    )
-    rebuild_document(conn, int(row["doc_id"]))
-    return int(row["doc_id"])

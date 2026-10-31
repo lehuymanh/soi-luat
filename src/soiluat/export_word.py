@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sqlite3
 from pathlib import Path
 
@@ -10,6 +11,11 @@ from soiluat.cards import OCR_LABEL, Card, _ocr_unverified
 from soiluat.reader import cite
 
 HIEU_LUC = {"con": "Còn hiệu lực", "het": "Hết hiệu lực", "chua_ro": "Hiệu lực chưa rõ"}  # như _results.html
+_XML_CAM = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")  # Word (XML 1.0) không nhận; .txt kiểu DOS có ngắt trang \f, NUL
+
+
+def _sach(text: str) -> str:
+    return _XML_CAM.sub(" ", text)
 
 
 def page_label(page_from, page_to=None) -> str:
@@ -37,18 +43,18 @@ def export_units(conn: sqlite3.Connection, uids: list[int], dest: Path) -> None:
         ).fetchone()
         if u is None:  # đơn vị đã bị xoá sau khi kết quả hiện ra
             continue
-        doc.add_heading(cite(u["so_hieu"], u["loai"], u["path"]), level=1)
+        doc.add_heading(_sach(cite(u["so_hieu"], u["loai"], u["path"])), level=1)
         meta = [page_label(u["page_from"], u["page_to"]), u["file_path"], HIEU_LUC.get(u["hieu_luc"] or "chua_ro")]
-        doc.add_paragraph(" · ".join(x for x in meta if x))
+        doc.add_paragraph(_sach(" · ".join(x for x in meta if x)))
         head, lines = semantic.root_lines(conn, uid)
         for t in [head, *(t for _, t in lines)]:
             if t:
-                doc.add_paragraph(t)
+                doc.add_paragraph(_sach(t))
         for (n,) in conn.execute(
             "SELECT COALESCE(reviewed_text, raw_text) FROM units WHERE parent_id = ? AND level = 'ghi_chu' "
             "ORDER BY id LIMIT 3", (uid,)
         ):
-            doc.add_paragraph(f"Ghi chú: {n}")
+            doc.add_paragraph(_sach(f"Ghi chú: {n}"))
         if _ocr_unverified(conn, u["page_from"], u["page_to"], u["doc_id"]):
             doc.add_paragraph(f"Cảnh báo: {OCR_LABEL}")
     dest.parent.mkdir(parents=True, exist_ok=True)

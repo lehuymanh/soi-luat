@@ -110,3 +110,14 @@ def test_export_and_backup(db, sample_doc, tmp_path):
     n = restored.execute("SELECT COUNT(*) AS n FROM units").fetchone()["n"]
     restored.close()
     assert n > 0
+
+
+def test_sec6_chu_dieu_khien_trong_txt_khong_lam_xuat_word_loi_500(db, tmp_path, monkeypatch):
+    """SEC-6: .txt cũ (kiểu DOS) có ngắt trang \\f, \\v hay NUL: Word không nhận ký tự XML cấm nên /export trả 500."""
+    from soiluat.ingest import ingest_path
+
+    dest = tmp_path / "cu.txt"
+    dest.write_text("Nghị định số 5/2020/NĐ-CP\nĐiều 1. Báo cáo\n1. Doanh nghiệp phải\x0c báo cáo\x0b định kỳ\x00.\n", encoding="utf-8")
+    doc = ingest_path(db, dest, tmp_path)
+    text = _export_text(monkeypatch, tmp_path, [_uid(db, doc, "D1")])
+    assert "Doanh nghiệp phải" in text and "định kỳ" in text

@@ -436,3 +436,90 @@ def test_t2_dung_lai_khong_giu_khoa_ghi_trong_luc_tim_fts_cho_goi_y(db, tmp_path
     # Điều 3 có liên kết dẫn chiếu (INSERT mở giao dịch trước bước FTS), Điều 2 phải tìm bằng FTS
     assert db.execute("SELECT COUNT(*) FROM links WHERE method IN ('dan_chieu', 'noi_bo')").fetchone()[0] == 1
     assert seen and not any(seen)  # truy vấn FTS (cỡ 0,17 s mỗi câu ở Zalo) chạy ngoài giao dịch ghi
+
+
+def test_s1_nap_file_khong_giu_khoa_ghi_trong_luc_tim_fts_cho_goi_y(db, tmp_path, monkeypatch):
+    """S1: nạp file (ingest_group) cũng phải nhả khoá ghi trước truy vấn FTS của gợi ý liên kết, như rebuild_document;
+    giữ khoá suốt phần này làm hỏi đáp và mọi thao tác ghi khác chờ 5 s rồi lỗi trong lúc nạp văn bản xử phạt lớn."""
+    import soiluat.search as sr
+
+    p = tmp_path / "xu_phat.txt"
+    p.write_text(XU_PHAT, encoding="utf-8")
+    real = sr.match_units
+    seen = []
+
+    def spy(conn, *a, **k):
+        seen.append(conn.in_transaction)
+        return real(conn, *a, **k)
+
+    monkeypatch.setattr(sr, "match_units", spy)
+    doc_id = ingest_path(db, p, tmp_path)
+    assert db.execute("SELECT COUNT(*) FROM links WHERE method IN ('dan_chieu', 'noi_bo')").fetchone()[0] == 1
+    assert doc_id and seen and not any(seen)
+
+
+def test_s6_nap_lai_cung_duong_dan_giu_goi_y_hieu_luc_da_duyet_va_khong_nhan_doi_bai_bo(db, nd9, tmp_path):
+    """S6: sửa file rồi nạp lại cùng đường dẫn không xoá gợi ý đã duyệt, và gợi ý bãi bỏ (không có đích) đã duyệt
+    không sinh thêm một bản chưa duyệt y hệt."""
+    db.execute("UPDATE effect_hints SET confirmed = 1")
+    db.commit()
+    before = [(h["kind"], h["target_so_hieu"], h["confirmed"]) for h in _hints(db, nd9)]
+    assert len(before) == 3 and all(c == 1 for *_, c in before)
+    (tmp_path / "nd9.txt").write_text(ND9 + "4. Điều khoản bổ sung không liên quan.\n", encoding="utf-8")
+    assert ingest_path(db, tmp_path / "nd9.txt", tmp_path) == nd9
+    assert [(h["kind"], h["target_so_hieu"], h["confirmed"]) for h in _hints(db, nd9)] == before
+
+
+def test_s6_dung_lai_khong_nhan_doi_goi_y_bai_bo_da_duyet(db, nd9):
+    """S6: mỗi lần tăng PARSE_REV, rebuild_document thêm bản chưa duyệt y hệt của gợi ý bãi bỏ đã duyệt (target NULL
+    nên không gì chặn); giữ gợi ý đã duyệt và không thêm bản trùng."""
+    bai_bo = [h["id"] for h in _hints(db, nd9) if h["kind"] == "bai_bo"]
+    db.execute("UPDATE effect_hints SET confirmed = 1 WHERE id = ?", (bai_bo[0],))
+    db.commit()
+    rebuild_document(db, nd9)
+    rebuild_document(db, nd9)
+    after = _hints(db, nd9)
+    assert [h["kind"] for h in after].count("bai_bo") == 2
+    assert [h["id"] for h in after if h["confirmed"]] == [bai_bo[0]]
+
+
+def test_s7_hai_lan_sao_luu_cung_luc_dung_tep_tam_rieng(tmp_path, monkeypatch):
+    """S7: bấm "Sao lưu SQLite" hai lần: hai yêu cầu chạy song song trong cùng một tiến trình, tệp tạm không được trùng tên
+    (lần xong sau xoá tệp tạm của lần kia thì lần kia lỗi 'disk I/O error')."""
+    src = tmp_path / "soiluat.db"
+    c = sqlite3.connect(src)
+    c.execute("CREATE TABLE t(x)")
+    c.commit()
+    c.close()
+    seen = []
+    real = sqlite3.connect
+    monkeypatch.setattr(dbmod.sqlite3, "connect", lambda p, *a, **k: seen.append(str(p)) or real(p, *a, **k))
+    dest = tmp_path / "backup" / "soiluat.db"
+    backup_db(src, dest)
+    backup_db(src, dest)
+    tmps = [p for p in seen if p.endswith(".tmp")]
+    assert len(tmps) == 2 and tmps[0] != tmps[1]
+
+
+def test_s1_loi_sau_khi_da_luu_thi_nap_lai_dung_not_goi_y(db, tmp_path, monkeypatch):
+    """S1: commit trước FTS nên lỗi ở bước gợi ý (hay app tắt) để văn bản đã lưu; lần nạp lại file đó không được báo
+    "không đổi" mà bỏ mất gợi ý hiệu lực."""
+    import soiluat.links as links
+
+    p = tmp_path / "nd9.txt"
+    p.write_text(ND9, encoding="utf-8")
+    real = links.suggest_fts_links
+
+    def hong(*a, **k):
+        raise sqlite3.OperationalError("disk full")
+
+    monkeypatch.setattr(links, "suggest_fts_links", hong)
+    with pytest.raises(sqlite3.OperationalError):
+        ingest_path(db, p, tmp_path)
+    doc_id = db.execute("SELECT id FROM documents").fetchone()[0]
+    assert _hints(db, doc_id) == []
+    monkeypatch.setattr(links, "suggest_fts_links", real)
+    assert ingest_path(db, p, tmp_path) == doc_id  # dùng lại văn bản, không nhân đôi
+    assert len(_hints(db, doc_id)) == 3
+    assert ingest_path(db, p, tmp_path) == doc_id
+    assert db.execute("SELECT COUNT(*) FROM import_jobs").fetchone()[0] == 2  # lần xong rồi thì "không đổi", không mở job mới

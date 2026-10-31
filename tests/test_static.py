@@ -40,11 +40,11 @@ def test_403_mang_cookie_moi_de_post_gui_lai(tmp_path, monkeypatch):
     monkeypatch.delenv("SOILUAT_ALLOW_TEST_HOST", raising=False)
     h = {"Host": "127.0.0.1:8000"}
     c = TestClient(app)
-    old = c.get("/", headers=h).cookies.get("soiluat_csrf")
+    old = c.get("/", headers=h).cookies.get("soiluat_csrf_8000")
     monkeypatch.setattr(app_mod, "CSRF_TOKEN", "token-sau-khi-khoi-dong-lai")
     r = c.post("/backup", headers={**h, "X-CSRF-Token": old})
     assert r.status_code == 403
-    new = r.cookies.get("soiluat_csrf")
+    new = r.cookies.get("soiluat_csrf_8000")
     assert new == "token-sau-khi-khoi-dong-lai"
     assert c.post("/backup", headers={**h, "X-CSRF-Token": new}).status_code == 200
 
@@ -75,3 +75,9 @@ def test_trang_chu_co_khung_moi(tmp_path, monkeypatch):
     html = TestClient(app).get("/").text
     for needle in ('class="side"', 'id="btn-import"', 'id="btn-settings"', 'id="composer"', 'id="open-side"', "0 văn bản", "Kho chưa có văn bản"):
         assert needle in html, needle
+
+
+def test_app_js_doc_dung_cookie_theo_cong_nhu_may_chu():
+    """S4: app.py đặt cookie `soiluat_csrf_<cổng>`; app.js phải đọc đúng tên đó theo location.port."""
+    js = (Path(app_mod.__file__).parent / "static" / "app.js").read_text(encoding="utf-8")
+    assert "soiluat_csrf_${location.port}" in js and "soiluat_csrf=" not in js

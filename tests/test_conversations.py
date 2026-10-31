@@ -14,8 +14,8 @@ from fastapi.testclient import TestClient
 import soiluat.app as appmod
 from soiluat import conversations
 from soiluat.db import connect, init_schema
-from soiluat.ingest import ingest_path, relative_path, sha256_file
-from soiluat.rebuild import rebuild_document, rebuild_document_from_file
+from soiluat.ingest import ingest_path
+from soiluat.rebuild import rebuild_document
 
 
 def _kho_08(path):
@@ -522,7 +522,7 @@ def test_mo_lai_ghi_de_tep_bang_van_ban_khac_cung_id_bao_hong_het(db, tmp_path, 
 def _viet_lai(db, tmp_path, doc_id, so, **kw):
     p = tmp_path / (so.replace("/", "-") + ".txt")
     p.write_text(_nd(so, **kw), encoding="utf-8")
-    rebuild_document_from_file(db, doc_id, p, relative_path(p, tmp_path), sha256_file(p))
+    assert ingest_path(db, p, tmp_path) == doc_id  # nạp lại cùng đường dẫn dùng lại id văn bản
 
 
 def test_mo_lai_toan_van_dieu_vang_nay_da_co_thi_bao_hoi_lai(db, tmp_path, monkeypatch):
@@ -809,7 +809,7 @@ def test_post_moi_csrf_va_host_khi_tat_bypass(db, tmp_path, monkeypatch, hanh_do
     c = _client(tmp_path, monkeypatch)
     monkeypatch.delenv("SOILUAT_ALLOW_TEST_HOST")
     h = {"Host": "127.0.0.1:8000"}
-    token = c.get("/", headers=h).cookies.get("soiluat_csrf")
+    token = c.get("/", headers=h).cookies.get("soiluat_csrf_8000")
     assert token == appmod.CSRF_TOKEN
     url, data = POST_MOI[hanh_dong](cids[0])
     truoc = _luu(db)
@@ -841,13 +841,13 @@ def test_post_moi_khoi_dong_lai_token_cu_403_kem_cookie_moi_roi_token_moi_200(db
     c = _client(tmp_path, monkeypatch)
     monkeypatch.delenv("SOILUAT_ALLOW_TEST_HOST")
     h = {"Host": "127.0.0.1:8000"}
-    cu = c.get("/", headers=h).cookies.get("soiluat_csrf")
+    cu = c.get("/", headers=h).cookies.get("soiluat_csrf_8000")
     monkeypatch.setattr(appmod, "CSRF_TOKEN", "token-sau-khi-khoi-dong-lai")
     url, data = POST_MOI[hanh_dong](cid)
     truoc = _luu(db)
     r = c.post(url, headers={**h, "X-CSRF-Token": cu}, data=data)
-    assert r.status_code == 403 and f"soiluat_csrf={appmod.CSRF_TOKEN}" in r.headers["set-cookie"]
+    assert r.status_code == 403 and f"soiluat_csrf_8000={appmod.CSRF_TOKEN}" in r.headers["set-cookie"]
     assert _luu(db) == truoc
-    assert c.cookies.get("soiluat_csrf") == appmod.CSRF_TOKEN  # JS đọc đúng cookie này (cookieToken)
+    assert c.cookies.get("soiluat_csrf_8000") == appmod.CSRF_TOKEN  # JS đọc đúng cookie này (cookieToken)
     assert c.post(url, headers={**h, "X-CSRF-Token": appmod.CSRF_TOKEN}, data=data).status_code == 200
     assert _luu(db) != truoc

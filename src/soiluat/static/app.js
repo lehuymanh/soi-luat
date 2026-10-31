@@ -3,8 +3,9 @@
   const SUFF = new Set(document.body.dataset.suffixes.split(","));
   const $ = (s, r = document) => r.querySelector(s);
   const thread = $("#thread"), composer = $("#composer"), qbox = $("#q");
-  /* Token CSRF đổi mỗi lần app khởi động lại; phản hồi 403 mang cookie mới, nên đọc lại cookie và gửi lại đúng một lần. */
-  const cookieToken = () => (document.cookie.match(/(?:^|;\s*)soiluat_csrf=([^;]*)/) || [])[1];
+  /* Token CSRF đổi mỗi lần app khởi động lại; phản hồi 403 mang cookie mới, nên đọc lại cookie và gửi lại đúng một lần.
+     Cookie đặt tên theo cổng (app.py `_csrf_cookie`): hai bản app khác cổng không ghi đè token của nhau. */
+  const cookieToken = () => (document.cookie.match(new RegExp(`(?:^|;\\s*)soiluat_csrf_${location.port}=([^;]*)`)) || [])[1];
   async function post(url, body, extra = { redirect: "manual" }) {
     const send = () => fetch(url, { method: "POST", body, headers: { "X-CSRF-Token": CSRF }, ...extra });
     let r = await send();
