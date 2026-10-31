@@ -661,6 +661,18 @@ def _cascade(conn: sqlite3.Connection, raw_query: str, full_query: str | None = 
     return _fts_cascade(conn, raw_query, full_query=full_query)
 
 
+def _filter_sql(loai: str, co_quan: str, hieu_luc: str) -> tuple[str, list]:
+    """Điều kiện lọc trên bảng documents (bí danh d), dùng chung cho lọc đơn vị và lọc văn bản. Ô cơ quan là danh sách
+    chọn nên so khớp đúng giá trị lưu (LIKE làm 'CHÍNH PHỦ' kéo theo 'THỦ TƯỚNG CHÍNH PHỦ', và '%' thành ký tự đại diện)."""
+    sql, params = "", []
+    for col, v in (("loai", loai), ("co_quan", co_quan), ("hieu_luc", hieu_luc)):
+        v = (v or "").strip()
+        if v:
+            sql += f" AND d.{col} = ?"
+            params.append(v)
+    return sql, params
+
+
 def apply_doc_filters(
     conn: sqlite3.Connection,
     ids: list[int],
@@ -669,25 +681,20 @@ def apply_doc_filters(
     co_quan: str = "",
     hieu_luc: str = "",
 ) -> list[int]:
-    loai = (loai or "").strip()
-    co_quan = (co_quan or "").strip()
-    hieu_luc = (hieu_luc or "").strip()
-    if not ids or not (loai or co_quan or hieu_luc):
+    where, params = _filter_sql(loai, co_quan, hieu_luc)
+    if not ids or not where:
         return ids
     q = ",".join("?" * len(ids))
-    sql = (
-        f"SELECT u.id FROM units u JOIN documents d ON d.id = u.doc_id "
-        f"WHERE u.id IN ({q})"
-    )
-    params: list = list(ids)
-    if loai:
-        sql += " AND d.loai = ?"
-        params.append(loai)
-    if co_quan:
-        sql += " AND IFNULL(d.co_quan, '') LIKE ?"
-        params.append(f"%{co_quan}%")
-    if hieu_luc:
-        sql += " AND d.hieu_luc = ?"
-        params.append(hieu_luc)
-    keep = {int(r["id"]) for r in conn.execute(sql, params).fetchall()}
+    rows = conn.execute(f"SELECT u.id FROM units u JOIN documents d ON d.id = u.doc_id WHERE u.id IN ({q}){where}", [*ids, *params])
+    keep = {int(r["id"]) for r in rows}
     return [i for i in ids if i in keep]
+
+
+def filter_docs(conn: sqlite3.Connection, doc_ids: list[int], *, loai: str = "", co_quan: str = "", hieu_luc: str = "") -> list[int]:
+    """Như apply_doc_filters, cho danh sách văn bản."""
+    where, params = _filter_sql(loai, co_quan, hieu_luc)
+    if not doc_ids or not where:
+        return doc_ids
+    q = ",".join("?" * len(doc_ids))
+    keep = {int(r[0]) for r in conn.execute(f"SELECT d.id FROM documents d WHERE d.id IN ({q}){where}", [*doc_ids, *params])}
+    return [i for i in doc_ids if i in keep]

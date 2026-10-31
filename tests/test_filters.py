@@ -27,3 +27,20 @@ def test_filter_hieu_luc(db, sample_doc):
     assert none == []
     nd = apply_doc_filters(db, ids, loai="nghi_dinh")
     assert nd == ids
+
+
+def test_loc_co_quan_khop_dung_gia_tri_khong_phai_chuoi_con(db, sample_doc, tmp_path):
+    """Ô lọc là danh sách chọn gửi đúng giá trị lưu: 'CHÍNH PHỦ' không kéo theo 'THỦ TƯỚNG CHÍNH PHỦ'; % và _ không là ký tự đại diện."""
+    from soiluat.ingest import ingest_path
+
+    p = tmp_path / "ttg.txt"
+    p.write_text("Quyết định số 48/2026/QĐ-TTg\nĐiều 1. Phạm vi\n1. Báo cáo định kỳ hằng năm.\n", encoding="utf-8")
+    ttg = ingest_path(db, p, tmp_path)
+    db.execute("UPDATE documents SET co_quan = 'CHÍNH PHỦ' WHERE id = ?", (sample_doc,))
+    db.execute("UPDATE documents SET co_quan = 'THỦ TƯỚNG CHÍNH PHỦ' WHERE id = ?", (ttg,))
+    db.commit()
+    ids = [r[0] for r in db.execute("SELECT id FROM units ORDER BY id")]
+    doc_of = {r[0]: r[1] for r in db.execute("SELECT id, doc_id FROM units")}
+    kept = apply_doc_filters(db, ids, co_quan="CHÍNH PHỦ")
+    assert kept and {doc_of[i] for i in kept} == {sample_doc}
+    assert apply_doc_filters(db, ids, co_quan="%") == [] and apply_doc_filters(db, ids, co_quan="CHÍNH PHỦ_") == []

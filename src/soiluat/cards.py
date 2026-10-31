@@ -13,6 +13,7 @@ from soiluat import answer, semantic
 from soiluat.fold import display_addr, dieu_path
 from soiluat.labels import is_thi_hanh
 from soiluat.search import DIEU_CAP
+from soiluat.sohieu import citation_remainder
 
 KIND_RANK1 = "Rủi ro (liên kết đã duyệt)"
 KIND_RANK2 = "Rủi ro có chế tài (chưa có liên kết đã duyệt)"
@@ -576,18 +577,28 @@ def compact(conn: sqlite3.Connection, items: list[Card], query: str, limit: int 
         out.append(rep)
     shown = out[:limit]
     units = {r[0]: r for r in _in(conn, "SELECT id, path, level FROM units WHERE id IN ({})",
-                                  [i for c in shown for i in c.unit_ids])}
+                                  [i for c in shown for i in c.unit_ids] + [root_of[id(c)] for c in shown if root_of[id(c)]])}
     for c in shown:
         rid = root_of[id(c)]
+        # tra Điều / số hiệu + Điều: mục là cả Điều. "Điều 12" không phải từ khoá, nên không chấm điểm dòng bằng nó
+        tra = c.synonym_note in ("dieu", "so_hieu") and c.match_tier == 0
         if rid is None:
             c.snippet = c.duty_text
         else:
-            head, c.snippet, c.path = answer.snippet(conn, rid, query)
+            head, c.snippet, c.path = answer.snippet(conn, rid, citation_remainder(query) if tra else query)
             c.head = re.sub(r"^Điều \w+\.\s*", "", head)
+            if tra and not c.path:
+                c.path = units[rid]["path"]
         if not c.path and c.unit_ids and c.unit_ids[0] in units:
             c.path = units[c.unit_ids[0]]["path"]
-        c.more = [units[i]["path"] for i in c.unit_ids
-                  if i in units and units[i]["level"] != "dieu" and units[i]["path"] != c.path][:3]
+        c.more = [] if tra else [units[i]["path"] for i in c.unit_ids
+                                 if i in units and units[i]["level"] != "dieu" and units[i]["path"] != c.path][:3]
+        # ô "Chọn để xuất" (unit_ids[0]) và nhãn trang phải là của đơn vị ở c.path, như địa chỉ mục hiện
+        pu = conn.execute("SELECT id, page_from, page_to FROM units WHERE doc_id = ? AND path = ? ORDER BY id LIMIT 1",
+                          (c.doc_id, c.path)).fetchone()
+        if pu:
+            c.unit_ids = [pu[0]] + [i for i in c.unit_ids if i != pu[0]]
+            c.page_from, c.page_to = pu[1], pu[2]
     return out
 
 

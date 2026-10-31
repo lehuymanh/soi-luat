@@ -10,6 +10,7 @@ from markupsafe import Markup, escape
 from soiluat.answer import STOP
 from soiluat.fold import _PATH_RE, fold_search, pretty_path, search_accent
 from soiluat.query import _eq, _w, classify_query
+from soiluat.sohieu import citation_remainder
 
 LOAI = {
     "luat": "Luật", "phap_lenh": "Pháp lệnh", "nghi_quyet": "Nghị quyết", "nghi_dinh": "Nghị định",
@@ -60,7 +61,9 @@ def resolve_sel(conn: sqlite3.Connection, doc_id: int, u: int | None, path: str)
 
 
 def query_words(q: str) -> list:
-    if not q or classify_query(q) == "so_hieu":
+    if q and classify_query(q) == "so_hieu":
+        q = citation_remainder(q)  # "Điều 5", số hiệu không phải từ khoá; câu còn chữ khác (mức phạt … theo Điều 5) vẫn tô
+    if not q:
         return []
     q = _BAO_NHIEU.sub(" ", q)
     return [w for w in (_w(t) for t in re.findall(r"\w+", q)) if w[3] not in _HL_STOP]
@@ -73,7 +76,8 @@ def highlight(text: str, words: list) -> Markup:
     out, pos = [], 0
     for m in re.finditer(r"\w+", text):
         tok = m.group(0)
-        if any(_eq(w, (search_accent(tok), fold_search(tok))) for w in words):
+        norm = (search_accent(tok), fold_search(tok))  # một lần cho mỗi chữ, không lặp theo số từ câu hỏi
+        if any(_eq(w, norm) for w in words):
             out += [escape(text[pos:m.start()]), Markup('<mark class="m">'), escape(tok), Markup("</mark>")]
             pos = m.end()
     out.append(escape(text[pos:]))

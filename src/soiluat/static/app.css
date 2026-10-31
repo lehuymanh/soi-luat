@@ -61,7 +61,7 @@ mark.m { background: none; color: inherit; text-decoration: underline; text-deco
 .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
 .btn.danger { color: var(--neg); border-color: var(--neg); }
 .btn:disabled { color: var(--faint); background: var(--raised); border-color: var(--border); cursor: default; }
-.icon-btn { width: 32px; height: 32px; flex: none; border-radius: var(--r-ctl); border: 0; background: none; display: grid; place-items: center; color: var(--muted); cursor: pointer; }
+.icon-btn { width: 32px; height: 32px; min-height: 0; padding: 0; flex: none; border-radius: var(--r-ctl); border: 0; background: none; display: grid; place-items: center; color: var(--muted); cursor: pointer; }
 .icon-btn:hover { background: var(--raised); color: var(--text); }
 .pill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; flex: none; }
 .pill.pos { background: var(--pos-bg); color: var(--pos-ink); } .pill.neg { background: var(--neg-bg); color: var(--neg-ink); }
@@ -201,6 +201,7 @@ mark.m { background: none; color: inherit; text-decoration: underline; text-deco
 .orig { padding: 16px 20px 40px; display: grid; gap: 16px; justify-items: center; }
 .pg { margin: 0; width: 100%; max-width: 760px; scroll-margin-top: 12px; }
 .pg img { display: block; width: 100%; height: auto; aspect-ratio: auto 1 / 1.414; background: #fff; border: 1px solid var(--border); border-radius: 2px; } /* giữ chỗ khổ A4 khi ảnh chưa tải, để cuộn tới trang không bị lệch */
+.pg .err { padding: 24px 16px; border: 1px dashed var(--control); border-radius: 2px; text-align: center; color: var(--muted); }
 .pg figcaption { margin-top: 4px; text-align: center; color: var(--muted); font-size: 12px; }
 .none { width: 100%; max-width: 560px; padding: 16px; border: 1px dashed var(--control); border-radius: var(--r-card); }
 .none h2 { margin: 0; font-size: 16px; font-weight: 600; }

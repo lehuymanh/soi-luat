@@ -39,7 +39,7 @@ from soiluat.db import backup_db, connect, init_schema
 from soiluat.export_word import card_pages, export_cards, page_label
 from soiluat.fold import display_addr
 from soiluat.jobs import JOBS, SUFFIXES
-from soiluat.search import DIEU_CAP, _so_hieu_docs, apply_doc_filters, cascade_search
+from soiluat.search import DIEU_CAP, _so_hieu_docs, apply_doc_filters, cascade_search, filter_docs
 from soiluat.sohieu import find_dieu_so
 
 
@@ -110,6 +110,12 @@ class HostGuard(BaseHTTPMiddleware):
 app.add_middleware(HostGuard)
 
 
+@app.exception_handler(OverflowError)
+async def _id_qua_lon(request, exc):
+    """Id gõ tay lớn hơn số nguyên SQLite (2**63-1): không có bản ghi nào, không phải lỗi máy chủ."""
+    return HTMLResponse("Không tìm thấy.", status_code=404)
+
+
 def _check_csrf(request: Request, token: str = "") -> None:
     if _test_bypass():
         return
@@ -157,20 +163,15 @@ def _search(conn: sqlite3.Connection, q: str, loai: str, co_quan: str, hieu_luc:
     return {"result": result, "ids": ids, "n_found": len(result.ids), "n_ids": n_ids, "sure": sure}
 
 
-def _full_docs(conn: sqlite3.Connection, q: str, s: dict) -> list[SimpleNamespace] | None:
+def _full_docs(conn: sqlite3.Connection, q: str, s: dict, loai: str = "", co_quan: str = "", hieu_luc: str = "") -> list[SimpleNamespace] | None:
     """Truy vấn chỉ có số hiệu (kể cả số hiệu một phần): mỗi văn bản khớp một mục "Mở toàn văn", không liệt kê
-    mọi đơn vị. "Số hiệu + Điều n" mà văn bản không có Điều n cũng ra "Mở toàn văn", kèm câu không có Điều n."""
+    mọi đơn vị. "Số hiệu + Điều n" mà văn bản không có Điều n cũng ra "Mở toàn văn", kèm câu không có Điều n.
+    Văn bản lấy từ số hiệu (không từ đơn vị: bản quét chưa OCR hay văn bản chỉ có đoạn không có đơn vị Điều/Khoản) rồi lọc."""
     r = s["result"]
     dieu = find_dieu_so(q)
-    if r.note != "so_hieu" or r.intent or (dieu and s["ids"]):
+    if r.note != "so_hieu" or r.intent or (dieu and r.ids):
         return None
-    if dieu:
-        if r.ids:
-            return None
-        doc_ids = _so_hieu_docs(conn, q)
-    else:
-        doc_ids = list(dict.fromkeys(row[0] for row in conn.execute(
-            "SELECT u.doc_id FROM json_each(?) j JOIN units u ON u.id = j.value ORDER BY j.key", (json.dumps(s["ids"]),))))
+    doc_ids = filter_docs(conn, _so_hieu_docs(conn, q), loai=loai, co_quan=co_quan, hieu_luc=hieu_luc)
     out = []
     for did in doc_ids:
         d = conn.execute(
@@ -182,10 +183,10 @@ def _full_docs(conn: sqlite3.Connection, q: str, s: dict) -> list[SimpleNamespac
     return out
 
 
-def _ctx(conn: sqlite3.Connection, q: str, s: dict) -> dict:
+def _ctx(conn: sqlite3.Connection, q: str, s: dict, loai: str = "", co_quan: str = "", hieu_luc: str = "") -> dict:
     """Thẻ và mục gọn từ kết quả tìm (P1 K1)."""
     r, ids = s["result"], s["ids"]
-    full = _full_docs(conn, q, s)
+    full = _full_docs(conn, q, s, loai, co_quan, hieu_luc)
     idset = set(ids)
     cards = [] if full is not None else assemble_cards(
         conn, ids, synonym_note=r.note,
@@ -223,7 +224,7 @@ def _search_ctx(q: str, loai: str, co_quan: str, hieu_luc: str) -> dict:
     if q.strip():
         s = _search(conn, q, loai, co_quan, hieu_luc)
         sure = s["sure"]
-        ctx = {**_ctx(conn, q, s), "n_found": s["n_found"]}  # n_found: đoạn tìm được trước bộ lọc ("Không còn kết quả sau khi lọc")
+        ctx = {**_ctx(conn, q, s, loai, co_quan, hieu_luc), "n_found": s["n_found"]}  # n_found: đoạn tìm được trước bộ lọc ("Không còn kết quả sau khi lọc")
         if ctx["cut_note"]:
             q2_note = (q2_note + " " if q2_note else "") + ctx["cut_note"]
         # "Mở toàn văn": số văn bản, để gõ số hiệu không lọt vào trang "Truy vấn bỏ sót" (lọc result_count = 0)
@@ -506,15 +507,18 @@ def delete_synonym(request: Request, syn_id: int, csrf_token: str = Form("")):
 
 
 @app.get("/review/docs", response_class=HTMLResponse)
-def review_docs(request: Request):
+def review_docs(request: Request, doc_id: int | None = Query(None, alias="id")):
+    """?id=N chỉ một văn bản (liên kết "Sửa số hiệu" từ trình đọc); không có thì cả kho, không phân trang."""
     conn = get_conn()
     docs = conn.execute(
         """
         SELECT id, file_path, so_hieu, loai, co_quan, hieu_luc, struct_score,
                extraction_method, ngay_ban_hanh, ngay_hieu_luc
         FROM documents
+        WHERE ? IS NULL OR id = ?
         ORDER BY IFNULL(struct_score, 1) ASC
-        """
+        """,
+        (doc_id, doc_id),
     ).fetchall()
     items = []
     for d in docs:
@@ -525,7 +529,7 @@ def review_docs(request: Request):
         ).fetchall()
         items.append({"doc": dict(d), "units": [dict(u) for u in units]})
     conn.close()
-    return _tpl(request, "review_docs.html", {"items": items})
+    return _tpl(request, "review_docs.html", {"items": items, "only": doc_id is not None})
 
 
 @app.post("/docs/{doc_id}/hieu-luc")
@@ -619,7 +623,8 @@ def doc_view(request: Request, doc_id: int, u: int | None = None, path: str = ""
         "pill": HL_PILL.get(d["hieu_luc"], ("Hiệu lực chưa rõ", "neu")), "ocr_warn": ocr_warn,
         "pages": in_sel, "raw_pages": [] if has_img else pages, "q": q,
         "can_view": can_view, "has_img": has_img, "page_nos": [p["page_no"] for p in pages],
-        "page": page or (su["page_from"] if su else None) or 1,
+        "orig_path": str(pageimg.stored_path(d["file_path"])),
+        "page": page or (su["page_from"] if su else None) or (pages[0]["page_no"] if pages else 1),  # văn bản tách từ tệp lớn bắt đầu ở trang > 1
         "full": not request.headers.get("HX-Request"),
     }
     return _tpl(request, "doc.html" if ctx["full"] else "_reader.html", ctx)

@@ -126,11 +126,11 @@
             {% if c.more %}<p class="also-in">Cùng Điều còn khớp: {% for m in c.more %}{% if not loop.first %} · {% endif %}<a class="link" href="/doc/{{ c.doc_id }}?path={{ m | urlencode }}&amp;q={{ q | urlencode }}" data-doc>{{ addr(m).split(" Điều")[0] }}</a>{% endfor %}</p>{% endif %}
             <div class="item-f">
               <a class="go" href="{{ href }}" data-doc>Mở tại đoạn này</a>
-              <button type="button" class="quiet" data-copy="{{ cit(c, dt) }}">Sao chép trích dẫn</button>
+              <button type="button" class="quiet" data-copy="{{ cit(c, dt) }}" aria-label="Sao chép trích dẫn: {{ cit(c, dt) }}">Sao chép trích dẫn</button>
               {% if card_pages(c) %}<span class="meta">{{ card_pages(c) }}</span>{% endif %}
               {% if c.synonym_note == "dong_nghia" %}<span class="meta">khớp theo từ đồng nghĩa</span>{% endif %}
               {% if c.match_tier == 7 %}<span class="meta">tìm theo nghĩa, không chung từ khoá</span>{% endif %}
-              {% if c.unit_ids %}<label class="pick"><input type="checkbox" name="uid" value="{{ c.unit_ids[0] }}"> Chọn để xuất</label>{% endif %}
+              {% if c.unit_ids %}<label class="pick"><input type="checkbox" name="uid" value="{{ c.unit_ids[0] }}" aria-label="Chọn để xuất {{ cit(c, dt) }}"> Chọn để xuất</label>{% endif %}
             </div>
             {% if c.notes %}<details class="also"><summary>Ghi chú ({{ c.notes[:3] | length }})</summary><ul>{% for nt in c.notes[:3] %}<li>{{ nt }}</li>{% endfor %}</ul></details>{% endif %}
             {% if c.also_in %}<details class="also"><summary>Cũng có ở {{ c.also_in | length }} văn bản khác</summary><ul>

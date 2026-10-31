@@ -253,3 +253,78 @@ def test_tim_thuong_ra_muc_gon(db, sample_doc, tmp_path, monkeypatch):
     c = _ctx(monkeypatch, tmp_path, "báo cáo định kỳ")
     assert c["items"] and all(it.snippet for it in c["items"][:5])
     assert c["n_items"] == len(c["items"]) and _logged(db) == len(c["cards"])
+
+
+# --- soát K2: ô chọn xuất và nhãn trang theo đơn vị ở c.path (python F1) ---
+def test_o_chon_xuat_va_trang_theo_dia_chi_cua_muc(db, doc):
+    """compact đổi c.path sang dòng khớp nhất; ô tick (unit_ids[0]) và nhãn trang phải đi theo, không ở lại khoản đầu."""
+    k1, k2 = _uid(db, "D5.K1"), _uid(db, "D5.K2")
+    db.execute("UPDATE units SET page_from = 1, page_to = 1 WHERE id = ?", (k1,))
+    db.execute("UPDATE units SET page_from = 2, page_to = 3 WHERE id = ?", (k2,))
+    db.commit()
+    it = cards.compact(db, _cards_for(db, [("D5.K1", doc), ("D5.K2", doc)]), "giấy phép lái xe")[0]
+    assert it.path == "D5.K2" and it.unit_ids[0] == k2 and k1 in it.unit_ids
+    assert (it.page_from, it.page_to) == (2, 3)
+    exp = cards.assemble_cards(db, [it.unit_ids[0]])[0]  # đúng việc POST /export làm với giá trị ô tick
+    assert (exp.duty_addr or exp.sanction_addr).endswith("Điều 5 khoản 2")  # địa chỉ như thẻ Word dùng
+
+
+# --- soát K2: truy vấn chỉ tra Điều không chấm điểm dòng (python F2) ---
+TEXT_12 = """Nghị định số 200/2024/NĐ-CP
+Điều 12. Thời hạn nộp hồ sơ
+1. Hồ sơ nộp trong thời hạn 30 ngày kể từ ngày nhận quyết định.
+2. Trường hợp gia hạn, thời gian từ 12 tháng đến 24 tháng được tính là một kỳ.
+3. Quá thời hạn trên thì hồ sơ không được xem xét.
+"""
+
+
+def test_tra_dieu_khong_cham_diem_dong(db, tmp_path, monkeypatch):
+    """"Điều 12" hỏi cả Điều: dòng chứa số 12 ("từ 12 tháng") không được kéo địa chỉ xuống Khoản 2."""
+    p = tmp_path / "nd200.txt"
+    p.write_text(TEXT_12, encoding="utf-8")
+    ingest_path(db, p, tmp_path)
+    it = _ctx(monkeypatch, tmp_path, "Điều 12")["items"][0]
+    assert it.path == "D12" and it.more == []
+    assert it.snippet.startswith("1. Hồ sơ nộp")
+
+
+def test_tra_so_hieu_kem_dieu_dia_chi_la_ca_dieu(db, doc, tmp_path, monkeypatch):
+    """"385/2026/NĐ-CP Điều 5": mục là Điều 5, không phải Khoản 1, và không có dòng "Cùng Điều còn khớp"."""
+    _second(db, tmp_path, so="385/2026/NĐ-CP")
+    it = _ctx(monkeypatch, tmp_path, "385/2026/NĐ-CP Điều 5")["items"][0]
+    assert it.path == "D5" and it.more == []
+
+
+# --- soát K2: "Mở toàn văn" dựng từ số hiệu khớp và chịu bộ lọc như nhánh còn lại (python F3, F4) ---
+def _ctx_loc(monkeypatch, tmp_path, q, loai="", co_quan="", hieu_luc=""):
+    from soiluat import app as appmod
+
+    monkeypatch.setenv("SOILUAT_DATA", str(tmp_path))
+    return appmod._search_ctx(q, loai, co_quan, hieu_luc)
+
+
+def test_so_hieu_kem_dieu_khong_co_chiu_bo_loc(db, doc, tmp_path, monkeypatch):
+    _second(db, tmp_path, so="385/2026/NĐ-CP", hieu_luc="chua_ro")
+    q = "385/2026/NĐ-CP Điều 999"
+    assert len(_ctx_loc(monkeypatch, tmp_path, q, loai="nghi_dinh")["items"]) == 1
+    assert _ctx_loc(monkeypatch, tmp_path, q, loai="thong_tu")["items"] == []
+    assert _ctx_loc(monkeypatch, tmp_path, q, hieu_luc="con")["items"] == []
+    assert _ctx_loc(monkeypatch, tmp_path, "385/2026/NĐ-CP", loai="thong_tu")["items"] == []  # nhánh không Điều đã lọc sẵn
+
+
+def test_so_hieu_van_ban_khong_don_vi_van_ra_mo_toan_van(db, sample_doc, tmp_path, monkeypatch):
+    """Bản quét chưa OCR (0 đơn vị) vẫn là văn bản của kho: gõ số hiệu phải ra "Mở toàn văn", result_count = 1."""
+    db.execute("DELETE FROM units WHERE doc_id = ?", (sample_doc,))
+    db.commit()
+    c = _ctx(monkeypatch, tmp_path, "15/2020/NĐ-CP")
+    assert [x.doc_id for x in c["items"]] == [sample_doc] and c["items"][0].full and _logged(db) == 1
+
+
+def test_so_hieu_van_ban_chi_co_doan_van_ra_mo_toan_van(db, tmp_path, monkeypatch):
+    p = tmp_path / "ghi.txt"
+    p.write_text("Quyết định số 77/2024/QĐ-UBND ngày 01 tháng 02 năm 2024\n\nGhi nhớ nội bộ về việc bố trí phòng họp.\n"
+                 "\nĐề nghị các phòng ban phối hợp thực hiện.\n", encoding="utf-8")
+    did = ingest_path(db, p, tmp_path)
+    assert db.execute("SELECT DISTINCT level FROM units WHERE doc_id = ?", (did,)).fetchall()[0][0] == "doan"
+    for q in ("77/2024/QĐ-UBND", "77/2024"):
+        assert [x.doc_id for x in _ctx(monkeypatch, tmp_path, q)["items"]] == [did]

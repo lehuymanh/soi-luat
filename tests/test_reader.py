@@ -135,3 +135,27 @@ def test_3000_don_vi_duoi_1_giay(db, tmp_path):
     t = time.perf_counter()
     reader.build_view(db, doc, _uid(db, doc, "D150.K3"), "mức phạt tiền")
     assert time.perf_counter() - t < 1.0
+
+
+def test_cau_hoi_lan_dieu_van_to_phan_con_lai():
+    """classify_query gọi mọi câu có "Điều n" là so_hieu; "Điều 5" và số hiệu không phải từ khoá, phần còn lại vẫn được tô."""
+    w = reader.query_words("mức phạt không đội mũ bảo hiểm theo Điều 5")
+    assert w and '<mark class="m">bảo</mark>' in str(reader.highlight("mũ bảo hiểm", w))
+    w = reader.query_words("100/2019/NĐ-CP Điều 5 dừng xe")
+    assert '<mark class="m">dừng</mark>' in str(reader.highlight("dừng xe", w)) and "<mark" not in str(reader.highlight("Điều 5", w))
+    for q in ("Điều 12", "385/2026/NĐ-CP", "Điều 5 Nghị định 15/2020/NĐ-CP"):  # chỉ có địa chỉ: không tô gì
+        assert reader.query_words(q) == []
+
+
+def test_to_tu_chuan_hoa_moi_chu_mot_lan_khong_nhan_voi_so_tu_cau_hoi():
+    """Câu hỏi dán dài (nghìn từ) không được làm trang kết quả mất vài giây: chuẩn hóa mỗi chữ của đoạn đúng một lần."""
+    words = reader.query_words(" ".join(f"tu{i}" for i in range(300)))
+    text = " ".join(f"chữ{i}" for i in range(50))
+    calls = []
+    real = reader.fold_search
+    reader.fold_search = lambda s: (calls.append(s), real(s))[1]
+    try:
+        out = reader.highlight(text, words)
+    finally:
+        reader.fold_search = real
+    assert "<mark" not in str(out) and len(calls) <= 50

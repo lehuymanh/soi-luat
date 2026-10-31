@@ -3,20 +3,29 @@
 from __future__ import annotations
 
 import struct
+import threading
 import zlib
 from pathlib import Path
 
 from soiluat.config import data_dir
 
+# pdfium "vốn không an toàn khi nhiều luồng dùng": /page chạy trong threadpool (trình duyệt xin vài trang cùng lúc) và luồng
+# OCR cũng vẽ trang. Mọi lời gọi pdfium của app (mở, vẽ, đóng) giữ khoá này; không khoá thì cả app chết (SIGSEGV).
+PDFIUM = threading.RLock()
+
 VIEWABLE = {".pdf": "pdf", ".png": "png", ".jpg": "jpg", ".jpeg": "jpg"}
 MAX_W = 1100  # px: đủ đọc chữ, PNG vài trăm KB
 
 
-def source_file(file_path: str) -> Path | None:
-    """documents.file_path (tương đối data hoặc tuyệt đối, có thể kèm #vbN) → file thật nếu còn."""
+def stored_path(file_path: str) -> Path:
+    """documents.file_path (tương đối data hoặc tuyệt đối, có thể kèm #vbN) → đường dẫn đầy đủ app tìm tệp."""
     p = Path(file_path.split("#vb", 1)[0])
-    if not p.is_absolute():
-        p = data_dir() / p
+    return p if p.is_absolute() else data_dir() / p
+
+
+def source_file(file_path: str) -> Path | None:
+    """File thật nếu còn."""
+    p = stored_path(file_path)
     return p if p.is_file() else None
 
 
@@ -40,6 +49,11 @@ def _png(rgb: bytes, w: int, h: int, stride: int) -> bytes:
 
 
 def render_pdf_page(path: Path, page_no: int) -> bytes | None:
+    with PDFIUM:  # cả mở, vẽ, đóng; biến cục bộ của _render giải phóng ngay trong khoá
+        return _render(path, page_no)
+
+
+def _render(path: Path, page_no: int) -> bytes | None:
     import pypdfium2 as pdfium
 
     pdf = pdfium.PdfDocument(str(path))

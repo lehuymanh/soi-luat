@@ -124,8 +124,10 @@ def test_muc_dia_chi_lien_ket_mo_trinh_doc_nut_va_o_chon():
     assert 'href="/doc/1?path=D5.K1&amp;q=b%C3%A1o%20c%C3%A1o" data-doc>Khoản 1 Điều 5</a>' in html
     assert '<span class="dieu-t">Báo cáo</span>' in html
     assert re.search(r'<a class="go" href="/doc/1\?path=D5\.K1[^"]*" data-doc>Mở tại đoạn này</a>', html)
-    assert '<button type="button" class="quiet" data-copy="Khoản 1 Điều 5 Nghị định 15/2020/NĐ-CP">Sao chép trích dẫn</button>' in html
-    assert re.search(r'<input type="checkbox" name="uid" value="1">\s*Chọn để xuất', html)
+    cite = "Khoản 1 Điều 5 Nghị định 15/2020/NĐ-CP"
+    # nhãn trình đọc màn hình theo Điều: 25 nút "Sao chép trích dẫn" và 25 ô "Chọn để xuất" không được trùng tên
+    assert f'<button type="button" class="quiet" data-copy="{cite}" aria-label="Sao chép trích dẫn: {cite}">Sao chép trích dẫn</button>' in html
+    assert re.search(rf'<input type="checkbox" name="uid" value="1" aria-label="Chọn để xuất {cite}">\s*Chọn để xuất', html)
     assert '<mark class="m">báo</mark>' in html
 
 

@@ -33,7 +33,7 @@ lat, rows = [], []
 for d in docs:
     u = conn.execute("SELECT id FROM units WHERE doc_id = ? ORDER BY id DESC LIMIT 1", (d,)).fetchone()
     t = time.perf_counter()
-    r = client.get(f"/doc/{d}", params={"u": u[0] if u else "", "q": "phạt tiền"})
+    r = client.get(f"/doc/{d}", params={"q": "phạt tiền", **({"u": u[0]} if u else {})})  # u rỗng là 422: văn bản không đơn vị bỏ u
     ms = (time.perf_counter() - t) * 1000
     assert r.status_code == 200 and (u is None or f'id="u{u[0]}"' in r.text), (d, r.status_code)
     lat.append(ms)

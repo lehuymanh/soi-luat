@@ -10,6 +10,7 @@
   <main class="wrap">
   <h1>Văn bản trong kho</h1>
   <p>Sửa hiệu lực tại đây. Muốn sửa ranh giới hoặc chữ OCR: sửa file nguồn rồi nạp lại.</p>
+  {% if only %}<p><a href="/review/docs">Xem mọi văn bản trong kho</a></p>{% endif %}
   {% for item in items %}
     <div class="doc" id="d{{ item.doc.id }}">
       <p>

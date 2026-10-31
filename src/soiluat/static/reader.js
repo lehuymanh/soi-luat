@@ -47,7 +47,7 @@
     const top = root.querySelector(".rd-top");
     let html = "";
     try { html = await (await fetch(top.dataset.url, { headers: { "HX-Request": "true" } })).text(); } catch (e) { html = ""; }
-    if (!html.includes('class="pg"')) { toast("Vẫn chưa thấy tệp. Nếu đã chuyển chỗ, hãy nạp lại tệp từ chỗ mới."); return; }
+    if (!html.includes('class="pg"')) { toast("Vẫn chưa thấy tệp. Hãy đưa tệp về đúng đường dẫn ghi ở trên rồi thử lại; nạp lại từ chỗ mới không giúp được."); return; }
     if (top.dataset.full) { location.reload(); return; }
     root.innerHTML = html; initReader(root);
     showTab(root, root.querySelector("#tab-orig"), true);
@@ -72,8 +72,17 @@
       if (j === undefined) return;
       e.preventDefault(); showTab(root, tabs[(j + tabs.length) % tabs.length], true);
     });
-    // ảnh trang không tải được sau khi mở (tệp bị dời, trang hỏng): thay bằng khối báo lỗi
-    root.addEventListener("error", (e) => { if (e.target.matches && e.target.matches(".pg img")) gone(root); }, true);
+    // ảnh trang không tải được sau khi mở: trang đầu hỏng thì coi như tệp đã dời (khối báo mất tệp); trang khác chỉ thay
+    // chính ảnh đó bằng ghi chú, các trang đã tải giữ nguyên (tệp bị thay bằng bản ít trang hơn, trang hỏng, lỗi tạm)
+    root.addEventListener("error", (e) => {
+      const img = e.target.matches && e.target.matches(".pg img") ? e.target : null;
+      if (!img) return;
+      if (img.closest(".pg") === root.querySelector(".orig .pg")) { gone(root); return; }
+      const err = document.createElement("div"); err.className = "err"; err.setAttribute("role", "status");
+      err.append(`Không tải được trang ${img.closest(".pg").id.slice(1)}. `);
+      const b = document.createElement("button"); b.type = "button"; b.className = "link"; b.dataset.retry = ""; b.textContent = "Thử lại";
+      err.append(b); img.replaceWith(err);
+    }, true);
   }
   function initReader(root) {
     if (!root._bound) { bind(root); root._bound = true; }

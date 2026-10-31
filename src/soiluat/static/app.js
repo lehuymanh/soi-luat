@@ -61,10 +61,12 @@
     const more = e.target.closest("[data-more]");
     if (more) {
       const res = more.closest(".res");
-      res.querySelector(".more[hidden]").hidden = false;
+      const shown = res.querySelector(".more[hidden]");
+      shown.hidden = false;
       const next = res.querySelector(".more[hidden]");
       res.querySelector("[data-shown]").textContent = [...res.querySelectorAll("article.card")].filter(a => !a.closest("[hidden]")).length;
-      if (next) more.textContent = `Xem thêm ${next.dataset.n} kết quả`; else more.hidden = true;
+      if (next) more.textContent = `Xem thêm ${next.dataset.n} kết quả`;
+      else { more.hidden = true; shown.querySelector("a.addr")?.focus(); }  // nút ẩn thì focus về BODY: đưa tới mục mới hiện
       return;
     }
     const lg = e.target.closest("[data-legend]");
@@ -228,10 +230,13 @@
     side.inert = on || (narrow.matches && !side.classList.contains("open"));
     $(".topbar").inert = on;
   }
+  let rdSeq = 0;  // /doc về không theo thứ tự bấm (văn bản lớn chậm hơn): chỉ lần bấm cuối được vẽ
   async function openDoc(a) {
+    const my = ++rdSeq;
     let html;
     try { const r = await fetch(a.href, { headers: { "HX-Request": "true" } }); if (!r.ok) throw r.status; html = await r.text(); }
-    catch (e) { location.href = a.href; return; }  // lỗi thì mở trang đầy đủ
+    catch (e) { if (my === rdSeq) location.href = a.href; return; }  // lỗi thì mở trang đầy đủ
+    if (my !== rdSeq) return;
     opener = a;
     reader.classList.remove("wide"); reader.innerHTML = html; reader.hidden = false;
     $("#app").classList.add("reading"); setModal();
@@ -239,9 +244,10 @@
     reader.querySelector("#rd-title").focus({ preventScroll: true });
   }
   function closeDoc() {
+    const a = document.activeElement, away = a !== document.body && !reader.contains(a);  // màn rộng: đang gõ ở ô hỏi thì để yên focus
     reader.hidden = true; reader.classList.remove("wide"); reader.innerHTML = "";
     $("#app").classList.remove("reading"); setModal();
-    if (opener && document.contains(opener)) opener.focus();
+    if (!away && opener && document.contains(opener)) opener.focus();
   }
   document.addEventListener("click", e => {
     const a = e.target.closest("a[data-doc]");
@@ -250,7 +256,7 @@
     const w = e.target.closest("#rd-wide");
     if (w) {
       const on = reader.classList.toggle("wide");
-      w.setAttribute("aria-pressed", String(on)); w.setAttribute("aria-label", on ? "Thu nhỏ trình đọc" : "Mở rộng trình đọc");
+      w.setAttribute("aria-label", on ? "Thu nhỏ trình đọc" : "Mở rộng trình đọc");  // nút bật tắt: đổi nhãn hoặc aria-pressed, không cả hai
       setModal();
     }
   });
