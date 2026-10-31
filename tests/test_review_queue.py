@@ -84,7 +84,7 @@ def test_filter_hieu_luc_http(tmp_path, monkeypatch):
     client, doc_id, _, _ = _client(tmp_path, monkeypatch)
     client.post(f"/docs/{doc_id}/hieu-luc", data={"hieu_luc": "con"})
     empty = client.get("/", params={"q": "bao cao", "hieu_luc": "het"})
-    assert "Không tìm thấy" in empty.text
+    assert "Không còn kết quả sau khi lọc" in empty.text
     hit = client.get("/", params={"q": "bao cao", "hieu_luc": "con"})
     assert "Không tìm thấy" not in hit.text
 

@@ -88,6 +88,8 @@
     if (cur) requestAnimationFrame(() => goTo(root, cur, "center"));
   }
   window.initReader = initReader;
+  // nút "Sao chép trích dẫn" của từng mục kết quả (nằm ngoài trình đọc, nên không qua bind)
+  document.addEventListener("click", (e) => { const b = e.target.closest("#thread [data-copy]"); if (b) copy(b.dataset.copy); });
   const r = document.getElementById("reader");
   if (r && r.querySelector(".rd-top")) initReader(r);
 })();

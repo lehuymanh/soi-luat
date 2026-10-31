@@ -167,4 +167,4 @@ def test_trang_hoi_dap_co_trinh_doc(tmp_path, monkeypatch):
     c, *_ = _setup(tmp_path, monkeypatch)
     t = c.get("/", params={"q": "báo cáo định kỳ"}).text
     assert 'id="reader"' in t and "/static/reader.js" in t
-    assert "data-doc" in t and "/unit/" in t and "q=b%C3%A1o" in t
+    assert "data-doc" in t and "/doc/" in t and "q=b%C3%A1o" in t

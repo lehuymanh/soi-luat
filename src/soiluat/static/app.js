@@ -56,6 +56,28 @@
   if (filtersOn()) { fbox.hidden = false; fbtn.setAttribute("aria-expanded", "true"); }
   syncDot();
 
+  /* ---- kết quả: "Xem thêm 10", đếm ô "Chọn để xuất", chú giải loại đoạn, "Bỏ lọc" ---- */
+  document.addEventListener("click", e => {
+    const more = e.target.closest("[data-more]");
+    if (more) {
+      const res = more.closest(".res");
+      res.querySelector(".more[hidden]").hidden = false;
+      const next = res.querySelector(".more[hidden]");
+      res.querySelector("[data-shown]").textContent = [...res.querySelectorAll("article.card")].filter(a => !a.closest("[hidden]")).length;
+      if (next) more.textContent = `Xem thêm ${next.dataset.n} kết quả`; else more.hidden = true;
+      return;
+    }
+    const lg = e.target.closest("[data-legend]");
+    if (lg) { const dl = lg.closest(".risk").nextElementSibling; dl.hidden = !dl.hidden; lg.setAttribute("aria-expanded", String(!dl.hidden)); return; }
+    const uf = e.target.closest("[data-unfilter]");
+    if (uf) { for (const n of ["loai", "co_quan", "hieu_luc"]) composer.elements[n].value = ""; syncDot(); ask(uf.dataset.unfilter); }
+  });
+  document.addEventListener("change", e => {
+    if (!e.target.matches('input[name="uid"]')) return;
+    const res = e.target.closest(".res"), k = res.querySelectorAll('input[name="uid"]:checked').length, btn = res.querySelector("[data-export]");
+    btn.disabled = !k; btn.textContent = k ? `Xuất Word (${k} đoạn)` : "Xuất Word";
+  });
+
   /* ---- cửa sổ Nạp file / Cài đặt ---- */
   function openPanel(name) { const d = $("#dlg-" + name); if (!d.open) d.showModal(); refresh(name === "settings" || !ocrInfo); }
   document.addEventListener("click", e => {

@@ -33,7 +33,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 import uvicorn
 
 from soiluat import crossrank, pageimg, reader, semantic
-from soiluat.cards import _ocr_unverified, assemble_cards, compact, summarize
+from soiluat.cards import OCR_LABEL, _ocr_unverified, assemble_cards, compact, doc_groups, summarize
 from soiluat.config import HOST, PORT, data_dir, db_path
 from soiluat.db import backup_db, connect, init_schema
 from soiluat.export_word import card_pages, export_cards, page_label
@@ -51,7 +51,11 @@ def _ngay(s):
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 TEMPLATES.env.filters["ngay"] = _ngay
-TEMPLATES.env.globals.update(page_label=page_label, card_pages=card_pages, addr=reader.addr)
+TEMPLATES.env.globals.update(
+    page_label=page_label, card_pages=card_pages, addr=reader.addr, cite=reader.cite, doc_groups=doc_groups,
+    highlight=lambda text, q: reader.highlight(text, reader.query_words(q)),  # đã thoát HTML, gạch dưới từ khớp
+    fname=lambda p: re.split(r"[\\/]", (p or "").split("#vb", 1)[0])[-1], LOAI=reader.LOAI, OCR_LABEL=OCR_LABEL,
+)
 CSRF_TOKEN = secrets.token_urlsafe(32)
 SHOW_CAP = 25  # mục hiện tối đa trên trang (5 đầu, "Xem thêm" từng 10); nhiều hơn thì dòng "còn nữa"
 _ocr_cache: dict | None = None
@@ -127,13 +131,13 @@ def _tpl(request: Request, name: str, ctx: dict):
 
 
 def _card_dates(conn, cards) -> dict[int, dict]:
-    """Ngày ban hành/hiệu lực theo unit đầu của thẻ (Card không mang ngày)."""
+    """Ngày ban hành/hiệu lực, loại và cơ quan theo unit đầu của thẻ (Card không mang các trường này)."""
     ids = [c.unit_ids[0] for c in cards if c.unit_ids]
     if not ids:
         return {}
     q = ",".join("?" * len(ids))
     rows = conn.execute(
-        "SELECT u.id, d.ngay_ban_hanh, d.ngay_hieu_luc FROM units u "
+        "SELECT u.id, d.ngay_ban_hanh, d.ngay_hieu_luc, d.loai, d.co_quan FROM units u "
         f"JOIN documents d ON d.id = u.doc_id WHERE u.id IN ({q})",
         ids,
     ).fetchall()
@@ -207,7 +211,7 @@ def _log_query(conn: sqlite3.Connection, q: str, n: int) -> None:
 
 def _search_ctx(q: str, loai: str, co_quan: str, hieu_luc: str) -> dict:
     conn = get_conn()
-    ctx = {"cards": [], "items": [], "n_items": 0, "cut_note": "", "dates": {}, "n": {"n1": 0, "n2": 0, "n3": 0, "n4": 0}}
+    ctx = {"cards": [], "items": [], "n_items": 0, "n_found": 0, "cut_note": "", "dates": {}, "n": {"n1": 0, "n2": 0, "n3": 0, "n4": 0}}
     hints: list[str] = []
     q2_note = ""
     sure = None
@@ -219,7 +223,7 @@ def _search_ctx(q: str, loai: str, co_quan: str, hieu_luc: str) -> dict:
     if q.strip():
         s = _search(conn, q, loai, co_quan, hieu_luc)
         sure = s["sure"]
-        ctx = _ctx(conn, q, s)
+        ctx = {**_ctx(conn, q, s), "n_found": s["n_found"]}  # n_found: đoạn tìm được trước bộ lọc ("Không còn kết quả sau khi lọc")
         if ctx["cut_note"]:
             q2_note = (q2_note + " " if q2_note else "") + ctx["cut_note"]
         # "Mở toàn văn": số văn bản, để gõ số hiệu không lọt vào trang "Truy vấn bỏ sót" (lọc result_count = 0)
@@ -246,7 +250,11 @@ def home(
     ctx = _search_ctx(q, loai, co_quan, hieu_luc)
     if request.headers.get("HX-Request"):
         return _tpl(request, "_results.html", ctx)
-    return _tpl(request, "index.html", {**ctx, "mode": _mode_status(), "suffixes": ",".join(sorted(SUFFIXES))})
+    conn = get_conn()
+    co_quans = [r[0] for r in conn.execute(
+        "SELECT DISTINCT co_quan FROM documents WHERE co_quan IS NOT NULL AND co_quan != '' ORDER BY co_quan")]
+    conn.close()
+    return _tpl(request, "index.html", {**ctx, "mode": _mode_status(), "suffixes": ",".join(sorted(SUFFIXES)), "co_quans": co_quans})
 
 
 def _mode_status(count_pending: bool = True) -> dict:

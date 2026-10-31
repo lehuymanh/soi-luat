@@ -73,7 +73,11 @@
           <option value="{{ v }}" {% if loai==v %}selected{% endif %}>{{ t }}</option>
           {% endfor %}
         </select>
-        <input type="text" name="co_quan" value="{{ co_quan }}" placeholder="Cơ quan ban hành" aria-label="Cơ quan ban hành">
+        <select name="co_quan" aria-label="Cơ quan ban hành">
+          <option value="">Cơ quan: tất cả</option>
+          {% for cq in co_quans if cq %}<option value="{{ cq }}" {% if co_quan == cq %}selected{% endif %}>{{ cq }}</option>{% endfor %}
+          {% if co_quan and co_quan not in co_quans %}<option value="{{ co_quan }}" selected>{{ co_quan }}</option>{% endif %}
+        </select>
         <select name="hieu_luc" aria-label="Hiệu lực">
           <option value="">Hiệu lực: tất cả</option>
           <option value="con" {% if hieu_luc=='con' %}selected{% endif %}>Còn</option>

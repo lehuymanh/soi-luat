@@ -271,13 +271,13 @@ def test_home_links_synonyms(tmp_path, monkeypatch):
 def test_results_card_shows_pages_notes_intent():
     c = _card(page_to=4, notes=["gc1", "gc2", "gc3", "gc4"], intent="muc_phat")
     html = appmod.TEMPLATES.env.get_template("_results.html").render(
-        cards=[c], n={"n1": 0, "n2": 0, "n3": 0, "n4": 1}, dates={1: {"ngay_ban_hanh": "2020-02-01", "ngay_hieu_luc": None}},
+        cards=[c], n={"n1": 0, "n2": 0, "n3": 0, "n4": 1}, dates={1: {"ngay_ban_hanh": "2020-02-01", "ngay_hieu_luc": "2026-03-01"}},
         csrf_token="t", q="x",
     )
     assert "Trang 3–4" in html
     assert "Ý định: mức phạt" in html
     assert "gc3" in html and "gc4" not in html
-    assert "ban hành 2020-02-01" in html
+    assert "ban hành 01/02/2020" in html and "hiệu lực từ 01/03/2026" in html
 
 
 def test_results_card_without_new_fields():

@@ -1,74 +1,156 @@
-{% set HL = {"con": "Còn hiệu lực", "het": "Hết hiệu lực", "chua_ro": "Hiệu lực chưa rõ"} %}
-{% set LS = {"da_xac_nhan": "liên kết đã duyệt", "may_goi_y": "liên kết máy gợi ý", "chua_noi": "chưa nối chế tài"} %}
+{# Kết quả gọn (P1 K2): mỗi mục là một (văn bản, Điều), nhóm theo văn bản, 5 mục đầu rồi "Xem thêm" từng 10 (khối ẩn).
+   Thẻ dựng bằng SimpleNamespace thiếu trường mới (test) vẫn vẽ được: chỉ cần `cards`, thiếu `items` thì dùng `cards`. #}
+{% set HL = {"con": ("Còn hiệu lực", "pos"), "het": ("Hết hiệu lực", "neg"), "chua_ro": ("Hiệu lực chưa rõ", "neu")} %}
+{% set KIND = [("n1", "mức phạt đã duyệt", "Đoạn nêu mức phạt, người duyệt đã nối với quy định gốc."),
+               ("n2", "mức phạt máy gợi ý", "Đoạn nêu mức phạt. Máy gợi ý nối với quy định gốc, chưa ai duyệt."),
+               ("n3", "nghĩa vụ chưa rõ mức phạt", "Đoạn nêu nghĩa vụ, điều cấm, thời hạn hoặc điều kiện; chưa tìm thấy mức phạt đi kèm."),
+               ("n4", "quy định liên quan", "Đoạn có từ khớp câu hỏi, không thuộc ba loại trên.")] %}
+{% macro pill(h) -%}
+{% set p = HL.get(h) or HL["chua_ro"] %}<span class="pill {{ p[1] }}">{{ p[0] }}</span>
+{%- endmacro %}
+{# Tên văn bản: loại và số hiệu; văn bản quét chưa có số hiệu thì tên tệp. `dt` mang `loai` (từ `dates`, hoặc chính mục "Mở toàn văn"). #}
+{% macro dname(c, dt) -%}
+{{ cite(c.so_hieu, dt.loai if dt and dt.loai else "", "") if c.so_hieu else fname(c.file_path) }}
+{%- endmacro %}
+{% macro cit(c, dt) -%}
+{{ (addr(c.path) if c.path else c.title) ~ " " ~ dname(c, dt) }}
+{%- endmacro %}
+{% macro mt(c, dt) -%}
+{{ [dt.co_quan if dt, ("ban hành " ~ (dt.ngay_ban_hanh | ngay)) if dt and dt.ngay_ban_hanh,
+    ("hiệu lực từ " ~ (dt.ngay_hieu_luc | ngay)) if dt and dt.ngay_hieu_luc, fname(c.file_path)] | select | join(" · ") }}
+{%- endmacro %}
+{% set L = items if items is defined else cards %}
 {% if q2_note %}
-  <p class="warn notice">{{ q2_note }}</p>
+  <p class="band" role="note">{{ q2_note }}</p>
 {% endif %}
-{% if q and not cards %}
-  <div class="empty">
+{% if q and not L %}
   {% if empty_kho %}
-    <p><b>Kho chưa có văn bản.</b></p>
-    <p>Bấm <button type="button" class="linklike" data-open="import">Nạp file</button> rồi tìm lại.</p>
+  <div class="none">
+    <h2>Kho chưa có văn bản</h2>
+    <p>Nạp văn bản vào kho rồi hỏi lại.</p>
+    <button type="button" class="btn" data-open="import">Nạp văn bản</button>
+  </div>
+  {% elif n_found and (loai or co_quan or hieu_luc) %}
+  <div class="none">
+    <h2>Không còn kết quả sau khi lọc</h2>
+    <p>Tìm được {{ n_found }} đoạn, nhưng không đoạn nào thuộc bộ lọc.</p>
+    <button type="button" class="btn" data-unfilter="{{ q }}">Bỏ lọc</button>
+  </div>
   {% else %}
-    <p><b>Không tìm thấy quy định khớp với «{{ q }}» trong kho.</b></p>
-    <p class="note">Thử từ khoá ngắn hơn, bỏ bộ lọc, hoặc gõ số hiệu văn bản.</p>
-    {% if hints %}
-      <p>Gợi ý từ điển: {{ hints | join(", ") }}</p>
-    {% endif %}
-  {% endif %}
+  <div class="none">
+    <h2>Không tìm thấy đoạn nào khớp «{{ q }}»</h2>
+    <p>Đã tìm trong {{ n_docs }} văn bản của kho.</p>
+    <ul>
+      <li>Thử từ khác, đúng cách viết trong văn bản luật.</li>
+      <li>Nếu văn bản chưa có trong kho, hãy nạp văn bản vào rồi hỏi lại.</li>
+      {% if hints %}<li>Gợi ý từ điển: {{ hints | join(", ") }}</li>{% endif %}
+    </ul>
   </div>
-{% endif %}
-{% if cards %}
-  {% if sure is defined and sure is not none %}
-    <p class="note sure {{ 'sure-yes' if sure else 'sure-no' }}">
-      {% if sure %}<b>Độ tin cậy cao:</b> kết quả đầu tiên khớp câu hỏi nhất (máy tự đánh giá, vẫn nên đọc lại điều luật).
-      {% else %}<b>Chưa chắc chắn:</b> nên xem 3 kết quả đầu trước khi chọn.{% endif %}
-    </p>
   {% endif %}
-  <div class="summary" role="list" aria-label="Tóm tắt kết quả">
-    <div class="stat r1" role="listitem"><b>{{ n.n1 }}</b><span>rủi ro, liên kết đã duyệt</span></div>
-    <div class="stat r2" role="listitem"><b>{{ n.n2 }}</b><span>rủi ro có chế tài</span></div>
-    <div class="stat r3" role="listitem"><b>{{ n.n3 }}</b><span>rủi ro chưa rõ chế tài</span></div>
-    <div class="stat r4" role="listitem"><b>{{ n.n4 }}</b><span>quy định liên quan</span></div>
-  </div>
-  <form method="post" action="/export">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    {% for c in cards %}
-      {% set dt = dates.get(c.unit_ids[0]) if (dates is defined and c.unit_ids) else none %}
-      <article class="card r{{ c.rank }}{% if c.grey %} grey{% endif %}">
-        <div class="chead">
-          <span class="badge r{{ c.rank }}">{{ c.kind }}</span>
-          {% if c.intent is defined and c.intent == "muc_phat" %}<span class="badge">Ý định: mức phạt</span>{% endif %}
-          <label class="pick"><input type="checkbox" name="uid" value="{{ c.unit_ids[0] }}"> Chọn xuất</label>
-        </div>
-        <h2>{{ c.title }}</h2>
-        {% if c.sample %}<p class="sample">{{ c.sample }}</p>{% endif %}
-        {% if c.duty_text %}
-          <div class="law">{{ c.duty_text }}<div class="cite">{{ c.duty_addr }}</div></div>
-        {% endif %}
-        {% if c.sanction_text %}
-          <div class="law sanction"><span class="law-tag">Chế tài</span>{{ c.sanction_text }}<div class="cite">{{ c.sanction_addr }}</div></div>
-        {% endif %}
-        {% if c.notes is defined %}{% for nt in c.notes[:3] %}<p class="note">Ghi chú: {{ nt }}</p>{% endfor %}{% endif %}
-        <div class="meta">
-          <span class="badge {{ c.hieu_luc }}">{{ HL.get(c.hieu_luc, c.hieu_luc) }}</span>
-          {% if c.so_hieu %}<span class="m">{{ c.so_hieu }}</span>{% endif %}
-          {% if card_pages(c) %}<span class="m">{{ card_pages(c) }}</span>{% endif %}
-          {% if dt and dt.ngay_ban_hanh %}<span class="m">ban hành {{ dt.ngay_ban_hanh }}</span>{% endif %}
-          {% if dt and dt.ngay_hieu_luc %}<span class="m">hiệu lực từ {{ dt.ngay_hieu_luc }}</span>{% endif %}
-          {% if c.link_status %}<span class="m">{{ LS.get(c.link_status, c.link_status) }}</span>{% endif %}
-          {% if c.synonym_note %}<span class="m">khớp theo từ đồng nghĩa</span>{% endif %}
-          {% if c.match_tier == 7 %}<span class="m">tìm theo nghĩa, không chung từ khoá</span>{% endif %}
-        </div>
-        {% if c.warnings %}<p class="warn">⚠ {{ c.warnings | join(" · ") }}</p>{% endif %}
-        <div class="cfoot">
-          {% if c.file_path %}<span class="file" title="{{ c.file_path }}">{{ c.file_path }}</span>{% endif %}
-          {% if c.unit_ids %}<a class="src" href="/unit/{{ c.unit_ids[0] }}?q={{ q | urlencode }}" target="_blank" rel="noopener" data-doc>Xem nguồn →</a>{% endif %}
-        </div>
-      </article>
-    {% endfor %}
-    <div class="export-bar">
-      <span class="note">Đánh dấu “Chọn xuất” trên thẻ rồi xuất ra Word.</span>
-      <button type="submit" class="primary">Xuất Word các thẻ đã chọn</button>
+{% elif L and L[0].full %}
+  {# truy vấn chỉ có số hiệu: mở cả văn bản, không liệt kê từng Điều #}
+  <header class="res-h"><h2>Số hiệu khớp {{ L | length }} văn bản</h2></header>
+  <p class="finding">
+    {%- if L[0].missing_dieu %}Văn bản này không có Điều {{ L[0].missing_dieu }}. Mở toàn văn để xem các Điều có trong văn bản.
+    {%- else %}Câu hỏi chỉ có số hiệu, nên app mở cả văn bản thay vì liệt kê từng Điều.{% endif -%}
+  </p>
+  <div class="full-list">
+    {% for x in L[:5] %}
+    <div class="full">
+      <h3>{{ dname(x, x) }} {{ pill(x.hieu_luc) }}</h3>
+      <p>{{ mt(x, x) }} · {% if x.n_dieu %}{{ x.n_dieu }} Điều{% else %}chưa tách Điều{% endif %}{% if x.n_pages > 1 %} · {{ x.n_pages }} trang{% endif %}</p>
+      <a class="btn" href="/doc/{{ x.doc_id }}" data-doc>Mở toàn văn</a>
     </div>
+    {% endfor %}
+  </div>
+  {% if L | length > 5 %}<p class="cap">Còn {{ L | length - 5 }} văn bản khớp nữa. Gõ đủ số hiệu để mở đúng văn bản.</p>
+  {% elif L[0].so_hieu %}<p class="cap">Muốn xem một Điều, gõ thêm “Điều n”, ví dụ: {{ L[0].so_hieu }} Điều 21.</p>{% endif %}
+{% elif L %}
+  {% set N = n_items if n_items is defined else L | length %}
+  {% set top = L[0] %}
+  {% set tdt = dates.get(top.unit_ids[0]) if (dates is defined and top.unit_ids) else none %}
+  {% set topcite = cit(top, tdt) %}
+  {% set judged = sure is defined and sure is not none %}
+  {% set ft = [LOAI.get(loai, loai) if loai, co_quan if co_quan, (HL[hieu_luc][0] | lower) if hieu_luc in HL] | select | list %}
+  {% set risk = [] %}
+  {% for k, t, d in KIND if n[k] %}{% set _ = risk.append(n[k] ~ " " ~ t) %}{% endfor %}
+  <form class="res" method="post" action="/export">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <header class="res-h">
+    <h2>{{ N }} kết quả trong {{ doc_groups(L) | length }} văn bản</h2>
+    {% if top.intent is defined and top.intent == "muc_phat" %}<span class="pill neu">Ý định: mức phạt</span>{% endif %}
+    {% if judged %}<span class="pill {{ 'pos' if sure else 'warn' }}">{{ 'Khớp rõ' if sure else 'Chưa chắc chắn' }}</span>{% endif %}
+  </header>
+  <p class="finding">
+    {%- if N == 1 %}Chỉ có một đoạn khớp: <b>{{ topcite }}</b>.
+    {%- elif judged and sure %}Đoạn đầu khớp hơn hẳn các đoạn sau: <b>{{ topcite }}</b>.
+    {%- elif judged %}Nhiều đoạn khớp gần ngang nhau. Đọc vài đoạn đầu, bắt đầu từ <b>{{ topcite }}</b>.
+    {%- else %}Đoạn đầu: <b>{{ topcite }}</b>.{% endif -%}
+  </p>
+  {% if ft %}<p class="filters">Đang lọc: {{ ft | join(", ") }}.</p>{% endif %}
+  <p class="risk">{% if risk %}<span>Theo loại đoạn: {{ risk | join(" · ") }}.</span>{% endif %}<button type="button" class="link" data-legend aria-expanded="false">Các loại đoạn là gì?</button></p>
+  <dl class="legend" hidden>{% for k, t, d in KIND %}<dt>{{ t }}</dt><dd>{{ d }}</dd>{% endfor %}</dl>
+  {% set ns = namespace(seen=[]) %}
+  {% for blk in [L[:5], L[5:15], L[15:25]] if blk %}
+    {% if not loop.first %}<div class="more" hidden data-n="{{ blk | length }}">{% endif %}
+    {% for rows in doc_groups(blk) %}
+      {% set r0 = rows[0] %}
+      {% set did = r0.doc_id if r0.doc_id is defined else none %}
+      {% set cont = did is not none and did in ns.seen %}
+      {% set gdt = dates.get(r0.unit_ids[0]) if (dates is defined and r0.unit_ids) else none %}
+      {# nhóm mà mọi mục đều là chữ OCR chưa đối chiếu: cảnh báo một lần ở đầu nhóm, bỏ khỏi từng mục #}
+      {% set gocr = not cont and (rows | selectattr("ocr_unverified") | list | length) == (rows | length) %}
+      {% set skip = ["Hiệu lực chưa rõ", "Văn bản hết hiệu lực"] + ([OCR_LABEL] if gocr else []) %}
+      <section class="grp{% if r0.hieu_luc == 'het' %} faded{% endif %}">
+        <header class="grp-h">
+          {% if cont %}
+          <h3>{{ dname(r0, gdt) }} <span>· tiếp, thêm {{ rows | length }} Điều</span></h3>
+          {% else %}
+          <h3>{{ dname(r0, gdt) }} <span>· {{ rows | length }} Điều</span></h3>
+          {{ pill(r0.hieu_luc) }}
+          <p class="mt">{{ mt(r0, gdt) }}</p>
+          {% if gocr %}<p class="warn-line">{{ OCR_LABEL }}</p>{% endif %}
+          {% endif %}
+        </header>
+        <ul class="items">
+        {% for c in rows %}
+          {% set dt = dates.get(c.unit_ids[0]) if (dates is defined and c.unit_ids) else none %}
+          {% set lab = addr(c.path) if c.path else "" %}
+          {% set href = ("/doc/%s?path=%s&q=%s" % (c.doc_id, c.path | urlencode, q | urlencode)) if (c.doc_id and c.path)
+                        else ("/unit/%s?q=%s" % (c.unit_ids[0], q | urlencode)) %}
+          {% set warns = (c.warnings | reject("in", skip) | list) if c.warnings else [] %}
+          <li class="item"><article class="card r{{ c.rank }}">
+            <div class="item-h"><a class="addr" href="{{ href }}" data-doc>{{ lab or c.title }}</a>{% if lab %}<span class="dieu-t">{{ c.head or c.title }}</span>{% endif %}</div>
+            <p class="snip">{{ highlight(c.snippet or c.duty_text, q) }}</p>
+            {% if warns %}<p class="warn-line">{{ warns | join(" · ") }}</p>{% endif %}
+            {% if c.more %}<p class="also-in">Cùng Điều còn khớp: {% for m in c.more %}{% if not loop.first %} · {% endif %}<a class="link" href="/doc/{{ c.doc_id }}?path={{ m | urlencode }}&amp;q={{ q | urlencode }}" data-doc>{{ addr(m).split(" Điều")[0] }}</a>{% endfor %}</p>{% endif %}
+            <div class="item-f">
+              <a class="go" href="{{ href }}" data-doc>Mở tại đoạn này</a>
+              <button type="button" class="quiet" data-copy="{{ cit(c, dt) }}">Sao chép trích dẫn</button>
+              {% if card_pages(c) %}<span class="meta">{{ card_pages(c) }}</span>{% endif %}
+              {% if c.synonym_note == "dong_nghia" %}<span class="meta">khớp theo từ đồng nghĩa</span>{% endif %}
+              {% if c.match_tier == 7 %}<span class="meta">tìm theo nghĩa, không chung từ khoá</span>{% endif %}
+              {% if c.unit_ids %}<label class="pick"><input type="checkbox" name="uid" value="{{ c.unit_ids[0] }}"> Chọn để xuất</label>{% endif %}
+            </div>
+            {% if c.notes %}<details class="also"><summary>Ghi chú ({{ c.notes[:3] | length }})</summary><ul>{% for nt in c.notes[:3] %}<li>{{ nt }}</li>{% endfor %}</ul></details>{% endif %}
+            {% if c.also_in %}<details class="also"><summary>Cũng có ở {{ c.also_in | length }} văn bản khác</summary><ul>
+              {% for a in c.also_in %}{% set adt = dates.get(a.unit_ids[0]) if (dates is defined and a.unit_ids) else none %}
+              <li><a class="link" href="/unit/{{ a.unit_ids[0] }}?q={{ q | urlencode }}" data-doc>{{ dname(a, adt) }}</a><span>{{ fname(a.file_path) }}</span>{{ pill(a.hieu_luc) }}</li>
+              {% endfor %}
+            </ul></details>{% endif %}
+          </article></li>
+        {% endfor %}
+        </ul>
+      </section>
+      {% if did is not none %}{% set ns.seen = ns.seen + [did] %}{% endif %}
+    {% endfor %}
+    {% if not loop.first %}</div>{% endif %}
+  {% endfor %}
+  <footer class="res-f">
+    <span class="meta">Đang hiện <span data-shown>{{ L[:5] | length }}</span> trên {{ N }}</span>
+    {% if L | length > 5 %}<button type="button" class="btn" data-more>Xem thêm {{ L[5:15] | length }} kết quả</button>{% endif %}
+    <button type="submit" class="btn primary" data-export disabled>Xuất Word</button>
+  </footer>
+  {% if N > 25 %}<p class="cap">Còn {{ N - 25 }} mục nữa. Thêm số hiệu hoặc từ khoá để thu hẹp.</p>{% endif %}
   </form>
 {% endif %}
