@@ -12,3 +12,6 @@ Before tagging, the version must match in every place it lives, and the user mus
 - Build the wheel and sdist locally. The Windows installer must be built by `pack/build.ps1` on a Windows machine; say so in the report instead of claiming it exists.
 - Push the tag and the release notes. If no tool can create the GitHub Release object, tell the user to create it from the tag.
 - Do not merge the PR yourself; the user decides the merge.
+- Recount every figure in the release notes (findings found, confirmed, fixed, deferred) from the ledger or the commit list just before writing it. A hand count gave 31 where the list held 32.
+- Each measured number in the notes comes from a run on the final commit, and the notes name that commit. A number taken before the last fix is stale.
+- Keep the release-notes draft as `CHANGELOG.md` inside the repo and commit it early. A draft kept only in the scratchpad is lost with the container.
