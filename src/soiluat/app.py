@@ -39,7 +39,15 @@ from soiluat.fold import display_addr
 from soiluat.jobs import JOBS, SUFFIXES
 from soiluat.search import DIEU_CAP, apply_doc_filters, cascade_search
 
+
+def _ngay(s):
+    """'2020-02-01' thành '01/02/2020' như mẫu; giá trị không đúng dạng ISO giữ nguyên."""
+    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", s or "")
+    return f"{m[3]}/{m[2]}/{m[1]}" if m else s
+
+
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+TEMPLATES.env.filters["ngay"] = _ngay
 TEMPLATES.env.globals.update(page_label=page_label, card_pages=card_pages, addr=reader.addr)
 CSRF_TOKEN = secrets.token_urlsafe(32)
 _ocr_cache: dict | None = None
@@ -578,12 +586,15 @@ def doc_view(request: Request, doc_id: int, u: int | None = None, path: str = ""
     else:
         where = reader.addr(su["path"])
         cite = reader.cite(d["so_hieu"], d["loai"], su["path"]) if d["so_hieu"] else f"{where} {fname}"
-    has_img = pageimg.can_view(d["file_path"]) and pageimg.source_file(d["file_path"]) is not None
+    can_view = pageimg.can_view(d["file_path"])
+    has_img = can_view and pageimg.source_file(d["file_path"]) is not None
     in_sel = [p for p in pages if su and (su["page_from"] or 0) <= p["page_no"] <= (su["page_to"] or su["page_from"] or 0)]
     ctx = {
         "view": view, "d": d, "su": su, "name": name, "fname": fname, "where": where, "cite": cite,
         "pill": HL_PILL.get(d["hieu_luc"], ("Hiệu lực chưa rõ", "neu")), "ocr_warn": ocr_warn,
-        "pages": in_sel, "raw_pages": [] if has_img else pages, "q": q, "page": page or pf,
+        "pages": in_sel, "raw_pages": [] if has_img else pages, "q": q,
+        "can_view": can_view, "has_img": has_img, "page_nos": [p["page_no"] for p in pages],
+        "page": page or (su["page_from"] if su else None) or 1,
         "full": not request.headers.get("HX-Request"),
     }
     return _tpl(request, "doc.html" if ctx["full"] else "_reader.html", ctx)
@@ -605,6 +616,8 @@ def page_image(doc_id: int, page_no: int):
         if png is None:
             return HTMLResponse("Không có trang này.", status_code=404)
         return Response(png, media_type="image/png", headers=hdr)
+    if page_no != 1:  # ảnh đơn chỉ có một trang
+        return HTMLResponse("Không có trang này.", status_code=404)
     return FileResponse(src, media_type="image/png" if kind == "png" else "image/jpeg", headers=hdr)
 
 

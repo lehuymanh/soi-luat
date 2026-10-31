@@ -307,7 +307,7 @@ def test_unit_page_lists_notes_and_dates(tmp_path, monkeypatch, db, sample_doc):
     r = TestClient(appmod.app).get(f"/unit/{dieu['id']}")
     assert r.status_code == 200
     assert "Chú thích kiểm thử D" in r.text
-    assert "2020-01-15" in r.text and "2020-03-01" in r.text
+    assert "15/01/2020" in r.text and "01/03/2020" in r.text
     docs = TestClient(appmod.app).get("/review/docs")
     assert docs.status_code == 200 and "2020-01-15" in docs.text
 

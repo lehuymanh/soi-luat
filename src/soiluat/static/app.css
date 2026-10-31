@@ -199,6 +199,14 @@ mark.m { background: none; color: inherit; text-decoration: underline; text-deco
 .tech dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
 .tech pre { white-space: pre-wrap; font: inherit; color: var(--text); background: var(--raised); padding: 10px 12px; border-radius: var(--r-ctl); margin: 8px 0 0; }
 .tech details { margin-top: 8px; }
+.orig { padding: 16px 20px 40px; display: grid; gap: 16px; justify-items: center; }
+.pg { margin: 0; width: 100%; max-width: 760px; scroll-margin-top: 12px; }
+.pg img { display: block; width: 100%; height: auto; aspect-ratio: auto 1 / 1.414; background: #fff; border: 1px solid var(--border); border-radius: 2px; } /* giữ chỗ khổ A4 khi ảnh chưa tải, để cuộn tới trang không bị lệch */
+.pg figcaption { margin-top: 4px; text-align: center; color: var(--muted); font-size: 12px; }
+.none { width: 100%; max-width: 560px; padding: 16px; border: 1px dashed var(--control); border-radius: var(--r-card); }
+.none h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.none p { margin: 6px 0 0; max-width: 64ch; }
+.none .btn { margin-top: 10px; }
 @media (max-width: 1240px) {
   .reader:not(.wide) { position: fixed; z-index: 40; top: 0; right: 0; bottom: 0; width: min(720px, 100%); box-shadow: var(--shadow-float); border: 0; }
 }

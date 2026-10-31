@@ -92,3 +92,65 @@ def test_doc_co_anh_trang_thi_khong_chep_nguyen_van(tmp_path, monkeypatch):
     conn.close()
     r = c.get(f"/doc/{doc_id}", params={"u": uid})
     assert r.status_code == 200 and "Nguyên văn trang" not in r.text
+
+
+def test_doc_ngay_in_dd_mm_yyyy(tmp_path, monkeypatch):
+    c, doc_id, uid, _ = _setup(tmp_path, monkeypatch)
+    conn = _db()
+    conn.execute("UPDATE documents SET ngay_ban_hanh = '2020-01-15', ngay_hieu_luc = NULL WHERE id = ?", (doc_id,))
+    conn.commit()
+    t = c.get(f"/doc/{doc_id}", params={"u": uid}).text
+    assert "ban hành 15/01/2020" in t and "hiệu lực từ" not in t
+    conn.execute("UPDATE documents SET ngay_hieu_luc = '2020-03-01' WHERE id = ?", (doc_id,))
+    conn.commit()
+    conn.close()
+    assert "hiệu lực từ 01/03/2020" in c.get(f"/doc/{doc_id}", params={"u": uid}).text
+
+
+# --- R3: tab Bản gốc, cuộn liên tục các trang ---
+def _doi_tep(doc_id, name):
+    conn = _db()
+    conn.execute("UPDATE documents SET file_path = ? WHERE id = ?", (name, doc_id))
+    conn.commit()
+    conn.close()
+
+
+def test_ban_goc_an_voi_txt(tmp_path, monkeypatch):
+    c, doc_id, uid, _ = _setup(tmp_path, monkeypatch)
+    t = c.get(f"/doc/{doc_id}", params={"u": uid}).text
+    assert 'id="tab-orig"' not in t and "/page/" not in t
+
+
+def test_ban_goc_png_va_tep_mat(tmp_path, monkeypatch):
+    from soiluat.pageimg import _png
+
+    c, doc_id, uid, _ = _setup(tmp_path, monkeypatch)
+    (tmp_path / "anh.png").write_bytes(_png(b"\xff\xff\xff", 1, 1, 3))
+    _doi_tep(doc_id, "anh.png")
+    t = c.get(f"/doc/{doc_id}", params={"u": uid}).text
+    assert 'id="tab-orig"' in t and f'src="/page/{doc_id}/1"' in t
+    assert c.get(f"/page/{doc_id}/1").status_code == 200
+    assert c.get(f"/page/{doc_id}/2").status_code == 404  # ảnh đơn chỉ có trang 1
+    (tmp_path / "anh.png").unlink()
+    t = c.get(f"/doc/{doc_id}", params={"u": uid}).text
+    assert 'id="tab-orig"' in t and "/page/" not in t
+    assert 'role="alert"' in t and "Không mở được ảnh trang" in t and "data-retry" in t
+
+
+def test_ban_goc_pdf_cuon_lien_tuc(tmp_path, monkeypatch):
+    from PIL import Image
+
+    c, doc_id, uid, _ = _setup(tmp_path, monkeypatch)
+    pages = [Image.new("RGB", (300, 420), "white") for _ in range(2)]
+    pages[0].save(tmp_path / "v.pdf", save_all=True, append_images=pages[1:])
+    _doi_tep(doc_id, "v.pdf")
+    conn = _db()
+    conn.execute(
+        "INSERT INTO pages(doc_id, page_no, kind, extraction_method, ocr_status, verification_status) "
+        "VALUES (?, 2, 'text', 'pdf_text', 'khong_can', 'auto')", (doc_id,))
+    conn.commit()
+    conn.close()
+    t = c.get(f"/doc/{doc_id}", params={"u": uid, "page": 2}).text
+    assert 'id="p1"' in t and 'id="p2"' in t and 'data-start="2"' in t
+    r = c.get(f"/page/{doc_id}/2")
+    assert r.status_code == 200 and r.content[:8] == b"\x89PNG\r\n\x1a\n"
