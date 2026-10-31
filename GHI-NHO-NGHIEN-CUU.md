@@ -17,6 +17,9 @@ Viết 31/10/2026, cuối P0 của lộ trình 1.0. Người đọc chính: agen
 - P0, phần máy làm được: **xong**. Còn chờ chủ dự án (lộ trình mục 9): duyệt mẫu `mau/giao-dien-1.0.html` (cổng để bắt đầu P1), chốt cách tính cổng câu trả lời AI (điều 10), đo trên máy 16 GB, ≥ 100 câu hỏi thật, chế độ tìm mặc định (điều 8).
 - Mã trả lời AI (`src/soiluat/answer.py`) **chưa gắn vào app**; chỉ `bench/llm/run.py` gọi nó. P3 sẽ gắn.
 - Số test của vòng 2 đo trên mã `b17461f`. Sau đó bản soát sửa thêm 6 lỗi (`bc9f9af`). Lần đo LLM kế tiếp phải chạy trên mã mới, và chạy lại sau khi P1 sửa parser (chữ đưa vào mô hình đổi).
+- **Bước đầu tiên:** xem lộ trình mục 9 để biết chủ dự án đã trả lời điều 9 (mẫu giao diện) và điều 10 (cách tính cổng) chưa. Mẫu đã duyệt thì làm P1 theo `soi-luat-ke-hoach-p1.md`, bắt đầu từ mục 1 "Cần chốt", rồi N0. Chưa duyệt thì chưa viết mã P1; làm "Việc trước P3" mục 1 hoặc 3 (lộ trình mục 6, P3).
+- **Không đo lại khi mã liên quan chưa đổi** (đã chốt; số ở tài liệu nguồn): chọn mô hình (Qwen; Gemma 4 E4B và Bolt đã đo, `bench/llm/KET-QUA.md` vòng 2); mốc tìm kiếm P0 trên văn bản thật (`bench/van-ban-that/KET-QUA.md`); A/B ba biến thể `pham_vi` trên train; mốc offline bằng chứng (mục 3.2). Khi parser, `src/soiluat/answer.py` hay mô hình đổi thì đo lại hai nhánh trước/sau trên cùng mã (kế hoạch P1, B1), không so thẳng với số P0.
+- **Môi trường này không kiểm được:** tốc độ và RAM trên máy 16 GB Windows (`llama-server` bản Windows), gói PyInstaller, hành vi giao diện trong trình duyệt. Có máy 16 GB thì đo việc đó trước (`bench/llm/README.md`).
 
 ## 2. Kết luận nghiên cứu
 
