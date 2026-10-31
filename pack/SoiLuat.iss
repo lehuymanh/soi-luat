@@ -6,7 +6,7 @@
 #ifndef Out
   #define Out "."
 #endif
-#define AppVer "0.8"
+#define AppVer "0.9"
 
 [Setup]
 AppId={{6F1C2B9E-4A53-4D0B-9C57-5015A1B0C0DE}
