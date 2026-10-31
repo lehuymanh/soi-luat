@@ -160,6 +160,8 @@ class _Fake(BaseHTTPRequestHandler):
 
 def test_chat_posts_schema_to_local_server_without_proxy(db, doc, monkeypatch):
     monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9")  # proxy chết: nếu dùng proxy thì lỗi
+    for k in ("NO_PROXY", "no_proxy"):  # máy có NO_PROXY=127.0.0.1 thì test vô nghĩa
+        monkeypatch.delenv(k, raising=False)
     srv = HTTPServer(("127.0.0.1", 0), _Fake)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
@@ -172,6 +174,8 @@ def test_chat_posts_schema_to_local_server_without_proxy(db, doc, monkeypatch):
     assert path == "/v1/chat/completions" and auth == "Bearer k1"
     assert body["response_format"]["schema"]["anyOf"][0]["properties"]["cac_y"]["items"]["properties"]["nguon"]["items"]["enum"] == [1, 2]
     assert body["max_tokens"] == answer.N_PREDICT and body["messages"][0]["content"] == answer.SYSTEM
+    assert body["seed"] == answer.SEED and body["temperature"] == answer.TEMPERATURE and body["cache_prompt"] is True
+    assert body["messages"][1]["content"].endswith("Câu hỏi: Hỏi?")
     assert "[2] 100/2019/NĐ-CP — Điều 6." in body["messages"][1]["content"]
     assert answer.check(res["choices"][0]["message"]["content"], ps, "Hỏi?").json_ok
 
@@ -203,7 +207,8 @@ def test_pick_does_not_spend_budget_beside_a_line_that_did_not_fit():
     lines = [("D1.K1", "1. Mở đầu " + "y" * 40), ("D1.K2", "2. Xe máy đi vào đường cấm " + "x" * 300),
              ("D1.K3", "3. Câu bên cạnh " + "z" * 34), ("D1.K4", "4. Xe máy đi vào khu vực cấm bị phạt.")]
     out = answer._pick(lines, "xe máy đi vào đường cấm", 120)  # K1 + K3 trước thì K4 không còn chỗ
-    assert "4. Xe máy đi vào khu vực cấm" in out and "Mở đầu" not in out
+    # K2 quá dài: giữ một khúc quanh chỗ khớp (dòng liền kề của nó được vào), dòng khớp thứ hai K4 vẫn còn chỗ
+    assert "2. Xe máy đi vào đường cấm" in out and "4. Xe máy đi vào khu vực cấm" in out and len(out) <= 122
 
 
 def test_reference_checker_cases_from_round_one():
@@ -315,3 +320,72 @@ def test_review_round2_oversize_piece_still_gives_a_window_and_colon_keeps_label
     assert label_and_amount in [t for _, t in answer._sentences([("D7.K2", line)])]  # không tách ở dấu hai chấm
     out = answer._pick([("D7.K1", "1. Phạm vi."), ("D7.K2", line)], "mức phạt đối với tổ chức", 220)
     assert label_and_amount in out
+
+
+def test_review_ponytail_number_checker_holes():
+    def kept(y, p):
+        return answer.check(_reply(cac_y=[{"y": y, "nguon": [1]}]), [p], "q").answer["cac_y"] != []
+
+    qh = answer.Passage(1, 1, 1, "36/2024/QH15", "Điều 8. Mức phạt", "1. Phạt tiền từ 500.000 đồng đến 1.000.000 đồng.")
+    assert not kept("Nộp phạt trong 5 ngày.", qh)  # chữ số cuối của 'QH15' không bảo lãnh số 5
+    assert Decimal(4) not in answer.numbers("Luật số 45/2019/UBTVQH14", lenient=True)
+    hl = answer.Passage(1, 1, 1, "", "Điều 9. Hiệu lực", "1. Luật này có hiệu lực từ ngày 01 tháng 7 năm 2025.")
+    assert kept("Có hiệu lực từ năm 2025.", hl) and kept("Áp dụng từ tháng 7 năm 2025.", hl)
+    assert answer.numbers("Theo các đoạn 1 và 2, xem đoạn [1–2].") == set()  # mã đoạn, không phải số
+
+
+def test_review_ponytail_pick_keeps_best_line_when_lead_in_plus_line_overflows():
+    lines = [("D1.K2", "2. Mức phạt tiền đối với các hành vi sau đây " + "L" * 250),
+             ("D1.K2.a", "a) Hành vi A thông thường " + "A" * 60),
+             ("D1.K2.b", "b) Không đội mũ bảo hiểm khi đi xe máy trên đường " + "B" * 200),
+             ("D1.K2.c", "c) Hành vi C khác " + "C" * 60), ("D1.K2.d", "d) Hành vi D khác " + "D" * 60)]
+    out = answer._pick(lines, "không đội mũ bảo hiểm khi đi xe máy", 480)
+    assert "Không đội mũ bảo hiểm khi đi xe máy" in out and len(out) <= 490
+    fill = [(f"D2.K{i}", f"{i}. Nội dung khác số {i} " + "z" * 140) for i in range(1, 12)]
+    best = ("D2.K12", "12. " + "w " * 300 + "Thời hạn lưu chiểu tối thiểu là 10 ngày trước khi phát hành. " + "v " * 400)
+    assert "10 ngày" in answer._pick(fill + [best], "thời hạn lưu chiểu tối thiểu là bao nhiêu ngày", 1500)
+
+
+def test_review_ponytail_cuts_never_split_a_number():
+    text = ("Mở đầu " + "chữ " * 60 + "phạt tiền từ 1.500.000 đồng đến 2.000.000 đồng đối với hành vi lưu chiểu chậm "
+            + "đuôi " * 80)
+    for size in range(40, 120, 7):
+        w = answer._window(text, "lưu chiểu chậm phạt tiền", size)
+        body = w.strip("…")
+        assert body == body.strip() and f" {body} " in f" {text} "  # chỉ cắt ở khoảng trắng
+        assert len(w) <= size
+    long_first = "1. Phạt tiền " + "từ 1.000.000 đồng đến 2.000.000 đồng; " * 10
+    p = answer.Passage(1, 1, 1, "", "Điều 3. Phạt", long_first)
+    quote = answer.extractive([p])
+    assert quote.endswith("…") and quote[:-1].rstrip() in "Trích nguyên văn Điều 3. Phạt: " + long_first
+
+
+def test_review_ponytail_salvage_cut_points_and_visible_fields(db, doc):
+    ps = _ps(db)
+    head = '{"tien_de_sai": "", "pham_vi": "hẹp hơn", "du_can_cu": true, "tra_loi": "Phạt từ 1 đến 2 triệu đồng.", "cac_y": ['
+    one = '{"y": "Phạt 1.000.000 đồng đến 2.000.000 đồng.", "nguon": [1]}'
+    r = answer.check(head + one, ps, "q")  # cắt ngay sau dấu đóng của ý đầu
+    assert r.cut and r.answer["cac_y"] == [json.loads(one)] and r.raw["pham_vi"] == "hẹp hơn"
+    r = answer.check(head + one + ', {"y": "Phạt 400.000 đồng.",', ps, "q")  # cắt giữa y và nguon
+    assert r.cut and r.answer["cac_y"] == [json.loads(one)]
+    r = answer.check('[{"a": 1}, {"b"', ps, "q")
+    assert not r.json_ok and r.replaced
+    r = answer.check(_reply(tien_de_sai="Mức phạt là 9 triệu đồng.", luu_y=["Nộp trong 99 ngày."],
+                            cac_y=[{"y": "Phạt 罚款 400.000 đồng.", "nguon": [1]}]), ps, "q")
+    assert sorted(r.dropped) == ["cac_y:cjk", "luu_y:so", "tien_de_sai:so"] and r.answer["tien_de_sai"] == ""
+    assert answer.check(_reply(tien_de_sai="Mức phạt là 罚款."), ps, "q").dropped == ["tien_de_sai:cjk"]
+    named = answer.Passage(1, 1, 1, "quyet_dinh_77.pdf", "Điều 1. Phạm vi", "1. Áp dụng chung.", "ban hành 2020-02-03")
+    src = answer.source_numbers(named)
+    assert Decimal(77) not in src and "3/2/2020" in src  # tên file không phải nội dung; ngày ban hành thì có
+
+
+def test_review_ponytail_number_words_and_units():
+    n = answer.numbers
+    assert n("phạt từ một trăm năm nghìn đồng", lenient=True) == {Decimal(105_000)}
+    assert n("ba bốn ngày", lenient=True) == {Decimal(3), Decimal(4)}
+    assert n("2 tỷ đồng") == n("2 tỉ") == n("hai tỷ", lenient=True) == {Decimal(2_000_000_000)}
+
+
+def test_review_ponytail_bigram_breaks_ties():
+    lines = [("K1", "1. đường đi cấm vào máy xe " + "x" * 40), ("K2", "2. xe máy đi vào đường cấm " + "y" * 40)]
+    assert answer._pick(lines, "xe máy đi vào đường cấm", 70).startswith("2. xe máy")

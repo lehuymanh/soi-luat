@@ -64,8 +64,6 @@ def load_queries(path: Path, split: str) -> tuple[list[dict], str]:
 def pick_sample(qs: list[dict], n: int, skip: int = 0) -> list[dict]:
     """n câu theo seed. skip > 0: bỏ đúng `skip` câu mà `--n skip` sẽ chấm, lấy n câu từ phần còn lại. Không cắt tiền tố
     của sample(qs, skip + n): random.sample đổi thuật toán theo cỡ mẫu nên tiền tố có thể khác sample(qs, skip)."""
-    if not skip:
-        return random.Random(SEED).sample(qs, min(n, len(qs)))
     held = {q["id"] for q in random.Random(SEED).sample(qs, min(skip, len(qs)))}
     rest = [q for q in qs if q["id"] not in held]
     return random.Random(SEED).sample(rest, min(n, len(rest)))
@@ -261,6 +259,8 @@ def main() -> None:
         by_key[k].append(rid)
     qs = [q for q in qs if any(k in by_key for k in q["gold"])]
     sample = pick_sample(qs, args.n, args.skip)
+    if not sample:
+        sys.exit("Không còn câu hỏi nào sau khi lọc theo kho và --skip.")
     jobs = [("dan", q) for q in sample] + [("tu_choi", q) for q in sample] + [("bay", t) for t in traps(conn, args.bay)]
     random.Random(SEED).shuffle(jobs)  # xen kẽ ba phép: máy nóng/nguội không lệch về một phép
     meta = {"model": model_id(args.url), "db": str(args.db), "queries": str(args.queries), "mode": args.mode,

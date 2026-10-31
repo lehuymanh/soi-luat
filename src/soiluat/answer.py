@@ -133,13 +133,19 @@ def _window(text: str, query: str, size: int) -> str:
     size -= 2
     starts = [max(0, min(h - size // 4, len(text) - size)) for h, _ in hits] or [0]
     a = max(starts, key=lambda b: (len({w for h, w in hits if b <= h < b + size}), -b))
-    return ("…" if a else "") + text[a:a + size] + ("…" if a + size < len(text) else "")
+    e = min(a + size, len(text))
+    if a and text[a - 1] != " ":  # cắt ở khoảng trắng, không để số hay chữ cụt ('2.000…')
+        a = text.find(" ", a, e) + 1 or e
+    if e < len(text) and text[e] != " ":
+        e = max(text.rfind(" ", a, e), a)
+    return ("…" if a else "") + text[a:e].strip() + ("…" if e < len(text) else "")
 
 
 def _pick(lines: list[tuple[str, str]], query: str, budget: int) -> str:
     """Giữ dòng khớp câu hỏi nhất và dòng liền kề, theo thứ tự gốc, trong `budget` ký tự. Dòng nào được giữ thì giữ cả
     câu dẫn của nó (điểm 'b) Làm giả…' kéo theo khoản '2. Phạt tiền từ … đối với các hành vi sau'): mất câu dẫn là mất
-    mức phạt."""
+    mức phạt. Câu khớp nhất không vừa thì bỏ bớt dòng khớp rất yếu rồi lấy một khúc quanh chỗ khớp; không ưu tiên nó
+    trước mọi dòng khác vì ở bản OCR câu khớp nhất đôi khi là khối rác (chữ ký dính phụ lục), đáp án nằm ở câu thứ hai."""
     texts = [t for _, t in lines]
     if sum(len(t) + 1 for t in texts) <= budget:
         return "\n".join(texts)
@@ -149,13 +155,16 @@ def _pick(lines: list[tuple[str, str]], query: str, budget: int) -> str:
     at = {p: i for i, (p, _) in enumerate(lines)}
     keep: set[int] = set()
 
-    def with_parents(i: int) -> list[int]:
-        out, p = [i], lines[i][0]
+    def parents(i: int) -> list[int]:
+        out, p = [], lines[i][0]
         while "." in p:
             p = p.rsplit(".", 1)[0]
             if p in at:
                 out.append(at[p])
-        return [j for j in out if j not in keep]
+        return out
+
+    def with_parents(i: int) -> list[int]:
+        return [j for j in (i, *parents(i)) if j not in keep]
 
     ranked = sorted(range(len(texts)), key=lambda i: (-scores[i], i))
     used = 0
@@ -170,9 +179,19 @@ def _pick(lines: list[tuple[str, str]], query: str, budget: int) -> str:
                     keep.update(group)
                     used += cost
     best = ranked[0]
-    if best not in keep and (budget - used > 80 or not keep):  # câu khớp nhất dài hơn phần còn lại: lấy khúc quanh chỗ khớp
-        texts[best] = _window(texts[best], query, max(budget - used - 1, 3))
-        keep.add(best)
+    if best not in keep:  # câu khớp nhất (kèm câu dẫn) không vừa: bỏ bớt dòng khớp rất yếu để lấy khúc quanh chỗ khớp
+        need = min(len(texts[best]) + 1, budget // 2)
+        weak = scores[best] / 4
+        leads = {k for j in keep if scores[j] > weak for k in parents(j)}
+        for k in sorted(keep, reverse=True):
+            if budget - used >= need:
+                break
+            if scores[k] <= weak and k not in leads:
+                keep.discard(k)
+                used -= len(texts[k]) + 1
+        if budget - used > 40 or not keep:
+            texts[best] = _window(texts[best], query, max(budget - used - 1, 3))
+            keep.add(best)
     out, prev = [], None
     for j in sorted(keep):
         if prev is not None and j > prev + 1:
@@ -308,7 +327,7 @@ _DATE = re.compile(
     r"\b(\d{1,2})[/.](\d{1,2})[/.](\d{4})\b|ngày\s+(\d{1,2})\s+tháng\s+(\d{1,2})\s+năm\s+(\d{4})|\b(\d{4})-(\d{2})-(\d{2})\b",
     re.IGNORECASE,
 )
-_PASSAGE_REF = re.compile(r"\[\d+(?:\s*[,;]\s*\d+)*\]|\bđoạn\s+\d+\b", re.IGNORECASE)  # mã đoạn: đã kiểm bằng `nguon`
+_PASSAGE_REF = re.compile(r"\[\d+(?:\s*[,;–-]\s*\d+)*\]|\bđoạn\s+\d+(?:\s*(?:,|và|-|–)\s*\d+)*\b", re.IGNORECASE)  # mã đoạn: đã kiểm bằng `nguon`
 _REF = re.compile(
     r"\b(điều|khoản|điểm)\s+((?:\d+[a-z]?|[a-zđ])\b(?:\s*(?:,|và|hoặc)\s*(?:\d+[a-z]?|[a-zđ])\b)*)", re.IGNORECASE
 )
@@ -324,7 +343,7 @@ _CHU_SO = {"không": 0, "một": 1, "mốt": 1, "hai": 2, "ba": 3, "bốn": 4, "
            "tám": 8, "chín": 9}
 _SO_CHU = re.compile(r"\b(?:{w})(?:\s+(?:{w}))*\b".format(w="|".join([*_CHU_SO, "mười", "mươi", "trăm", "linh", "lẻ", *_MULT])),
                      re.IGNORECASE)
-_MO_HO = {"một", "năm", "không", "tư", "lăm", "mốt", "linh", "lẻ", "trăm", *_MULT}  # đứng một mình thường không phải số
+_MO_HO = {"một", "năm", "không", "tư", "lăm", "mốt"}  # đứng một mình thường không phải số ('một trong các', 'năm 2020')
 
 
 def _doc_so_chu(words: list[str]) -> list[int]:
@@ -384,7 +403,7 @@ def numbers(text: str, *, lenient: bool = False) -> set:
     for m in _SO_HIEU.finditer(text):
         out.add(fold_search(m.group(0)))
         if lenient:  # '64/2025/QH15' → 64, 2025; không lấy 15 trong 'QH15'
-            out.update(Decimal(x) for x in re.findall(r"(?<![A-Za-zĐđ])\d+", m.group(0)))
+            out.update(Decimal(x) for x in re.findall(r"(?<![\wĐđ])\d+", m.group(0)))
     text = _SO_HIEU.sub(" ", text)
     for m in _REF.finditer(text):
         kind = fold_search(m.group(1))
@@ -397,6 +416,8 @@ def numbers(text: str, *, lenient: bool = False) -> set:
         else:
             d, mo, y = (int(x) for x in (m.group(1, 2, 3) if m.group(1) else m.group(4, 5, 6)))
         out.add(f"{d}/{mo}/{y}")
+        if lenient:  # 'hiệu lực từ năm 2025', 'từ tháng 7' khi nguồn ghi ngày đầy đủ
+            out.update(map(Decimal, (d, mo, y)))
     text = _DATE.sub(" ", text)
     if lenient:
         for m in _SO_CHU.finditer(text):
@@ -513,7 +534,9 @@ def extractive(passages: list[Passage]) -> str:
     if not passages:
         return "Không tìm thấy căn cứ trong kho."
     first = passages[0].text.split("\n", 1)[0]
-    return f"Trích nguyên văn {passages[0].head or passages[0].label}: {first[:300]}"
+    if len(first) > 300:  # cắt ở khoảng trắng: không để số tiền cụt hiện như nguyên văn
+        first = first[:300].rsplit(" ", 1)[0] + "…"
+    return f"Trích nguyên văn {passages[0].head or passages[0].label}: {first}"
 
 
 def check(content: str, passages: list[Passage], question: str) -> Checked:
