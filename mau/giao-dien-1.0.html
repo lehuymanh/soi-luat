@@ -1,0 +1,1077 @@
+<title>Soi Luật 1.0</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Chỉ cho bản xem Artifact. App thật nhúng Be Vietnam Pro (woff2, OFL) trong static/fonts, không kết nối ra ngoài. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap">
+<style>
+/* Mẫu giao diện Soi Luật 1.0 (P1), dựng lại theo taste-skill, kiểu "achromatic ledger" cho màn hình làm việc.
+   Bố cục: sidebar lịch sử trên nền giấy | luồng hỏi đáp ở giữa | trình đọc văn bản mở bên phải.
+   Màu duy nhất trên dữ liệu là "bút bi xanh": gạch dưới từ khớp, tô và vạch lề đoạn được dẫn. Khung chỉ có mực. */
+:root {
+  --ground: #f4f4f1;   /* giấy Công báo */
+  --surface: #ffffff;
+  --raised: #ecece8;
+  --active: #e6e6e1;
+  --border: #e2e2dd;
+  --rule: #eeeeea;
+  --control: #cfcfc9;
+  --text: #121211;
+  --muted: #585854;
+  --faint: #66665f;
+  --primary: #171716;
+  --on-primary: #ffffff;
+  --pen: #1d5fbf;       /* bút bi xanh: dữ liệu khớp */
+  --pen-tint: #e9f0fb;
+  --pos-bg: #dcfae5; --pos-ink: #0b3d1c;
+  --neg-bg: #ffedea; --neg-ink: #831c1e; --neg: #c4242a;
+  --warn-bg: #fffbeb; --warn-ink: #8a3b0c; --warn-line: #f5d77a;
+  --neu-bg: #ebebe7; --neu-ink: #3d3d3a;
+  --page: #ffffff; --page-ink: #262624;
+  --shadow: 0 10px 30px rgba(0,0,0,.12);
+  --font: "Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --fs-title: 22px; --fs-h2: 16px; --fs-body: 14px; --fs-read: 16px; --fs-small: 12px;
+  --r-card: 8px; --r-ctl: 6px; --r-chip: 4px;
+  --side-w: 248px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0f0f0e; --surface: #181817; --raised: #222220; --active: #2a2a28;
+    --border: #2c2c2a; --rule: #232321; --control: #4a4a46;
+    --text: #f1f1ed; --muted: #b6b6b0; --faint: #a0a09a;
+    --primary: #f1f1ed; --on-primary: #121211;
+    --pen: #84adf0; --pen-tint: #1b2639;
+    --pos-bg: #16291d; --pos-ink: #7fd6a0; --neg-bg: #2e1a1d; --neg-ink: #f19aa3; --neg: #ef7a86;
+    --warn-bg: #2b2414; --warn-ink: #f0c56b; --warn-line: #5c4a1c;
+    --neu-bg: #262624; --neu-ink: #d0d0ca;
+    --page: #1e1e1c; --page-ink: #e4e4df;
+    --shadow: 0 10px 30px rgba(0,0,0,.5);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #0f0f0e; --surface: #181817; --raised: #222220; --active: #2a2a28;
+  --border: #2c2c2a; --rule: #232321; --control: #4a4a46;
+  --text: #f1f1ed; --muted: #b6b6b0; --faint: #a0a09a;
+  --primary: #f1f1ed; --on-primary: #121211;
+  --pen: #84adf0; --pen-tint: #1b2639;
+  --pos-bg: #16291d; --pos-ink: #7fd6a0; --neg-bg: #2e1a1d; --neg-ink: #f19aa3; --neg: #ef7a86;
+  --warn-bg: #2b2414; --warn-ink: #f0c56b; --warn-line: #5c4a1c;
+  --neu-bg: #262624; --neu-ink: #d0d0ca;
+  --page: #1e1e1c; --page-ink: #e4e4df;
+  --shadow: 0 10px 30px rgba(0,0,0,.5);
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--ground); color: var(--text); font: 400 var(--fs-body)/1.5 var(--font); }
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--pen); outline-offset: 2px; border-radius: 4px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+mark.m { background: none; color: inherit; text-decoration: underline; text-decoration-color: var(--pen); text-decoration-thickness: 2px; text-underline-offset: 3px; text-decoration-skip-ink: none; }
+
+/* ---------- Khung ---------- */
+.app { height: 100%; display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.app.reading { grid-template-columns: var(--side-w) minmax(0, 1fr) clamp(520px, 46vw, 720px); }
+.topbar { display: none; }
+
+/* ---------- Nút ---------- */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 34px; padding: 0 12px; border-radius: var(--r-ctl); border: 1px solid var(--control); background: var(--surface); font-weight: 500; white-space: nowrap; }
+.btn:hover { background: var(--raised); }
+.btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.btn.primary:hover { opacity: .88; }
+.btn.danger { color: var(--neg); border-color: var(--neg); background: var(--surface); }
+.btn.text { border-color: transparent; background: none; padding: 0 8px; }
+.btn.text:hover { background: var(--raised); }
+.btn:disabled, .btn.primary:disabled { color: var(--faint); background: var(--raised); border-color: var(--border); cursor: default; opacity: 1; }
+.icon-btn { width: 32px; height: 32px; flex: none; border-radius: var(--r-ctl); border: 0; background: none; display: grid; place-items: center; color: var(--muted); }
+.icon-btn:hover { background: var(--raised); color: var(--text); }
+.link { border: 0; background: none; padding: 0; color: var(--text); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--control); }
+.link:hover { text-decoration-color: var(--text); }
+
+/* ---------- Sidebar ---------- */
+.side { display: flex; flex-direction: column; min-height: 0; padding: 20px 16px 16px 0; gap: 14px; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; }
+.brand b { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+.scope { padding: 0 8px; color: var(--muted); font-size: var(--fs-small); margin: -10px 0 0; }
+.newchat { justify-content: space-between; width: 100%; }
+.kbd { color: var(--muted); font-size: var(--fs-small); font-weight: 400; }
+.hsearch { position: relative; display: block; }
+.hsearch svg { position: absolute; left: 10px; top: 9px; color: var(--muted); }
+.hsearch input { width: 100%; height: 34px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--surface); padding: 0 10px 0 32px; }
+.hsearch input::placeholder { color: var(--faint); }
+.hist { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+.hgrp + .hgrp { margin-top: 18px; }
+.hgrp h2 { margin: 0 0 4px; padding: 0 8px; font-size: var(--fs-small); font-weight: 500; color: var(--muted); }
+.hrow { position: relative; display: flex; align-items: center; border-radius: var(--r-ctl); }
+.hrow a { flex: 1; min-width: 0; display: block; padding: 7px 8px; color: var(--text); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: var(--r-ctl); }
+.hrow:hover { background: var(--raised); }
+.hrow.on { background: var(--active); }
+.hrow .more { width: 28px; height: 28px; margin-right: 2px; opacity: 0; }
+.hrow:hover .more, .hrow.on .more, .hrow .more:focus-visible, .hrow .more[aria-expanded="true"] { opacity: 1; }
+.hrow input { flex: 1; min-width: 0; height: 32px; margin: 1px 0; border: 1px solid var(--pen); border-radius: var(--r-ctl); padding: 0 8px; background: var(--surface); }
+.menu { position: absolute; right: 0; top: 34px; z-index: 30; min-width: 150px; padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); box-shadow: var(--shadow); }
+.menu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 7px 10px; border-radius: var(--r-chip); }
+.menu button:hover { background: var(--raised); }
+.menu .del { color: var(--neg); }
+.hempty { padding: 8px; color: var(--muted); margin: 0; }
+.util { border-top: 1px solid var(--border); padding-top: 10px; display: grid; gap: 2px; }
+.util a, .util button.u-item { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--r-ctl); color: var(--text); text-decoration: none; border: 0; background: none; text-align: left; width: 100%; }
+.util a:hover, .util button.u-item:hover { background: var(--raised); }
+.util svg { color: var(--muted); flex: none; }
+.util .cnt { margin-left: auto; color: var(--text); font-size: var(--fs-small); font-weight: 500; }
+.upgrade { margin: 0 8px 4px 34px; color: var(--muted); font-size: var(--fs-small); display: grid; gap: 4px; }
+.upgrade .track { height: 4px; border-radius: 999px; background: var(--raised); overflow: hidden; }
+.upgrade .track i { display: block; height: 100%; background: var(--text); }
+.local { margin: 0; padding: 6px 8px 0; color: var(--muted); font-size: var(--fs-small); display: flex; gap: 8px; align-items: center; }
+.local i { width: 6px; height: 6px; border-radius: 50%; background: var(--pos-ink); flex: none; }
+
+/* ---------- Cột chính ---------- */
+.main { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+.scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.col { width: min(100%, 840px); margin: 0 auto; padding: 28px 32px 32px; }
+.title-row { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; padding-bottom: 18px; border-bottom: 1px solid var(--rule); }
+.title-row h1 { margin: 0; font-size: var(--fs-title); line-height: 1.3; font-weight: 600; letter-spacing: -.015em; text-wrap: balance; }
+.title-row .sub { margin: 4px 0 0; color: var(--muted); }
+.title-row .acts { display: flex; gap: 4px; flex: none; }
+.app.reading .title-row .acts { display: none; }
+.app.reading .title-row h1 { font-size: 18px; }
+.thread { display: grid; gap: 36px; padding-top: 24px; }
+
+.q { justify-self: end; max-width: 80%; background: var(--raised); border-radius: 14px 14px 4px 14px; padding: 10px 14px; }
+.q p { margin: 0; font-size: 15px; }
+.q time { display: block; margin-top: 2px; color: var(--muted); font-size: var(--fs-small); text-align: right; }
+
+.res-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.res-h h2 { margin: 0; font-size: var(--fs-h2); font-weight: 600; }
+.finding { margin: 6px 0 0; }
+.finding b { font-weight: 600; }
+.risk { margin: 4px 0 0; color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; }
+.risk .link { font-size: 13px; font-weight: 400; color: var(--muted); }
+.legend { margin: 8px 0 0; padding: 10px 14px; background: var(--raised); border-radius: var(--r-card); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; font-size: 13px; }
+.legend dt { font-weight: 500; }
+.legend dd { margin: 0; color: var(--muted); }
+.filters { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+.pill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; font-size: var(--fs-small); font-weight: 500; white-space: nowrap; flex: none; }
+.pill.pos { background: var(--pos-bg); color: var(--pos-ink); }
+.pill.neg { background: var(--neg-bg); color: var(--neg-ink); }
+.pill.warn { background: var(--warn-bg); color: var(--warn-ink); box-shadow: inset 0 0 0 1px var(--warn-line); }
+.pill.neu { background: var(--neu-bg); color: var(--neu-ink); }
+.band { margin-top: 10px; padding: 10px 14px; border-radius: var(--r-card); background: var(--warn-bg); color: var(--warn-ink); box-shadow: inset 0 0 0 1px var(--warn-line); font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.band .btn { height: 28px; }
+
+.grp { margin-top: 16px; border: 1px solid var(--border); border-radius: var(--r-card); }
+.grp-h { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 12px 16px 10px; border-bottom: 1px solid var(--rule); }
+.grp-h h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.grp-h h3 span { color: var(--muted); font-weight: 400; }
+.grp-h .mt { grid-column: 1 / 2; margin: 0; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grp-h .pill { grid-row: 1 / 3; grid-column: 2; align-self: center; }
+.grp.faded .snip, .grp.faded .addr { color: var(--muted); }
+.items { list-style: none; margin: 0; padding: 0; }
+.item { padding: 14px 16px; }
+.item + .item { border-top: 1px solid var(--rule); }
+.item-h { display: flex; flex-wrap: wrap; gap: 0 10px; align-items: baseline; }
+.addr { font-weight: 600; color: var(--text); text-decoration: none; }
+.addr:hover { text-decoration: underline; text-underline-offset: 3px; }
+.dieu-t { color: var(--muted); font-size: 13px; min-width: 0; }
+.snip { margin: 6px 0 0; max-width: 68ch; }
+.warn-line { margin: 6px 0 0; color: var(--warn-ink); font-size: 13px; }
+.grp-h .warn-line { grid-column: 1 / -1; margin: 2px 0 0; }
+.also-in { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.also-in .link { font-size: 13px; }
+@media (hover: none) { .hrow .more { opacity: 1; } }
+.item-f { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 8px; min-height: 30px; }
+.go { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 4px 0; font-weight: 500; color: var(--text); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--control); }
+.go:hover { text-decoration-color: var(--text); }
+.quiet { border: 0; background: none; padding: 4px 0; color: var(--muted); }
+.quiet:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.meta { color: var(--muted); font-size: 13px; }
+.pick { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; margin-left: auto; cursor: pointer; }
+.pick input { width: 16px; height: 16px; accent-color: var(--primary); }
+.also { margin-top: 6px; font-size: 13px; color: var(--muted); }
+.also summary { cursor: pointer; width: fit-content; }
+.also ul { list-style: none; margin: 6px 0 0; padding: 0 0 0 16px; display: grid; gap: 4px; }
+.also li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.also .link { font-size: 13px; }
+.res-f { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 14px; }
+.res-f .meta { margin-right: auto; }
+.cap { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
+.unsaved { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
+
+.full-list { margin-top: 14px; border: 1px solid var(--border); border-radius: var(--r-card); }
+.full { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; align-items: center; padding: 14px 16px; }
+.full + .full { border-top: 1px solid var(--rule); }
+.full h3 { margin: 0; font-size: 14px; font-weight: 600; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.full p { margin: 0; color: var(--muted); font-size: 13px; }
+.full .btn { grid-row: 1 / 3; grid-column: 2; }
+
+.none { margin-top: 12px; padding: 16px; border: 1px dashed var(--control); border-radius: var(--r-card); }
+.none h2 { margin: 0; font-size: var(--fs-h2); font-weight: 600; }
+.none p { margin: 6px 0 0; max-width: 64ch; }
+.none ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); }
+.none .btn { margin-top: 10px; }
+
+.skel { display: grid; gap: 8px; }
+.bar { border-radius: 4px; background: var(--raised); }
+.skel .note { color: var(--muted); font-size: 13px; }
+.skel .grp { padding: 0; }
+.skel .grp > div { padding: 14px 16px; display: grid; gap: 8px; }
+.skel .grp > div + div { border-top: 1px solid var(--rule); }
+
+/* Câu trả lời AI (xem trước P3) */
+.ai .say { font-size: 16px; line-height: 1.6; margin: 10px 0 0; max-width: 64ch; }
+.ai ol.pts { margin: 12px 0 0; padding-left: 20px; display: grid; gap: 6px; max-width: 66ch; }
+.src { color: var(--text); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 20px; padding: 0 5px; margin-left: 4px; border-radius: var(--r-chip); border: 1px solid var(--control); background: var(--surface); font-size: 12px; font-weight: 500; vertical-align: 1px; }
+.src:hover { border-color: var(--pen); color: var(--pen); }
+.basis { margin-top: 18px; }
+.basis h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+.basis ul { margin: 0; padding-left: 20px; }
+.quote { margin: 0; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--r-card); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; }
+.quote + .quote { margin-top: 8px; }
+.quote .n { font-weight: 600; color: var(--muted); }
+.quote .law { margin: 0; }
+.quote footer { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 13px; color: var(--muted); }
+
+/* Màn hình trống */
+.hello { padding-top: 24px; }
+.hello p { margin: 0 0 14px; color: var(--muted); max-width: 60ch; }
+.ex { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--r-card); }
+.ex li + li { border-top: 1px solid var(--rule); }
+.ex button { display: flex; width: 100%; justify-content: space-between; gap: 12px; text-align: left; border: 0; background: none; padding: 12px 16px; border-radius: var(--r-card); }
+.ex button:hover { background: var(--raised); }
+.ex button span { color: var(--muted); font-size: 13px; white-space: nowrap; }
+
+/* Ô hỏi */
+.composer { border-top: 1px solid var(--border); background: var(--surface); }
+.composer .col { padding-top: 12px; padding-bottom: 14px; }
+.box { display: flex; gap: 10px; align-items: flex-end; border: 1px solid var(--control); border-radius: 12px; padding: 8px 8px 8px 14px; background: var(--surface); }
+.box:focus-within { border-color: var(--text); }
+.box textarea { flex: 1; min-width: 0; border: 0; outline: 0; resize: none; background: none; line-height: 1.5; padding: 5px 0; max-height: 132px; font-size: 15px; }
+.box textarea::placeholder { color: var(--faint); }
+.send { flex: none; width: 34px; height: 34px; border-radius: var(--r-ctl); border: 0; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; }
+.send:disabled { background: var(--raised); color: var(--faint); cursor: default; }
+.under { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin-top: 8px; color: var(--muted); font-size: var(--fs-small); }
+.under select { height: 28px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--surface); padding: 0 6px; font-size: var(--fs-small); color: var(--text); max-width: 100%; }
+.under .hint { margin-left: auto; }
+
+/* ---------- Trình đọc ---------- */
+.reader { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--surface); border-right: 1px solid var(--border); }
+.rd-top { display: flex; align-items: center; gap: 8px; padding: 10px 10px 8px 20px; border-bottom: 1px solid var(--rule); }
+.rd-top .who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.rd-top h2 { margin: 0; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rd-top .btn { height: 32px; gap: 0; }
+.tabs { display: flex; gap: 20px; padding: 0 20px; border-bottom: 1px solid var(--border); }
+.tabs button { position: relative; border: 0; background: none; padding: 9px 0 10px; color: var(--muted); font-weight: 500; }
+.tabs button[aria-selected="true"] { color: var(--text); }
+.tabs button[aria-selected="true"]::after { content: ""; position: absolute; left: -4px; right: -4px; bottom: -1px; height: 2px; background: var(--text); }
+.rd-body { flex: 1; min-height: 0; overflow-y: auto; }
+.rd-meta { padding: 16px 20px 0; }
+.rd-meta .mt { margin: 0; color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 2px 12px; }
+.rd-meta .mt a { color: var(--text); }
+.cite { margin: 12px 0 0; padding: 10px 14px; background: var(--raised); border-radius: var(--r-card); }
+.cite output { display: block; font-weight: 500; user-select: all; }
+.cite small { display: block; color: var(--muted); font-size: var(--fs-small); margin-top: 2px; }
+.rd-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 28px; padding: 16px 20px 40px 32px; }
+.reader.wide .rd-grid { grid-template-columns: 200px minmax(0, 1fr); max-width: 1100px; margin: 0 auto; }
+.toc { display: none; position: sticky; top: 16px; align-self: start; font-size: 13px; }
+.reader.wide .toc { display: block; }
+.reader.wide .toc-sel { display: none; }
+.toc h3 { margin: 0 0 6px; font-size: var(--fs-small); font-weight: 500; color: var(--muted); }
+.toc ul { list-style: none; margin: 0; padding: 0; }
+.toc a { display: block; padding: 5px 8px; border-radius: var(--r-ctl); color: var(--text); text-decoration: none; }
+.toc a:hover { background: var(--raised); }
+.toc a.on { background: var(--active); font-weight: 500; }
+.toc .part { margin: 10px 8px 0; color: var(--muted); font-size: var(--fs-small); }
+.toc-sel { margin: 0 0 16px; display: flex; gap: 8px; align-items: center; }
+.toc-sel select { flex: 1; min-width: 0; height: 34px; border: 1px solid var(--control); border-radius: var(--r-ctl); background: var(--surface); padding: 0 8px; }
+.toc-sel span { color: var(--muted); font-size: var(--fs-small); white-space: nowrap; }
+.text { font-size: var(--fs-read); line-height: 1.65; max-width: 70ch; min-width: 0; }
+.dieu + .dieu { margin-top: 28px; }
+.dieu h3 { margin: 0 0 8px; font-size: 16px; font-weight: 600; line-height: 1.45; scroll-margin-top: 16px; }
+.u { position: relative; margin: 0 0 8px; padding: 2px 8px; border-radius: 4px; scroll-margin-top: 80px; }
+.u.l2 { margin-left: 22px; }
+.u.sel { background: var(--pen-tint); }
+.u.sel::before { content: ""; position: absolute; left: -12px; top: 4px; bottom: 4px; width: 3px; border-radius: 2px; background: var(--pen); }
+.gap { margin: 0 0 8px 8px; color: var(--faint); font-size: 13px; }
+.rd-empty { padding: 24px 20px; color: var(--muted); }
+.tech { margin-top: 32px; border-top: 1px solid var(--rule); padding-top: 12px; font-size: 13px; color: var(--muted); }
+.tech summary { cursor: pointer; color: var(--text); font-weight: 500; }
+.tech dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 16px; margin: 10px 0 0; }
+.tech dt { color: var(--muted); }
+.tech dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.tech pre { white-space: pre-wrap; font: inherit; color: var(--text); background: var(--raised); padding: 10px 12px; border-radius: var(--r-ctl); margin: 8px 0 0; }
+.orig { padding: 16px 20px 40px; display: grid; gap: 12px; justify-items: center; }
+.orig-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; max-width: 560px; }
+.orig-bar span { margin-right: auto; color: var(--muted); font-size: 13px; }
+.sheet { width: 100%; max-width: 560px; aspect-ratio: 1 / 1.414; background: var(--page); color: var(--page-ink); border: 1px solid var(--border); border-radius: 2px; padding: 9% 10%; font-size: 11px; line-height: 1.55; }
+.sheet h4 { margin: 0 0 6px; font-size: 11.5px; font-weight: 600; }
+.sheet p { margin: 0 0 5px; text-align: justify; }
+.sheet .pno { text-align: center; color: var(--muted); margin-top: 10px; }
+.orig .cap, .orig .none { width: 100%; max-width: 560px; }
+
+/* ---------- Hộp thoại, thông báo ---------- */
+.scrim { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.32); display: grid; place-items: center; padding: 16px; }
+.dialog { width: min(460px, 100%); background: var(--surface); border-radius: 12px; box-shadow: var(--shadow); padding: 20px; }
+.dialog h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.dialog p { margin: 8px 0 0; color: var(--muted); }
+.dialog .row { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60; background: var(--primary); color: var(--on-primary); padding: 10px 16px; border-radius: 10px; box-shadow: var(--shadow); max-width: calc(100% - 32px); }
+.side-scrim, .rd-scrim { display: none; }
+
+/* ---------- Màn hẹp ---------- */
+@media (max-width: 1240px) {
+  .app.reading { grid-template-columns: var(--side-w) minmax(0, 1fr); }
+  .reader { position: fixed; z-index: 40; top: 0; right: 0; bottom: 0; width: min(720px, 100%); box-shadow: var(--shadow); border: 0; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); padding-right: env(safe-area-inset-right, 0px); }
+  .rd-scrim.on { display: block; position: fixed; inset: 0; z-index: 39; background: rgba(0,0,0,.24); }
+}
+.reader.wide { position: fixed; inset: 0; z-index: 41; width: auto; box-shadow: none; }
+@media (max-width: 900px) {
+  .app, .app.reading { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); padding-left: 0; padding-right: 0; }
+  .topbar { display: flex; align-items: center; gap: 4px; height: 48px; padding: 0 max(8px, env(safe-area-inset-right, 0px)) 0 max(8px, env(safe-area-inset-left, 0px)); background: var(--ground); border-bottom: 1px solid var(--border); }
+  .topbar b { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+  .topbar .icon-btn { width: 44px; height: 44px; }
+  .side { position: fixed; z-index: 45; inset: 0 auto 0 0; width: min(320px, 88%); background: var(--ground); padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); box-shadow: var(--shadow); transform: translateX(-105%); visibility: hidden; transition: transform .18s ease, visibility 0s linear .18s; }
+  .side.open { transform: none; visibility: visible; transition: transform .18s ease, visibility 0s; }
+  .side-scrim.open { display: block; position: fixed; inset: 0; z-index: 44; background: rgba(0,0,0,.24); }
+  .main { border: 0; }
+  .col { padding: 20px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); }
+  .composer .col { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .title-row .acts { display: none; }
+  .reader { width: 100%; }
+  .rd-grid { padding-left: 28px; }
+  .under .hint { display: none; }
+  .under { flex-wrap: nowrap; }
+  .under select { flex: 1 1 0; min-width: 0; height: 36px; }
+}
+@media (max-width: 560px) {
+  .q { max-width: 92%; }
+  .item-f { gap: 6px 14px; }
+  .go, .quiet { min-height: 40px; }
+  .pick { margin-left: 0; min-height: 40px; }
+  .title-row h1 { font-size: 19px; }
+  .grp-h { grid-template-columns: minmax(0, 1fr); }
+  .grp-h .pill { grid-row: auto; grid-column: 1; justify-self: start; margin-top: 4px; }
+  .full { grid-template-columns: minmax(0, 1fr); }
+  .full .btn { grid-row: auto; grid-column: 1; justify-self: start; margin-top: 6px; }
+  .rd-top .btn span { display: none; }
+  .rd-top .who { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .rd-top h2 { white-space: normal; font-size: 14px; line-height: 1.3; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+
+<div class="app" id="app">
+  <header class="topbar">
+    <button type="button" class="icon-btn" id="open-side" aria-label="Mở lịch sử trò chuyện" aria-controls="side" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <b id="top-title">Soi Luật</b>
+    <button type="button" class="icon-btn" data-new aria-label="Cuộc trò chuyện mới"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+  </header>
+
+  <aside class="side" id="side" aria-label="Lịch sử trò chuyện">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="2.5" width="13" height="17" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6.5 7h7M6.5 10h7M6.5 13h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="16" r="4.2" fill="var(--surface)" stroke="var(--pen)" stroke-width="1.8"/><path d="m19 19 2.5 2.5" stroke="var(--pen)" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <b>Soi Luật</b>
+    </div>
+    <p class="scope" id="scope"></p>
+    <button type="button" class="btn newchat" data-new>Cuộc trò chuyện mới <span class="kbd">Alt+N</span></button>
+    <label class="hsearch"><span class="sr">Tìm trong lịch sử</span>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+      <input id="hq" type="search" placeholder="Tìm trong lịch sử" autocomplete="off">
+    </label>
+    <nav class="hist" id="hist" aria-label="Các cuộc trò chuyện"></nav>
+    <div class="util">
+      <button type="button" class="u-item" id="btn-import" data-import><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M4 15v5h16v-5"/></svg>Nạp văn bản</button>
+      <div class="upgrade" id="upgrade"><span id="upgrade-t"></span><span class="track" aria-hidden="true"><i id="upgrade-bar"></i></span></div>
+      <a href="#" data-old="Văn bản trong kho"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 4h6l2 2h8v14H4z"/></svg>Văn bản trong kho</a>
+      <a href="#" data-old="Liên kết chờ duyệt"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>Liên kết chờ duyệt <span class="cnt" id="queue"></span></a>
+      <a href="#" data-old="Cài đặt"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Cài đặt</a>
+      <p class="local"><i></i>Chạy trên máy này, không gửi gì ra ngoài</p>
+    </div>
+  </aside>
+  <div class="side-scrim" id="side-scrim"></div>
+
+  <main class="main" id="main">
+    <div class="scroll" id="scroll"><div class="col" id="view"></div></div>
+    <form class="composer" id="composer" autocomplete="off">
+      <div class="col">
+        <div class="box">
+          <label class="sr" for="ask">Câu hỏi</label>
+          <textarea id="ask" rows="1" placeholder="Hỏi về quy định hoặc gõ số hiệu"></textarea>
+          <button type="submit" class="send" id="send" aria-label="Gửi câu hỏi" disabled><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+        </div>
+        <div class="under">
+          <label class="sr" for="f-loai">Loại văn bản</label>
+          <select id="f-loai"><option value="">Mọi loại</option><option>Luật</option><option>Nghị định</option><option>Thông tư</option></select>
+          <label class="sr" for="f-cq">Cơ quan ban hành</label>
+          <select id="f-cq"><option value="">Mọi cơ quan</option><option>Quốc hội</option><option>Chính phủ</option><option>Bộ Tài chính</option><option>Bộ Nội vụ</option></select>
+          <label class="sr" for="f-hl">Hiệu lực</label>
+          <select id="f-hl"><option value="">Mọi hiệu lực</option><option value="con">Còn hiệu lực</option><option value="het">Hết hiệu lực</option><option value="chuaro">Chưa rõ</option></select>
+          <span class="hint">Enter để gửi, Shift+Enter để xuống dòng</span>
+        </div>
+      </div>
+    </form>
+  </main>
+
+  <aside class="reader" id="reader" aria-label="Trình đọc văn bản" hidden></aside>
+</div>
+<div class="rd-scrim" id="rd-scrim"></div>
+<div class="scrim" id="scrim" hidden><div class="dialog" id="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-t"></div></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(function () {
+'use strict';
+/* ---------- Dữ liệu: nguyên văn lấy từ kho đo (mẫu cũ), không sửa chữ luật ---------- */
+const TODAY = '31/10/2026';
+const LAW = {"D100":[{"n":1,"title":"Điều 1. Phạm vi điều chỉnh","units":[{"id":"1.1","t":"1. Nghị định này quy định về hành vi vi phạm hành chính; hình thức, mức xử phạt, biện pháp khắc phục hậu quả đối với từng hành vi vi phạm hành chính; thẩm quyền lập biên bản, thẩm quyền xử phạt, mức phạt tiền cụ thể theo từng chức danh đối với hành vi vi phạm hành chính trong lĩnh vực giao thông đường bộ và đường sắt."},{"id":"1.2","t":"2. Các hành vi vi phạm hành chính trong các lĩnh vực quản lý nhà nước khác liên quan đến lĩnh vực giao thông đường bộ và đường sắt mà không quy định tại Nghị định này thì áp dụng quy định tại các Nghị định quy định về xử phạt vi phạm hành chính trong các lĩnh vực đó để xử phạt."}]},{"n":2,"title":"Điều 2. Đối tượng áp dụng","units":[{"id":"2.1","t":"1. Cá nhân, tổ chức có hành vi vi phạm hành chính trong lĩnh vực giao thông đường bộ, đường sắt trên lãnh thổ nước Cộng hòa xã hội chủ nghĩa Việt Nam."},{"gap":1}]},{"n":3,"title":"Điều 3. Giải thích từ ngữ","units":[{"id":"3","t":"Trong Nghị định này, các từ ngữ dưới đây được hiểu như sau:"},{"id":"3.1","t":"1. Lĩnh vực giao thông đường bộ:"},{"gap":1},{"id":"3.1.c","t":"c) Các loại xe tương tự xe mô tô là phương tiện giao thông đường bộ chạy bằng động cơ, có hai bánh hoặc ba bánh, có dung tích làm việc của động cơ từ 50 cm3 trở lên, có vận tốc thiết kế lớn nhất lớn hơn 50 km/h, có khối lượng bản thân không lớn hơn 400 kg;"},{"id":"3.1.d","t":"d) Xe máy điện là xe gắn máy được dẫn động bằng động cơ điện có công suất lớn nhất không lớn hơn 4 kW, có vận tốc thiết kế lớn nhất không lớn hơn 50 km/h;"},{"gap":1}]},{"n":5,"title":"Điều 5. Xử phạt người điều khiển xe ô tô và các loại xe tương tự xe ô tô vi phạm quy tắc giao thông đường bộ","units":[{"gap":1},{"id":"5.3","t":"3. Phạt tiền từ 800.000 đồng đến 1.000.000 đồng đối với người điều khiển xe thực hiện một trong các hành vi vi phạm sau đây:"},{"id":"5.3.a","t":"a) Điều khiển xe chạy quá tốc độ quy định từ 05 km/h đến dưới 10 km/h;"},{"gap":1},{"id":"5.5","t":"5. Phạt tiền từ 3.000.000 đồng đến 5.000.000 đồng đối với người điều khiển xe thực hiện một trong các hành vi vi phạm sau đây:"},{"gap":1},{"id":"5.5.i","t":"i) Điều khiển xe chạy quá tốc độ quy định từ 10 km/h đến 20 km/h."},{"id":"5.6","t":"6. Phạt tiền từ 6.000.000 đồng đến 8.000.000 đồng đối với người điều khiển xe thực hiện một trong các hành vi vi phạm sau đây:"},{"id":"5.6.a","t":"a) Điều khiển xe chạy quá tốc độ quy định trên 20 km/h đến 35 km/h;"},{"gap":1}]},{"n":6,"title":"Điều 6. Xử phạt người điều khiển xe mô tô, xe gắn máy (kể cả xe máy điện), các loại xe tương tự xe mô tô và các loại xe tương tự xe gắn máy vi phạm quy tắc giao thông đường bộ","units":[{"gap":1},{"id":"6.2","t":"2. Phạt tiền từ 200.000 đồng đến 300.000 đồng đối với người điều khiển xe thực hiện một trong các hành vi vi phạm sau đây:"},{"gap":1},{"id":"6.2.c","t":"c) Điều khiển xe chạy quá tốc độ quy định từ 05 km/h đến dưới 10 km/h;"},{"gap":1},{"id":"6.4","t":"4. Phạt tiền từ 600.000 đồng đến 1.000.000 đồng đối với người điều khiển xe thực hiện một trong các hành vi vi phạm sau đây:"},{"id":"6.4.a","t":"a) Điều khiển xe chạy quá tốc độ quy định từ 10 km/h đến 20 km/h;"},{"gap":1},{"id":"6.4.e","t":"e) Không chấp hành hiệu lệnh của đèn tín hiệu giao thông;"},{"gap":1},{"id":"6.7","t":"7. Phạt tiền từ 4.000.000 đồng đến 5.000.000 đồng đối với người điều khiển xe thực hiện một trong các hành vi vi phạm sau đây:"},{"id":"6.7.a","t":"a) Điều khiển xe chạy quá tốc độ quy định trên 20 km/h;"},{"id":"6.7.b","t":"b) Không chú ý quan sát, điều khiển xe chạy quá tốc độ quy định gây tai nạn giao thông; đi vào đường cao tốc, dừng xe, đỗ xe, quay đầu xe, lùi xe, tránh xe, vượt xe, chuyển hướng, chuyển làn đường không đúng quy định gây tai nạn giao thông; không đi đúng phần đường, làn đường, không giữ khoảng cách an toàn giữa hai xe theo quy định gây tai nạn giao thông hoặc đi vào đường có biển báo hiệu có nội dung cấm đi vào đối với loại phương tiện đang điều khiển, đi ngược chiều của đường một chiều, đi ngược chiều trên đường có biển “Cấm đi ngược chiều” gây tai nạn giao thông, trừ hành vi vi phạm quy định tại điểm d khoản 8 Điều này;"},{"gap":1}]},{"n":21,"title":"Điều 21. Xử phạt các hành vi vi phạm quy định về điều kiện của người điều khiển xe cơ giới","units":[{"id":"21.1","t":"1. Phạt cảnh cáo người từ đủ 14 tuổi đến dưới 16 tuổi điều khiển xe mô tô, xe gắn máy (kể cả xe máy điện) và các loại xe tương tự xe mô tô hoặc điều khiển xe ô tô, máy kéo và các loại xe tương tự xe ô tô."},{"id":"21.2","t":"2. Phạt tiền từ 100.000 đồng đến 200.000 đồng đối với một trong các hành vi vi phạm sau đây:"},{"id":"21.2.a","t":"a) Người điều khiển xe mô tô, xe gắn máy, các loại xe tương tự xe mô tô và các loại xe tương tự xe gắn máy không có hoặc không mang theo Giấy chứng nhận bảo hiểm trách nhiệm dân sự của chủ xe cơ giới còn hiệu lực;"},{"id":"21.2.b","t":"b) Người điều khiển xe mô tô, xe gắn máy, các loại xe tương tự xe mô tô và các loại xe tương tự xe gắn máy không mang theo Giấy đăng ký xe;"},{"id":"21.2.c","t":"c) Người điều khiển xe mô tô và các loại xe tương tự xe mô tô không mang theo Giấy phép lái xe, trừ hành vi vi phạm quy định tại điểm b khoản 5, điểm c khoản 7 Điều này."},{"id":"21.3","t":"3. Phạt tiền từ 200.000 đồng đến 400.000 đồng đối với một trong các hành vi vi phạm sau đây:"},{"id":"21.3.a","t":"a) Người điều khiển xe ô tô, máy kéo và các loại xe tương tự xe ô tô không mang theo Giấy phép lái xe, trừ hành vi vi phạm quy định tại điểm c khoản 8 Điều này;"},{"id":"21.3.b","t":"b) Người điều khiển xe ô tô, máy kéo và các loại xe tương tự xe ô tô không mang theo Giấy đăng ký xe (kể cả rơ moóc và sơ mi rơ moóc);"},{"id":"21.3.c","t":"c) Người điều khiển xe ô tô, máy kéo và các loại xe tương tự xe ô tô không mang theo Giấy chứng nhận kiểm định an toàn kỹ thuật và bảo vệ môi trường (đối với loại xe có quy định phải kiểm định, kể cả rơ moóc và sơ mi rơ moóc)."},{"id":"21.4","t":"4. Phạt tiền từ 400.000 đồng đến 600.000 đồng đối với một trong các hành vi vi phạm sau đây:"},{"id":"21.4.a","t":"a) Người từ đủ 16 tuổi đến dưới 18 tuổi điều khiển xe mô tô có dung tích xi lanh từ 50 cm3 trở lên;"},{"id":"21.4.b","t":"b) Người điều khiển xe ô tô, máy kéo và các loại xe tương tự xe ô tô không có hoặc không mang theo Giấy chứng nhận bảo hiểm trách nhiệm dân sự của chủ xe cơ giới còn hiệu lực;"},{"id":"21.4.c","t":"c) Người điều khiển xe ô tô, máy kéo và các loại xe tương tự xe ô tô có Giấy phép lái xe nhưng đã hết hạn sử dụng dưới 06 tháng."},{"id":"21.5","t":"5. Phạt tiền từ 800.000 đồng đến 1.200.000 đồng đối với người điều khiển xe mô tô hai bánh có dung tích xi lanh dưới 175 cm3 và các loại xe tương tự xe mô tô thực hiện một trong các hành vi vi phạm sau đây:"},{"id":"21.5.a","t":"a) Không có Giấy phép lái xe hoặc sử dụng Giấy phép lái xe không do cơ quan có thẩm quyền cấp, Giấy phép lái xe bị tẩy xóa;"},{"id":"21.5.b","t":"b) Có Giấy phép lái xe quốc tế do các nước tham gia Công ước về Giao thông đường bộ năm 1968 cấp (trừ Giấy phép lái xe quốc tế do Việt Nam cấp) nhưng không mang theo Giấy phép lái xe quốc gia;"},{"id":"21.5.c","t":"c) Sử dụng Giấy phép lái xe không hợp lệ (Giấy phép lái xe có số phôi ghi ở mặt sau không trùng với số phôi được cấp mới nhất trong hệ thống thông tin quản lý Giấy phép lái xe)."},{"id":"21.6","t":"6. Phạt tiền từ 1.200.000 đồng đến 3.000.000 đồng đối với người từ đủ 16 tuổi đến dưới 18 tuổi điều khiển xe ô tô, máy kéo, các loại xe tương tự xe ô tô."},{"id":"21.7","t":"7. Phạt tiền từ 3.000.000 đồng đến 4.000.000 đồng đối với người điều khiển xe mô tô hai bánh có dung tích xi lanh từ 175 cm3 trở lên, xe mô tô ba bánh thực hiện một trong các hành vi vi phạm sau đây:"},{"id":"21.7.a","t":"a) Có Giấy phép lái xe nhưng không phù hợp với loại xe đang điều khiển;"},{"id":"21.7.b","t":"b) Không có Giấy phép lái xe hoặc sử dụng Giấy phép lái xe không do cơ quan có thẩm quyền cấp, Giấy phép lái xe bị tẩy xóa;"},{"id":"21.7.c","t":"c) Có Giấy phép lái xe quốc tế do các nước tham gia Công ước về Giao thông đường bộ năm 1968 cấp (trừ Giấy phép lái xe quốc tế do Việt Nam cấp) nhưng không mang theo Giấy phép lái xe quốc gia;"},{"id":"21.7.d","t":"d) Sử dụng Giấy phép lái xe không hợp lệ (Giấy phép lái xe có số phôi ghi ở mặt sau không trùng với số phôi được cấp mới nhất trong hệ thống thông tin quản lý Giấy phép lái xe)."},{"id":"21.8","t":"8. Phạt tiền từ 4.000.000 đồng đến 6.000.000 đồng đối với người điều khiển xe ô tô, máy kéo và các loại xe tương tự xe ô tô vi phạm một trong các hành vi sau đây:"},{"id":"21.8.a","t":"a) Có Giấy phép lái xe nhưng không phù hợp với loại xe đang điều khiển hoặc đã hết hạn sử dụng từ 06 tháng trở lên;"},{"id":"21.8.b","t":"b) Không có Giấy phép lái xe hoặc sử dụng Giấy phép lái xe không do cơ quan có thẩm quyền cấp, Giấy phép lái xe bị tẩy xóa;"},{"id":"21.8.c","t":"c) Có Giấy phép lái xe quốc tế do các nước tham gia Công ước về Giao thông đường bộ năm 1968 cấp (trừ Giấy phép lái xe quốc tế do Việt Nam cấp) nhưng không mang theo Giấy phép lái xe quốc gia;"},{"id":"21.8.d","t":"d) Sử dụng Giấy phép lái xe không hợp lệ (Giấy phép lái xe có số phôi ghi ở mặt sau không trùng với số phôi được cấp mới nhất trong hệ thống thông tin quản lý Giấy phép lái xe)."},{"id":"21.9","t":"9. Ngoài việc bị phạt tiền, người điều khiển phương tiện thực hiện hành vi vi phạm còn bị áp dụng các hình thức xử phạt bổ sung sau đây:"},{"id":"21.9.a","t":"a) Thực hiện hành vi quy định tại điểm a, điểm c khoản 5; điểm b, điểm d khoản 7; điểm b, điểm d khoản 8 Điều này còn bị áp dụng hình thức xử phạt bổ sung tịch thu Giấy phép lái xe không do cơ quan có thẩm quyền cấp, Giấy phép lái xe bị tẩy xóa, Giấy phép lái xe không hợp lệ;"},{"id":"21.9.b","t":"b) Thực hiện hành vi quy định tại điểm c khoản 5, điểm d khoản 7, điểm d khoản 8 bị tước quyền sử dụng Giấy phép lái xe được cấp mới nhất trong hệ thống thông tin quản lý Giấy phép lái xe từ 01 tháng đến 03 tháng."}]},{"n":84,"title":"Điều 84. Hiệu lực thi hành","units":[{"id":"84.1","t":"1. Nghị định này có hiệu lực thi hành từ ngày 01 tháng 01 năm 2020."},{"id":"84.2","t":"2. Nghị định này thay thế Nghị định số 46/2016/NĐ-CP ngày 26 tháng 5 năm 2016 của Chính phủ quy định xử phạt vi phạm hành chính trong lĩnh vực giao thông đường bộ và đường sắt."}]},{"n":85,"title":"Điều 85. Điều khoản chuyển tiếp","units":[{"id":"85","t":"Đối với các hành vi vi phạm hành chính trong lĩnh vực giao thông đường bộ, đường sắt xảy ra trước ngày Nghị định này có hiệu lực thi hành mà sau đó mới bị phát hiện hoặc đang xem xét giải quyết thì áp dụng các quy định có lợi cho tổ chức, cá nhân vi phạm."}]}],"D103":[{"n":21,"title":"Điều 21. Trách nhiệm của Bộ Tài chính","units":[{"id":"21.1","t":"1. Chủ trì, phối hợp với Bộ Công an, các Bộ, ngành liên quan và Ủy ban nhân dân các tỉnh, thành phố trực thuộc Trung ương hướng dẫn, tuyên truyền thực hiện bảo hiểm bắt buộc trách nhiệm dân sự của chủ xe cơ giới;"},{"id":"21.2","t":"2. Ban hành quy tắc, điều khoản và biểu phí bảo hiểm bắt buộc trách nhiệm dân sự của chủ xe cơ giới;"},{"id":"21.3","t":"3. Quy định việc phát hành, quản lý và sử dụng mẫu Giấy chứng nhận bảo hiểm."},{"id":"21.4","t":"4. Hướng dẫn hồ sơ yêu cầu bồi thường."},{"id":"21.5","t":"5. Quy định mức đóng góp hàng năm và ban hành cơ chế quản lý, sử dụng, thanh toán, quyết toán Quỹ bảo hiểm xe cơ giới."},{"id":"21.6","t":"6. Trực tiếp hoặc chủ trì, phối hợp với cơ quan liên quan kiểm tra, giám sát các doanh nghiệp bảo hiểm trong việc thực hiện bảo hiểm bắt buộc trách nhiệm dân sự của chủ xe cơ giới;"},{"id":"21.7","t":"7. Chỉ đạo các lực lượng chức năng xử phạt vi phạm hành chính các doanh nghiệp bảo hiểm vi phạm các quy định về bảo hiểm bắt buộc trách nhiệm dân sự của chủ xe cơ giới theo quy định tại Nghị định này và các quy định khác của pháp luật liên quan."},{"id":"21.8","t":"8. Chủ trì, phối hợp với các cơ quan liên quan hướng dẫn Hiệp hội bảo hiểm Việt Nam, các doanh nghiệp bảo hiểm triển khai xây dựng cơ sở dữ liệu về bảo hiểm bắt buộc trách nhiệm dân sự của chủ xe cơ giới;"}]},{"n":29,"title":"Điều 29. Xử phạt các hành vi vi phạm quy định về tham gia bảo hiểm của người điều khiển xe cơ giới","units":[{"id":"29.1","t":"1. Phạt tiền 100.000 đồng đối với người điều khiển xe mô tô, xe gắn máy, xe mô tô ba bánh và các loại xe cơ giới tương tự không có hoặc không mang theo Giấy chứng nhận bảo hiểm còn hiệu lực."},{"id":"29.2","t":"2. Phạt tiền 500.000 đồng đối với người điều khiển xe ô tô, máy kéo và các loại xe cơ giới tương tự không có hoặc không mang theo Giấy chứng nhận bảo hiểm còn hiệu lực."}]},{"n":44,"title":"Điều 44. Hiệu lực thi hành","units":[{"id":"44","t":"Nghị định này có hiệu lực thi hành sau 15 ngày, kể từ ngày đăng Công báo và thay thế Nghị định số 115/1997/NĐ-CP ngày 17 tháng 12 năm 1997 của Chính phủ về chế độ bảo hiểm bắt buộc trách nhiệm dân sự của chủ xe cơ giới."}]}],"D214":[{"n":1,"title":"Điều 1. Sửa đổi, bổ sung một số điều của Nghị định số 103/2008/NĐ-CP ngày 16 tháng 9 năm 2008 của Chính phủ về bảo hiểm bắt buộc trách nhiệm dân sự của chủ xe cơ giới như sau:","units":[{"id":"1.1","t":"1. Sửa đổi\nKhoản 2 Điều 4 như sau:\n“2. Doanh nghiệp bảo hiểm có trách nhiệm trích 1% doanh thu phí bảo hiểm bắt buộc trách nhiệm dân sự của chủ xe cơ giới hàng năm để đóng vào Quỹ bảo hiểm xe cơ giới”."},{"id":"1.2","t":"2. Sửa đổi\nKhoản 9 Điều 20 như sau:\n“9. Trích 1% doanh thu phí bảo hiểm bắt buộc trách nhiệm dân sự của chủ xe cơ giới hàng năm đóng góp vào Quỹ bảo hiểm xe cơ giới.”"},{"id":"1.3","t":"3. Sửa đổi\nKhoản 5 Điều 21 như sau:\n“Ban hành cơ chế quản lý, sử dụng, thanh toán và quyết toán Quỹ bảo hiểm xe cơ giới.”"}]},{"n":2,"title":"Điều 2. Hiệu lực thi hành","units":[{"id":"2","t":"Nghị định này có hiệu lực thi hành kể từ ngày 10 tháng 02 năm 2014."}]}],"D38":[{"n":34,"title":"Điều 34. Vi phạm quy định về hành vi cấm trong hoạt động quảng cáo","units":[{"id":"34.1","t":"1. Phạt tiền từ 1.000.000 đồng đến 2.000.000 đồng đối với hành vi treo, đặt, dán, vẽ các sản phẩm quảng cáo trên cột điện, trụ điện, cột tín hiệu giao thông và cây xanh nơi công cộng, trừ trường hợp quy định tại điểm d khoản 3, điểm b khoản 5 và điểm b khoản 8 Điều 12 Nghị định số 100/2019/NĐ-CP\nngày 30 tháng 12 năm 2019 của Chính phủ quy định xử phạt vi phạm hành chính trong lĩnh vực giao thông đường bộ và đường sắt."},{"gap":1}]}],"D142":[{"n":17,"title":"Điều 17. Vi phạm quy định đối với người điều khiển ô tô và các loại phương tiện tương tự ô tô trong vùng đất cảng","units":[{"id":"17.1","t":"1. Phạt tiền từ 600.000 đồng đến 800.000 đồng đối với người điều khiển ô tô và các loại phương tiện tương tự ô tô chạy quá tốc độ quy định từ 05 km/giờ đến dưới 10 km/giờ."},{"id":"17.2","t":"2. Phạt tiền từ 2.000.000 đồng đến 3.000.000 đồng đối với người điều khiển ô tô và các loại phương tiện tương tự ô tô thực hiện một trong các hành vi vi phạm sau đây:"},{"gap":1},{"id":"17.2.b","t":"b) Điều khiển ô tô và các loại phương tiện tương tự ô tô chạy quá tốc độ quy định từ 10 km/giờ đến 20 km/giờ."},{"gap":1}]}],"D22":[{"n":1,"title":"Điều 1. Phạm vi Điều chỉnh","units":[{"id":"1","t":"Thông tư này quy định Quy tắc, Điều Khoản, biểu phí và mức trách nhiệm bảo hiểm bắt buộc trách nhiệm dân sự của chủ xe cơ giới."}]},{"n":18,"title":"Điều 18. Quyền của doanh nghiệp bảo hiểm","units":[{"gap":1},{"id":"18.3","t":"3. Đề nghị lực lượng Cảnh sát giao thông, Cảnh sát Điều tra cung cấp bản sao các tài liệu liên quan đến vụ tai nạn theo quy định tại Khoản 3 Điều 22 Nghị định số 103/2008/NĐ-CP."},{"gap":1}]}]};
+const DOCS = [
+  { id: 'D100', slug: 'nd100-2019', so: '100/2019/NĐ-CP', ty: 'Quy định xử phạt vi phạm hành chính trong lĩnh vực giao thông đường bộ và đường sắt', loai: 'Nghị định', cq: 'Chính phủ', ngay: '30/12/2019', hl: 'chuaro', tags: ['giao-thông', 'xử-phạt'], nd: 85, file: 'nghi-dinh-100-2019.pdf', pages: 58, why: { note: 'Chưa có người xác nhận, và kho chưa có văn bản nào thay thế hoặc bãi bỏ văn bản này, nên máy không dám kết luận.' } },
+  { id: 'D103', slug: 'nd103-2008', so: '103/2008/NĐ-CP', ty: 'Về bảo hiểm bắt buộc trách nhiệm dân sự của chủ xe cơ giới', loai: 'Nghị định', cq: 'Chính phủ', ngay: '16/09/2008', hl: 'chuaro', tags: ['bảo-hiểm', 'giao-thông'], nd: 44, file: 'nd-103-2008.docx', pages: 20, why: { note: 'Kho chưa có văn bản nào nói về hiệu lực của văn bản này, nên máy không dám kết luận.' } },
+  { id: 'D214', slug: 'nd214-2013', so: '214/2013/NĐ-CP', ty: 'Sửa đổi, bổ sung một số điều của Nghị định số 103/2008/NĐ-CP ngày 16 tháng 9 năm 2008 của Chính phủ về bảo hiểm bắt buộc trách nhiệm dân sự của chủ xe cơ giới', loai: 'Nghị định', cq: 'Chính phủ', ngay: '20/12/2013', hl: 'chuaro', tags: ['bảo-hiểm'], nd: 2, file: 'nd-214-2013.pdf', pages: 2, why: { note: 'Chưa có người xác nhận, và kho chưa có văn bản nào thay thế hoặc bãi bỏ văn bản này, nên máy không dám kết luận.' } },
+  { id: 'D46', slug: 'nd46-2016', so: '46/2016/NĐ-CP', ty: 'Quy định xử phạt vi phạm hành chính trong lĩnh vực giao thông đường bộ và đường sắt', loai: 'Nghị định', cq: 'Chính phủ', ngay: '26/05/2016', hl: 'maybe', tags: ['giao-thông'], nd: null, file: 'nd-46-2016.pdf', pages: 40, why: { doc: 'D100', unit: '84.2', suggest: true } },
+  { id: 'D115', slug: 'nd115-1997', so: '115/1997/NĐ-CP', ty: 'Về chế độ bảo hiểm bắt buộc trách nhiệm dân sự của chủ xe cơ giới', loai: 'Nghị định', cq: 'Chính phủ', ngay: '17/12/1997', hl: 'het', tags: ['bảo-hiểm'], nd: null, file: 'nd-115-1997.pdf', pages: 6, why: { doc: 'D103', unit: '44', who: 'Bạn', when: '26/10/2026' } },
+  { id: 'D38', slug: 'nd38-2021', so: '38/2021/NĐ-CP', ty: 'Quy định xử phạt vi phạm hành chính trong lĩnh vực văn hóa và quảng cáo', loai: 'Nghị định', cq: 'Chính phủ', ngay: '29/03/2021', hl: 'chuaro', tags: ['quảng-cáo', 'xử-phạt'], nd: 73, file: 'nd-38-2021.pdf', pages: 30, why: { note: 'Chưa có người xác nhận, và kho chưa có văn bản nào thay thế hoặc bãi bỏ văn bản này, nên máy không dám kết luận.' } },
+  { id: 'D22', slug: 'tt22-2016', so: '22/2016/TT-BTC', ty: 'Quy định về bảo hiểm bắt buộc trách nhiệm dân sự của chủ xe cơ giới', loai: 'Thông tư', cq: 'Bộ Tài chính', ngay: '16/02/2016', hl: 'chuaro', tags: ['bảo-hiểm'], nd: 20, file: 'tt-22-2016.pdf', pages: 12, why: { note: 'Chưa có người xác nhận, và kho chưa có văn bản nào thay thế hoặc bãi bỏ văn bản này, nên máy không dám kết luận.' } },
+  { id: 'D142', slug: 'nd142-2017', so: '142/2017/NĐ-CP', ty: 'Quy định xử phạt vi phạm hành chính trong lĩnh vực hàng hải', loai: 'Nghị định', cq: 'Chính phủ', ngay: '11/12/2017', hl: 'chuaro', tags: ['xử-phạt'], nd: 62, file: 'nd-142-2017.pdf', pages: 34, why: { note: 'Chưa có người xác nhận, và kho chưa có văn bản nào thay thế hoặc bãi bỏ văn bản này, nên máy không dám kết luận.' } },
+  { id: 'D24', slug: 'luat24-2026', so: '24/2026/QH16', ty: 'Luật sửa đổi, bổ sung một số điều của Luật Đầu tư', loai: 'Luật', cq: 'Quốc hội', ngay: '17/09/2026', hl: 'con', tags: ['2026'], nd: 6, file: '24_2026_QH16.pdf', pages: 14, why: { who: 'Bạn', when: '24/10/2026', note: 'Do bạn đặt.' } },
+  { id: 'D391', slug: 'nd391-2026', so: '391/2026/NĐ-CP', ty: 'Quy định xử phạt vi phạm hành chính trong lĩnh vực kinh doanh đặt cược và trò chơi có thưởng', loai: 'Nghị định', cq: 'Chính phủ', ngay: '20/10/2026', hl: 'chua', tags: ['2026', 'xử-phạt'], nd: 58, file: '391_2026_NĐ-CP.pdf', pages: 52, why: { who: 'Bạn', when: '29/10/2026', note: 'Ngày hiệu lực bạn nhập: 01/12/2026. Ngày đó sau hôm nay (' + TODAY + ').' } },
+  { id: 'D389', slug: 'nd389-2026', so: '389/2026/NĐ-CP', ty: 'Quy định về xử phạt vi phạm hành chính trong lĩnh vực kinh doanh xổ số', loai: 'Nghị định', cq: 'Chính phủ', ngay: '14/10/2026', hl: 'chuaro', tags: ['2026', 'xử-phạt'], nd: 44, file: '389_2026_NĐ-CP.pdf', pages: 36, why: { note: 'Chưa có ngày hiệu lực trong kho, nên máy không dám kết luận.' } },
+  { id: 'D385', slug: 'nd385-2026', so: '385/2026/NĐ-CP', ty: 'Về kiểm soát thủ tục hành chính', loai: 'Nghị định', cq: 'Chính phủ', ngay: '09/10/2026', hl: 'con', tags: ['2026'], nd: 31, file: '385_2026_NĐ-CP.pdf', pages: 22, why: { who: 'Bạn', when: '24/10/2026', note: 'Do bạn đặt.' } },
+  { id: 'D156', slug: 'tt156-2026', so: '156/2026/TT-BTC', ty: 'Quy định mức thu, giảm, chế độ thu, nộp phí khai thác và sử dụng thông tin trong Cơ sở dữ liệu tổng hợp quốc gia', loai: 'Thông tư', cq: 'Bộ Tài chính', ngay: '13/10/2026', hl: 'con', tags: ['2026', 'tài-chính'], nd: 9, file: '156_2026_TT-BTC.pdf', pages: 10, why: { who: 'Bạn', when: '24/10/2026', note: 'Do bạn đặt.' } },
+  { id: 'D27', slug: 'tt27-2026', so: '27/2026/TT-BNV', ty: 'Ban hành Danh mục công việc có yêu cầu nghiêm ngặt về an toàn, vệ sinh lao động', loai: 'Thông tư', cq: 'Bộ Nội vụ', ngay: '12/10/2026', hl: 'chuaro', tags: ['2026'], nd: 3, file: '27_2026_TT-BNV.pdf', pages: 18, why: { note: 'Chưa có ngày hiệu lực trong kho, nên máy không dám kết luận.' } },
+  { id: 'S1', slug: 'scan-0231', so: '', ty: '', loai: 'Nghị định', cq: '', ngay: '', hl: 'chuaro', tags: [], nd: 12, file: 'scan-0231.pdf', pages: 8, scan: true, why: { note: 'Chưa nhập số hiệu và ngày, nên máy không dám kết luận.' } },
+  { id: 'S2', slug: 'scan-cong-van', so: '', ty: '', loai: 'Thông tư', cq: 'Bộ Giao thông vận tải', ngay: '08/10/2026', hl: 'chuaro', tags: [], nd: 5, file: 'scan-cong-van.pdf', pages: 4, scan: true, why: { note: 'Chưa nhập số hiệu, nên máy không dám kết luận.' } }
+];
+const PAGEOF = { D100: { 1: 1, 2: 2, 3: 3, 5: 9, 6: 11, 21: 24, 84: 56, 85: 56 }, D103: { 21: 9, 29: 12, 44: 15 }, D214: { 1: 1, 2: 2 }, D38: { 34: 17 }, D142: { 17: 14 }, D22: { 1: 1, 18: 8 } };
+const ANS = {
+  bh_fp: {
+    w: ['bảo hiểm', 'không mang theo'],
+    premise: 'Câu hỏi nêu mức phạt 500.000 đồng. Trong kho, mức này chỉ có ở khoản 2 Điều 29 Nghị định 103/2008/NĐ-CP và áp dụng cho ô tô, không áp dụng cho xe máy.',
+    say: 'Chưa đúng. Với xe máy, mức phạt là từ 100.000 đồng đến 200.000 đồng. Mức 500.000 đồng là mức ghi cho ô tô trong một văn bản cũ.',
+    pts: [{ y: 'Xe máy, xe gắn máy và các loại xe tương tự: phạt từ 100.000 đến 200.000 đồng nếu không có hoặc không mang theo giấy chứng nhận bảo hiểm trách nhiệm dân sự còn hiệu lực.', s: [1] },
+      { y: 'Ô tô, máy kéo và các loại xe tương tự ô tô: phạt từ 400.000 đến 600.000 đồng cho cùng lỗi.', s: [2] },
+      { y: 'Mức 500.000 đồng chỉ thấy trong Nghị định 103/2008/NĐ-CP, và là mức của ô tô.', s: [3] }],
+    src: [{ n: 1, d: 'D100', u: ['21.2', '21.2.a'] }, { n: 2, d: 'D100', u: ['21.4', '21.4.b'] },
+      { n: 3, d: 'D103', u: ['29.2'], x: 'Chỉ dùng để giải thích mức 500.000 đồng, không dùng làm căn cứ phạt.' }, { n: 4, d: 'D103', u: ['29.1'] }],
+    notes: [{ y: 'Nghị định 103/2008/NĐ-CP chưa rõ còn hiệu lực hay không trong kho. Văn bản này ghi mức 100.000 đồng cho xe máy, khác mức của Nghị định 100/2019/NĐ-CP.', s: [4] }],
+    res: 'bh'
+  },
+  bh: {
+    w: ['bảo hiểm', 'không mang theo'],
+    say: 'Người điều khiển xe máy không có hoặc không mang theo giấy chứng nhận bảo hiểm trách nhiệm dân sự còn hiệu lực bị phạt từ 100.000 đồng đến 200.000 đồng.',
+    pts: [{ y: 'Xe máy, xe gắn máy và các loại xe tương tự: phạt từ 100.000 đến 200.000 đồng.', s: [1] },
+      { y: 'Ô tô, máy kéo và các loại xe tương tự ô tô: phạt từ 400.000 đến 600.000 đồng cho cùng lỗi.', s: [2] }],
+    src: [{ n: 1, d: 'D100', u: ['21.2', '21.2.a'] }, { n: 2, d: 'D100', u: ['21.4', '21.4.b'] }, { n: 3, d: 'D103', u: ['29.1'] }],
+    notes: [{ y: 'Nghị định 103/2008/NĐ-CP chưa rõ còn hiệu lực hay không trong kho. Văn bản này ghi mức 100.000 đồng cho xe máy, khác mức của Nghị định 100/2019/NĐ-CP.', s: [3] }],
+    res: 'bh'
+  },
+  bh_oto: {
+    w: ['bảo hiểm', 'không mang theo'],
+    rw: 'Người điều khiển xe ô tô không có hoặc không mang theo giấy chứng nhận bảo hiểm trách nhiệm dân sự của chủ xe cơ giới còn hiệu lực bị phạt bao nhiêu?',
+    say: 'Với ô tô, máy kéo và các loại xe tương tự ô tô, mức phạt là từ 400.000 đồng đến 600.000 đồng.',
+    pts: [{ y: 'Lỗi: không có hoặc không mang theo giấy chứng nhận bảo hiểm trách nhiệm dân sự của chủ xe cơ giới còn hiệu lực.', s: [1] },
+      { y: 'Không mang theo giấy đăng ký xe là lỗi khác, phạt từ 200.000 đến 400.000 đồng.', s: [2] }],
+    src: [{ n: 1, d: 'D100', u: ['21.4', '21.4.b'] }, { n: 2, d: 'D100', u: ['21.3', '21.3.b'] }, { n: 3, d: 'D103', u: ['29.2'] }],
+    notes: [{ y: 'Nghị định 103/2008/NĐ-CP ghi mức 500.000 đồng cho ô tô. Cách ghi này khác Nghị định 100/2019/NĐ-CP, và hiệu lực của văn bản cũ chưa rõ trong kho.', s: [3] }],
+    res: 'bh'
+  },
+  td: {
+    w: ['quá tốc độ'],
+    say: 'Mức phạt tăng theo tốc độ vượt. Xe máy chạy vượt từ 5 đến dưới 10 km/h bị phạt từ 200.000 đến 300.000 đồng; vượt từ 10 đến 20 km/h bị phạt từ 600.000 đến 1.000.000 đồng; vượt trên 20 km/h bị phạt từ 4.000.000 đến 5.000.000 đồng. Bạn cần biết tốc độ vượt để chọn đúng mức.',
+    pts: [{ y: 'Vượt từ 05 km/h đến dưới 10 km/h: phạt từ 200.000 đến 300.000 đồng.', s: [1] },
+      { y: 'Vượt từ 10 km/h đến 20 km/h: phạt từ 600.000 đến 1.000.000 đồng.', s: [2] },
+      { y: 'Vượt trên 20 km/h: phạt từ 4.000.000 đến 5.000.000 đồng.', s: [3] }],
+    src: [{ n: 1, d: 'D100', u: ['6.2', '6.2.c'] }, { n: 2, d: 'D100', u: ['6.4', '6.4.a'] }, { n: 3, d: 'D100', u: ['6.7', '6.7.a'] }, { n: 4, d: 'D100', u: ['6.7', '6.7.b'] }],
+    notes: [{ y: 'Chạy quá tốc độ gây tai nạn giao thông là lỗi riêng, cũng phạt từ 4.000.000 đến 5.000.000 đồng.', s: [4] }],
+    res: 'td'
+  }
+};
+
+/* Trạng thái kho mẫu cho P1. Hiệu lực chỉ có 3 giá trị (còn / hết / chưa rõ), do người dùng đặt. */
+const P1HL = { con: 'con', het: 'het' };
+DOCS.forEach(d => { d.hl = P1HL[d.hl] || 'chuaro'; });
+Object.assign(DOCS.find(d => d.id === 'D103'), { hl: 'het' });   // đã được Nghị định 03/2021/NĐ-CP thay thế
+Object.assign(DOCS.find(d => d.id === 'D38'), { hl: 'con' });
+Object.assign(DOCS.find(d => d.id === 'D142'), { ocr: true });   // bản quét, chữ OCR chưa đối chiếu
+Object.assign(DOCS.find(d => d.id === 'D22'), { gone: true });
+Object.assign(DOCS.find(d => d.id === 'D100'), { hlTu: '01/01/2020' });   // Điều 84 khoản 1
+Object.assign(DOCS.find(d => d.id === 'D214'), { hlTu: '10/02/2014' });   // Điều 2
+Object.assign(DOCS.find(d => d.id === 'D391'), { hlTu: '01/12/2026' });   // tệp gốc không còn ở thư mục đã nạp
+Object.assign(ANS.bh_fp, {
+  premise: 'Câu hỏi nêu 500.000 đồng, nhưng mức phạt xe máy trong Nghị định 100/2019/NĐ-CP là từ 100.000 đến 200.000 đồng.',
+  say: 'Chưa đúng. Xe máy không có hoặc không mang giấy bảo hiểm bị phạt từ 100.000 đến 200.000 đồng; ô tô bị phạt từ 400.000 đến 600.000 đồng.',
+  pts: [{ y: 'Xe máy, xe gắn máy: phạt từ 100.000 đến 200.000 đồng nếu không có hoặc không mang theo giấy chứng nhận bảo hiểm còn hiệu lực.', s: [1] },
+    { y: 'Ô tô, máy kéo: phạt từ 400.000 đến 600.000 đồng cho cùng lỗi.', s: [2] }],
+  src: [{ n: 1, d: 'D100', u: ['21.2', '21.2.a'] }, { n: 2, d: 'D100', u: ['21.4', '21.4.b'] }],
+  notes: []
+});
+/* Trần độ dài của khuôn JSON thật (answer.CAPS): bản xem trước không được dài hơn thứ mô hình sinh được. */
+console.assert(ANS.bh_fp.premise.length <= 150 && ANS.bh_fp.say.length <= 240 && ANS.bh_fp.pts.length <= 2
+  && ANS.bh_fp.pts.every(p => p.y.length <= 160) && ANS.bh_fp.notes.every(p => p.y.length <= 140), 'P3 vượt trần');
+const DUP = [{ f: 'nghi-dinh-100-ban-scan.pdf' }, { f: 'nd100-2019-ban-word.docx' }];   // cùng nội dung, khác tệp
+
+/* Bốn hạng thẻ của cards.KIND_RANK1-4, viết bằng lời thường. */
+const KIND = {
+  r1: ['mức phạt đã duyệt', 'Đoạn nêu mức phạt, người duyệt đã nối với quy định gốc.'],
+  r2: ['mức phạt máy gợi ý', 'Đoạn nêu mức phạt. Máy gợi ý nối với quy định gốc, chưa ai duyệt.'],
+  r3: ['nghĩa vụ chưa rõ mức phạt', 'Đoạn nêu nghĩa vụ, điều cấm, thời hạn hoặc điều kiện; chưa tìm thấy mức phạt đi kèm.'],
+  r4: ['quy định liên quan', 'Đoạn có từ khớp câu hỏi, không thuộc ba loại trên.']
+};
+/* Kết quả gọn P1 (không AI). mode: 'advance' khi tìm theo nghĩa; chỉ khi đó mới có nhãn chắc chắn (sure). */
+const RES = {
+  bh: { items: [
+    { d: 'D100', u: ['21.2', '21.2.a'], k: 'r1', more: ['21.4.b', '21.3.b', '21.2.b'] },
+    { d: 'D103', u: ['29.1'], k: 'r2', more: ['29.2'] },
+    { d: 'D103', u: ['21.6'], k: 'r3' },
+    { d: 'D22', u: ['1'], k: 'r4' }] },
+  oto: { items: [
+    { d: 'D100', u: ['21.4', '21.4.b'], k: 'r2', more: ['21.3.b'] },
+    { d: 'D103', u: ['29.2'], k: 'r2', more: ['29.1'] }] },
+  td: { mode: 'advance', sure: false, items: [
+    { d: 'D100', u: ['6.4', '6.4.a'], k: 'r2', dup: true, more: ['6.2.c', '6.7.a'] },
+    { d: 'D100', u: ['5.3', '5.3.a'], k: 'r2', more: ['5.5.i', '5.6.a'] },
+    { d: 'D142', u: ['17.1'], k: 'r2', more: ['17.2.b'] }] },
+  qc: { items: [{ d: 'D38', u: ['34.1'], k: 'r2' }] },
+  gplx: { items: [
+    { d: 'D100', u: ['21.2', '21.2.c'], k: 'r2', more: ['21.3.a', '21.5.a', '21.7.b', '21.8.b'] },
+    { d: 'D100', u: ['3.1', '3.1.c'], k: 'r4' }] }
+};
+/* Tuổi tính bằng ngày trước TODAY; giờ là giờ địa phương. */
+const CONVS = [
+  { id: 'c1', age: 0, at: '09:14', title: 'Xe máy không mang giấy bảo hiểm bị phạt bao nhiêu?', msgs: [
+    { r: 'u', t: 'Xe máy không mang giấy bảo hiểm bị phạt bao nhiêu?', at: '09:14' }, { r: 'b', k: 'res', a: 'bh' },
+    { r: 'u', t: 'Ô tô không mang giấy bảo hiểm bị phạt bao nhiêu?', at: '09:16' }, { r: 'b', k: 'res', a: 'oto' }] },
+  { id: 'c2', age: 0, at: '08:40', title: 'Chạy xe máy quá tốc độ', msgs: [
+    { r: 'u', t: 'Chạy xe máy quá tốc độ', at: '08:40' }, { r: 'b', k: 'res', a: 'td' }] },
+  { id: 'c3', age: 2, at: '15:02', title: '100/2019/NĐ-CP', msgs: [
+    { r: 'u', t: '100/2019/NĐ-CP', at: '15:02' }, { r: 'b', k: 'full', docs: ['D100'] }] },
+  { id: 'c4', age: 4, at: '10:21', title: 'Bitcoin', msgs: [
+    { r: 'u', t: 'Bitcoin', at: '10:21' }, { r: 'b', k: 'none', q: 'Bitcoin' }] },
+  { id: 'c7', age: 9, at: '11:05', title: 'Không mang giấy phép lái xe bị phạt bao nhiêu?', msgs: [
+    { r: 'u', t: 'Không mang giấy phép lái xe bị phạt bao nhiêu?', at: '11:05' }, { r: 'b', k: 'res', a: 'gplx', broken: 1 },
+    { r: 'u', t: 'xe máy không mang giấy phép lái xe', at: '11:07' }, { r: 'b', k: 'res', a: 'gplx', unsaved: true }] },
+  { id: 'c5', age: 12, at: '14:30', title: 'Quảng cáo trên cột điện bị phạt bao nhiêu?', msgs: [
+    { r: 'u', t: 'Quảng cáo trên cột điện bị phạt bao nhiêu?', at: '14:30' }, { r: 'b', k: 'res', a: 'qc' }] },
+  { id: 'c6', age: 20, at: '16:05', title: 'Xem trước: câu trả lời AI (P3)', preview: true, msgs: [
+    { r: 'u', t: 'Xe máy không mang giấy bảo hiểm xe bị phạt 500.000 đồng, đúng không?', at: '16:05' }, { r: 'b', k: 'ai', a: 'bh_fp' }] }
+];
+const EXAMPLES = [
+  ['Xe máy không mang giấy bảo hiểm bị phạt bao nhiêu?', 'mức phạt'],
+  ['100/2019/NĐ-CP Điều 21', 'số hiệu và Điều'],
+  ['2026/NĐ-CP', 'nhiều văn bản'],
+  ['Bitcoin', 'kho không có']
+];
+const UPGRADE = { done: 12, total: DOCS.length };   // N1b: nâng cấp dữ liệu một lần sau khi cập nhật
+const SHOW = 5, MORE = 10, CAP = 25;
+const STOP = new Set('cua va la thi co khong duoc cac nhung trong cho voi nay do theo khi ve nguoi bi mot de tai neu hoac phai bao nhieu gi nao the ra sao nhu'.split(' '));
+
+/* ---------- Tiện ích ---------- */
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fold = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+const doc = id => DOCS.find(d => d.id === id);
+const dieuOf = (id, n) => (LAW[id] || []).find(x => x.n === n);
+const unitOf = (id, uid) => { const d = dieuOf(id, +String(uid).split('.')[0]); return d && d.units.find(u => u.id === uid); };
+const isPdf = d => /\.pdf$/i.test(d.file);
+const pageOf = (id, uid) => isPdf(doc(id)) ? (PAGEOF[id] || {})[+String(uid).split('.')[0]] : null;
+function addr(uid) {
+  const p = String(uid).split('.');
+  let s = 'Điều ' + p[0];
+  if (p[2]) s = 'Điểm ' + p[2] + ' khoản ' + p[1] + ' ' + s; else if (p[1]) s = 'Khoản ' + p[1] + ' ' + s;
+  return s;
+}
+const docName = d => d.so ? d.loai + ' ' + d.so : d.file;
+const citeOf = (id, uid) => addr(uid) + ' ' + docName(doc(id));
+const dieuTitle = (id, uid) => { const d = dieuOf(id, +String(uid).split('.')[0]); return d ? d.title.replace(/^Điều\s+\d+\.\s*/, '') : ''; };
+const itemCite = x => x.whole ? 'Điều ' + x.whole + ' ' + docName(doc(x.d)) : citeOf(x.d, x.u[x.u.length - 1]);
+const docMeta = d => [d.cq, d.ngay && 'ban hành ' + d.ngay, d.hlTu && 'hiệu lực từ ' + d.hlTu, d.file].filter(Boolean).join(' · ');
+/* Từ để tô lấy từ câu hỏi như answer._words: tách từ, bỏ STOP. Có dấu thì so có dấu, không dấu thì so bỏ dấu. */
+const HL_STOP = new Set([...STOP].filter(w => w !== 'bao' && w !== 'nhieu'));
+function words(q) { return [...new Set((String(q).toLowerCase().replace(/bao\s+nhiêu/gu, ' ').match(/[\p{L}\p{N}]+/gu) || []).filter(w => !HL_STOP.has(fold(w))))]; }
+function marked(text, ws) {
+  if (!ws || !ws.length) return esc(text);
+  const acc = new Set(ws.filter(w => w !== fold(w))), bare = new Set(ws.filter(w => w === fold(w)));
+  return String(text).split(/([\p{L}\p{N}]+)/u).map((t, i) => {
+    if (i % 2 === 0) return esc(t);
+    const lo = t.toLowerCase();
+    return acc.has(lo) || bare.has(fold(t)) ? `<mark class="m">${esc(t)}</mark>` : esc(t);
+  }).join('');
+}
+function cut(t, max) {
+  if (t.length <= max) return t;
+  const i = t.lastIndexOf(' ', max);
+  return t.slice(0, i > 40 ? i : max) + ' …';
+}
+const HL = { con: ['Còn hiệu lực', 'pos'], het: ['Hết hiệu lực', 'neg'], chuaro: ['Hiệu lực chưa rõ', 'neu'] };
+const hlPill = id => { const h = HL[doc(id).hl]; return `<span class="pill ${h[1]}">${h[0]}</span>`; };
+const intentOf = q => { const f = fold(q); return /phat/.test(f) && /(bao nhieu|muc phat|bi phat)/.test(f); };
+let toastT = 0;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 3400); }
+function copy(text) {
+  const ok = () => toast('Đã sao chép: ' + text);
+  const fallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;left:-9999px;top:0';
+    document.body.appendChild(ta); ta.select();
+    let done = false;
+    try { done = document.execCommand('copy'); } catch (e) { done = false; }
+    document.body.removeChild(ta);
+    if (done) ok(); else toast('Không sao chép được. Hãy chọn dòng trích dẫn trong trình đọc rồi bấm Ctrl+C.');
+  };
+  try { navigator.clipboard.writeText(text).then(ok, fallback); } catch (e) { fallback(); }
+}
+
+/* ---------- Kiểm số (đếm tính từ dòng) ---------- */
+for (const [key, r] of Object.entries(RES)) {
+  for (const it of r.items) for (const u of [...it.u, ...(it.more || [])]) console.assert(unitOf(it.d, u), 'thiếu đơn vị', key, it.d, u);
+  console.assert(r.items.length <= CAP, 'quá trần', key);
+}
+ANS.bh_fp.src.forEach(s => s.u.forEach(u => console.assert(unitOf(s.d, u), 'nguồn P3 thiếu đơn vị', s.d, u)));
+
+/* ---------- Trạng thái ---------- */
+const S = { conv: 'c1', shown: {}, picked: new Set(), open: new Set(), legend: new Set(), rd: null, tab: 'text', page: null, q: '', menu: null, renaming: null, opener: null, dlgOpener: null, emptyKho: false, seq: 0 };
+const cur = () => CONVS.find(c => c.id === S.conv);
+const nDocs = () => S.emptyKho ? 0 : DOCS.length;
+
+/* ---------- Sidebar ---------- */
+function groupOf(age) { return age === 0 ? 'Hôm nay' : age <= 7 ? '7 ngày qua' : 'Cũ hơn'; }
+function renderSide() {
+  $('#scope').textContent = `Kho văn phòng · ${nDocs()} văn bản`;
+  const queue = DOCS.filter(d => d.why && d.why.suggest).length;
+  $('#queue').textContent = queue || '';
+  $('#upgrade').hidden = S.emptyKho || UPGRADE.done >= UPGRADE.total;
+  $('#upgrade-t').textContent = `Đang nâng cấp dữ liệu: ${UPGRADE.done}/${UPGRADE.total} văn bản`;
+  $('#upgrade-bar').style.width = (100 * UPGRADE.done / UPGRADE.total) + '%';
+  const q = fold(S.q.trim());
+  const list = CONVS.filter(c => !q || fold(c.title + ' ' + c.msgs.filter(m => m.r === 'u').map(m => m.t).join(' ')).includes(q));
+  if (!list.length) { $('#hist').innerHTML = `<p class="hempty">${CONVS.length ? `Không có cuộc nào khớp “${esc(S.q.trim())}”.` : 'Chưa có cuộc trò chuyện nào.'}</p>`; return; }
+  const groups = ['Hôm nay', '7 ngày qua', 'Cũ hơn'].map(g => [g, list.filter(c => groupOf(c.age) === g)]).filter(g => g[1].length);
+  $('#hist').innerHTML = groups.map(([g, cs]) => `<section class="hgrp"><h2>${g}</h2>${cs.map(c => `
+    <div class="hrow${c.id === S.conv ? ' on' : ''}">
+      ${S.renaming === c.id ? `<label class="sr" for="rn-${c.id}">Tên mới cho cuộc trò chuyện</label><input id="rn-${c.id}" maxlength="80" value="${esc(c.title)}">`
+        : `<a href="#${c.id}" data-conv="${c.id}"${c.id === S.conv ? ' aria-current="page"' : ''}>${esc(c.title)}</a>`}
+      <button type="button" class="icon-btn more" data-menu="${c.id}" aria-label="Tác vụ cho “${esc(c.title)}”" aria-haspopup="menu" aria-expanded="${S.menu === c.id}"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+      ${S.menu === c.id ? `<div class="menu" role="menu"><button type="button" role="menuitem" data-rename="${c.id}">Đổi tên</button><button type="button" role="menuitem" class="del" data-del="${c.id}">Xoá</button></div>` : ''}
+    </div>`).join('')}</section>`).join('');
+  const inp = S.renaming && $('#rn-' + S.renaming);
+  if (inp) { inp.focus(); inp.select(); }
+}
+
+/* ---------- Cột chính ---------- */
+function render(focusSel) {
+  const c = cur();
+  const v = $('#view');
+  $('#top-title').textContent = c ? c.title : 'Cuộc trò chuyện mới';
+  if (!c) {
+    v.innerHTML = S.emptyKho
+      ? `<header class="title-row"><div><h1>Cuộc trò chuyện mới</h1><p class="sub">0 văn bản trong kho.</p></div></header>
+        <div class="none"><h2>Kho chưa có văn bản</h2><p>Nạp các tệp PDF, Word hoặc ảnh chụp văn bản luật của văn phòng. App đọc chữ ngay trên máy này.</p><button type="button" class="btn primary" data-import>Nạp văn bản</button></div>`
+      : `<header class="title-row"><div><h1>Cuộc trò chuyện mới</h1><p class="sub">Tìm trong ${nDocs()} văn bản của kho. Kết quả luôn kèm nguyên văn và hiệu lực.</p></div></header>
+        <div class="hello"><p>Gõ câu hỏi bằng lời thường, hoặc gõ số hiệu để mở cả văn bản. Thử một câu:</p>
+        <ul class="ex">${EXAMPLES.map(e => `<li><button type="button" data-ex="${esc(e[0])}">${esc(e[0])}<span>${e[1]}</span></button></li>`).join('')}</ul></div>`;
+    renderSide(); afterRender(focusSel); return;
+  }
+  const nq = c.msgs.filter(m => m.r === 'u').length;
+  const day = c.age === 0 ? 'Hôm nay' : c.age === 1 ? 'Hôm qua' : `${c.age} ngày trước`;
+  const adv = c.msgs.some(m => m.k === 'res' && RES[m.a].mode === 'advance');
+  let lastQ = '';
+  v.innerHTML = `<header class="title-row"><div><h1 id="conv-title">${esc(c.title)}</h1><p class="sub">${day}, ${c.at} · ${nq} câu hỏi${adv ? ' · tìm theo nghĩa' : ''}${c.preview ? ' · bản thử giao diện của P3, không có trong 0.9' : ''}</p></div>
+    <div class="acts"><button type="button" class="btn text" data-rename="${c.id}">Đổi tên</button><button type="button" class="btn text" data-del="${c.id}">Xoá</button></div></header>
+    <div class="thread">${c.msgs.map((m, i) => {
+      if (m.r === 'u') { lastQ = m.t; return `<div class="q"><p>${esc(m.t)}</p><time>${m.at}</time></div>`; }
+      return `<section class="turn" aria-label="Kết quả cho “${esc(lastQ)}”">${turnHTML(c, m, i, lastQ)}</section>`;
+    }).join('')}</div>`;
+  renderSide(); afterRender(focusSel);
+}
+function afterRender(focusSel) {
+  $$('details[data-k]').forEach(d => { d.open = S.open.has(d.dataset.k); });
+  if (focusSel) { const el = $(focusSel); if (el) el.focus({ preventScroll: false }); }
+}
+function turnHTML(c, m, i, q) {
+  if (m.k === 'wait') return `<div class="skel" aria-busy="true"><span class="note">Đang tìm trong ${nDocs()} văn bản…</span>
+    <div class="bar" style="height:20px;width:38%"></div><div class="bar" style="height:16px;width:74%"></div>
+    <div class="grp"><div><div class="bar" style="height:16px;width:46%"></div><div class="bar" style="height:12px;width:62%"></div></div>
+    <div><div class="bar" style="height:16px;width:58%"></div><div class="bar" style="height:14px;width:94%"></div><div class="bar" style="height:14px;width:88%"></div></div></div></div>`;
+  if (m.k === 'none') return noneHTML(m);
+  if (m.k === 'full') return fullHTML(m);
+  if (m.k === 'ai') return aiHTML(m, q);
+  return resHTML(c, m, i, q);
+}
+function passes(x, f) {
+  const d = doc(x.d);
+  return !f || ((!f.loai || d.loai === f.loai) && (!f.cq || d.cq === f.cq) && (!f.hl || d.hl === f.hl));
+}
+function filterText(f) { return f ? [f.loai, f.cq, f.hl && HL[f.hl][0].toLowerCase()].filter(Boolean).join(', ') : ''; }
+function resHTML(c, m, i, q) {
+  const r = RES[m.a], key = c.id + ':' + i, ws = words(q);
+  const all = r.items.slice(0, m.broken ? r.items.length - m.broken : r.items.length);
+  const items = all.filter(x => passes(x, m.f));
+  const ft = filterText(m.f);
+  if (!items.length) return `<div class="none"><h2>Không còn kết quả sau khi lọc</h2><p>Tìm được ${all.length} đoạn, nhưng không đoạn nào thuộc bộ lọc: ${esc(ft)}.</p><button type="button" class="btn" data-unfilter="${key}">Bỏ lọc và hỏi lại</button></div>`;
+  const total = items.length, n = Math.min(S.shown[key] || SHOW, total);
+  const docsAll = new Set(items.map(x => x.d)).size;
+  const top = items[0], topCite = itemCite(top);
+  const kinds = {};
+  items.slice(0, n).forEach(x => { kinds[x.k] = (kinds[x.k] || 0) + 1; });
+  console.assert(Object.values(kinds).reduce((a, b) => a + b, 0) === n, 'tổng loại đoạn');
+  const risk = Object.keys(KIND).filter(k => kinds[k]).map(k => `${kinds[k]} ${KIND[k][0]}`).join(' · ');
+  /* Nhóm theo văn bản trong từng khối hiển thị (5 đầu, rồi từng 10). Văn bản đã có nhóm ở khối trước thì ghi "tiếp". */
+  const blocks = [[0, Math.min(SHOW, n)]];
+  for (let s = SHOW; s < n; s += MORE) blocks.push([s, Math.min(s + MORE, n)]);
+  const seen = new Set();
+  const body = blocks.map(([a, b]) => {
+    const order = [], by = {};
+    items.slice(a, b).forEach((x, j) => { if (!by[x.d]) { by[x.d] = []; order.push(x.d); } by[x.d].push([x, a + j]); });
+    const h = order.map(d => groupHTML(d, by[d], ws, key, seen.has(d))).join('');
+    order.forEach(d => seen.add(d));
+    return h;
+  }).join('');
+  const left = total - n, picked = [...S.picked].filter(p => p.startsWith(key + '|')).length;
+  const sureTxt = r.mode === 'advance' && r.sure != null;
+  const lg = S.legend.has(key);
+  return `<header class="res-h"><h2>${total} kết quả trong ${docsAll} văn bản</h2>
+      ${intentOf(q) ? '<span class="pill neu">Ý định: mức phạt</span>' : ''}
+      ${sureTxt ? `<span class="pill ${r.sure ? 'pos' : 'warn'}">${r.sure ? 'Khớp rõ' : 'Chưa chắc chắn'}</span>` : ''}</header>
+    ${m.broken ? `<div class="band" role="note"><span><b>${m.broken}/${all.length + m.broken} kết quả không còn đúng nguồn</b> vì văn bản đã nạp lại hoặc xoá. Hãy hỏi lại để có kết quả mới.</span><button type="button" class="btn" data-reask="${esc(q)}">Hỏi lại</button></div>` : ''}
+    <p class="finding">${total === 1 ? `Chỉ có một đoạn khớp: <b>${esc(topCite)}</b>.`
+      : sureTxt && !r.sure ? `Nhiều đoạn khớp gần ngang nhau. Đọc vài đoạn đầu, bắt đầu từ <b>${esc(topCite)}</b>.`
+      : sureTxt ? `Đoạn đầu khớp hơn hẳn các đoạn sau: <b>${esc(topCite)}</b>.`
+      : `Đoạn đầu: <b>${esc(topCite)}</b>.`}</p>
+    ${ft ? `<p class="filters">Đang lọc: ${esc(ft)}.</p>` : ''}
+    <p class="risk"><span>Trong ${n} mục đang hiện: ${risk}.</span><button type="button" class="link" data-legend="${key}" aria-expanded="${lg}">Các loại đoạn là gì?</button></p>
+    ${lg ? `<dl class="legend">${Object.values(KIND).map(k => `<dt>${k[0]}</dt><dd>${k[1]}</dd>`).join('')}</dl>` : ''}
+    ${body}
+    <footer class="res-f"><span class="meta">Đang hiện ${n} trên ${total}</span>
+      ${left > 0 ? `<button type="button" class="btn" data-more="${key}">Xem thêm ${Math.min(MORE, left)} kết quả</button>` : ''}
+      <button type="button" class="btn primary" data-export="${key}"${picked ? '' : ' disabled'}>${picked ? `Xuất Word (${picked} đoạn)` : 'Xuất Word'}</button></footer>
+    ${total > CAP ? `<p class="cap">Còn nhiều đoạn khác. Thêm số hiệu hoặc từ khoá để thu hẹp.</p>` : ''}
+    ${m.unsaved ? `<p class="unsaved">Chưa lưu được vào lịch sử (đang nạp file). Kết quả vẫn dùng được; hỏi lại sau khi nạp xong để lưu.</p>` : ''}`;
+}
+function groupHTML(d, rows, ws, key, cont) {
+  const D = doc(d);
+  return `<section class="grp${D.hl === 'het' ? ' faded' : ''}"><header class="grp-h">${cont
+    ? `<h3>${esc(docName(D))} <span>· tiếp, thêm ${rows.length} Điều</span></h3>`
+    : `<h3>${esc(docName(D))} <span>· ${rows.length} Điều</span></h3>${hlPill(d)}<p class="mt">${esc(docMeta(D))}</p>${D.ocr ? '<p class="warn-line">Chữ lấy từ bản quét (OCR), chưa đối chiếu với bản gốc.</p>' : ''}`}</header>
+    <ul class="items">${rows.map(([x, idx]) => itemHTML(x, idx, ws, key)).join('')}</ul></section>`;
+}
+function itemHTML(x, idx, ws, key) {
+  const D = doc(x.d), tu = x.u[x.u.length - 1], lead = x.u.length > 1 ? unitOf(x.d, x.u[0]).t : '';
+  const body = unitOf(x.d, tu).t, pg = pageOf(x.d, tu), pid = key + '|' + idx, spec = x.whole ? `${x.d}|@${x.whole}` : `${x.d}|${x.u.join(',')}`;
+  const label = x.whole ? 'Điều ' + x.whole : addr(tu);
+  return `<li class="item" id="it-${key.replace(':', '-')}-${idx}">
+    <div class="item-h"><a class="addr" href="#" data-open="${spec}" data-w="${esc(ws.join('|'))}">${esc(label)}</a><span class="dieu-t">${esc(dieuTitle(x.d, tu))}</span></div>
+    <p class="snip">${lead ? marked(cut(lead, 130), ws) + ' ' : ''}${marked(cut(body, 220), ws)}</p>
+    ${x.more ? `<p class="also-in">Cùng Điều còn khớp: ${x.more.map(m => { const par = m.split('.').slice(0, 2).join('.'); return `<button type="button" class="link" data-open="${x.d}|${m.split('.').length > 2 ? par + ',' : ''}${m}" data-w="${esc(ws.join('|'))}">${esc(addr(m).replace(/ Điều \d+$/, ''))}</button>`; }).join(' · ')}</p>` : ''}
+    <div class="item-f">
+      <button type="button" class="go" data-open="${spec}" data-w="${esc(ws.join('|'))}">Mở tại đoạn này</button>
+      <button type="button" class="quiet" data-copy="${esc(itemCite(x))}">Sao chép trích dẫn</button>
+      ${pg ? `<span class="meta">trang ${pg}</span>` : ''}
+      <label class="pick"><input type="checkbox" data-pick="${pid}"${S.picked.has(pid) ? ' checked' : ''}>Chọn để xuất</label>
+    </div>
+    ${x.dup ? `<details class="also" data-k="dup-${pid}"><summary>Cũng có ở ${DUP.length} văn bản khác cùng nội dung</summary><ul>${DUP.map(f => `<li><button type="button" class="link" data-open="${spec}" data-w="${esc(ws.join('|'))}">${esc(docName(D))}</button><span>${esc(f.f)}</span>${hlPill(x.d)}</li>`).join('')}</ul></details>` : ''}
+  </li>`;
+}
+function fullHTML(m) {
+  return `<header class="res-h"><h2>Số hiệu khớp ${m.docs.length + (m.more || 0)} văn bản</h2></header>
+    <p class="finding">${m.dieuMiss ? esc(m.dieuMiss) : 'Câu hỏi chỉ có số hiệu, nên app mở cả văn bản thay vì liệt kê từng Điều.'}</p>
+    <div class="full-list">${m.docs.map(id => { const d = doc(id); return `<div class="full"><h3>${esc(docName(d))} ${hlPill(id)}</h3>
+      <p>${esc(docMeta(d))} · ${d.nd != null ? d.nd + ' Điều' : 'chưa tách Điều'}${isPdf(d) ? ' · ' + d.pages + ' trang' : ''}</p>
+      <button type="button" class="btn" data-open="${id}|" data-w="">Mở toàn văn</button></div>`; }).join('')}</div>
+    ${m.more ? `<p class="cap">Còn ${m.more} văn bản khớp nữa. Gõ đủ số hiệu để mở đúng văn bản.</p>` : '<p class="cap">Muốn xem một Điều, gõ thêm “Điều n”, ví dụ: 100/2019/NĐ-CP Điều 21.</p>'}`;
+}
+function noneHTML(m) {
+  return `<div class="none"><h2>Không tìm thấy đoạn nào khớp “${esc(m.q)}”</h2>
+    <p>Đã tìm trong ${nDocs()} văn bản của kho. Không đoạn nào có từ trong câu hỏi.</p>
+    <ul><li>Thử từ khác, đúng cách viết trong văn bản luật.</li><li>Nếu văn bản chưa có trong kho, hãy nạp vào rồi hỏi lại.</li></ul></div>`;
+}
+function aiHTML(m, q) {
+  const a = ANS[m.a], ws = words(q);
+  const chip = n => `<a href="#src-${n}" class="src" data-src="${n}" aria-label="Nguồn ${n}">${n}</a>`;
+  return `<div class="ai"><header class="res-h"><h2>Trả lời</h2><span class="pill neu">Bản thử P3</span></header>
+    ${a.premise ? `<div class="band" role="note"><span><b>Câu hỏi có chỗ chưa đúng.</b> ${esc(a.premise)}</span></div>` : ''}
+    <p class="say">${esc(a.say)}</p>
+    <ol class="pts">${a.pts.map(p => `<li>${esc(p.y)}${p.s.map(chip).join('')}</li>`).join('')}</ol>
+    <section class="basis"><h3>Căn cứ, nguyên văn từ kho</h3>${a.src.map(s => {
+      const tu = s.u[s.u.length - 1];
+      const law = s.u.map(u => unitOf(s.d, u)).filter(Boolean).map(u => u.t).join(' ');
+      return `<blockquote class="quote" id="src-${s.n}"><span class="n">${s.n}</span><p class="law">${esc(cut(law, 320))}</p>
+        <footer><button type="button" class="link" data-open="${s.d}|${s.u.join(',')}" data-w="${esc(ws.join('|'))}">${esc(citeOf(s.d, tu))}</button>${hlPill(s.d)}${s.x ? `<span>${esc(s.x)}</span>` : ''}</footer></blockquote>`;
+    }).join('')}</section>
+    ${a.notes.length ? `<section class="basis"><h3>Lưu ý</h3><ul>${a.notes.map(p => `<li>${esc(p.y)}${p.s.map(chip).join('')}</li>`).join('')}</ul></section>` : ''}</div>`;
+}
+
+/* ---------- Trình đọc ---------- */
+const overlay = () => matchMedia('(max-width: 1240px)').matches || $('#reader').classList.contains('wide');
+function setModal() {
+  const R = $('#reader'), on = !!S.rd && overlay();
+  $('#rd-scrim').classList.toggle('on', !!S.rd && matchMedia('(max-width: 1240px)').matches && !R.classList.contains('wide'));
+  if (on) { R.setAttribute('role', 'dialog'); R.setAttribute('aria-modal', 'true'); } else { R.removeAttribute('role'); R.removeAttribute('aria-modal'); }
+  $('#main').inert = on || (narrowSide() && $('#side').classList.contains('open'));
+  $('#side').inert = on || (narrowSide() && !$('#side').classList.contains('open'));
+}
+function openReader(spec, ws, opener) {
+  const [d, us] = spec.split('|');
+  const whole = us && us[0] === '@' ? +us.slice(1) : null;
+  S.rd = { d, whole, u: us && !whole ? us.split(',') : [], w: ws && !whole ? ws.split('|').filter(Boolean) : [] };
+  S.tab = 'text'; S.opener = opener || null;
+  const first = S.rd.u[S.rd.u.length - 1];
+  S.page = first ? pageOf(d, first) || 1 : whole ? (PAGEOF[d] || {})[whole] || 1 : 1;
+  renderReader(true);
+}
+function closeReader() {
+  S.rd = null;
+  const R = $('#reader'); R.hidden = true; R.classList.remove('wide');
+  $('#app').classList.remove('reading');
+  setModal();
+  if (S.opener && document.contains(S.opener)) S.opener.focus();
+}
+function renderReader(scroll) {
+  const r = S.rd, D = doc(r.d), dieus = LAW[r.d] || [], R = $('#reader');
+  const tu = r.u[r.u.length - 1], sel = new Set(r.u);
+  const whole = r.whole;
+  const cite = whole ? 'Điều ' + whole + ' ' + docName(D) : tu ? citeOf(r.d, tu) : docName(D);
+  const curN = whole || (tu ? +tu.split('.')[0] : (dieus[0] && dieus[0].n));
+  const wide = R.classList.contains('wide');
+  const meta = `<div class="rd-meta"><p class="mt"><span>${esc(D.cq || 'Chưa có cơ quan')}</span><span>${D.ngay ? 'ban hành ' + D.ngay : 'chưa có ngày ban hành'}</span>${D.hlTu ? `<span>hiệu lực từ ${D.hlTu}</span>` : ''}<span>tệp ${esc(D.file)}</span><span>Số hiệu sai? <a href="#" data-old="Văn bản trong kho">Sửa ở trang Văn bản</a></span></p>
+      <div class="cite"><output aria-label="Trích dẫn">${esc(cite)}</output><small>Chọn dòng này hoặc bấm “Sao chép” để dán vào Word.</small></div>
+      ${D.ocr ? '<div class="band" role="note"><span>Chữ của văn bản này lấy từ bản quét (OCR) và chưa được đối chiếu với bản gốc. Kiểm lại số liệu trên tab Bản gốc trước khi dùng.</span></div>' : ''}</div>`;
+  const text = dieus.length ? `<div class="rd-grid">
+      <nav class="toc" aria-label="Mục lục Điều"><h3>Mục lục</h3><ul>${dieus.map(x => `<li><a href="#d-${x.n}" data-goto="${x.n}" class="${x.n === curN ? 'on' : ''}"${x.n === curN ? ' aria-current="true"' : ''}>Điều ${x.n}</a></li>`).join('')}</ul>
+        <p class="part">Mẫu có ${dieus.length} trên ${D.nd} Điều. App thật hiện đủ.</p></nav>
+      <div class="text">
+        <div class="toc-sel"><label class="sr" for="goto">Đi tới Điều</label><select id="goto">${dieus.map(x => `<option value="${x.n}"${x.n === curN ? ' selected' : ''}>${esc(cut(x.title, 70))}</option>`).join('')}</select><span>${dieus.length}/${D.nd} Điều trong mẫu</span></div>
+        ${dieus.map(x => `<section class="dieu"><h3 id="d-${x.n}">${esc(x.title)}</h3>${x.units.map(u => u.gap
+          ? `<p class="gap">… phần lược bớt trong mẫu</p>`
+          : `<p class="u${u.id.split('.').length > 2 ? ' l2' : ''}${sel.has(u.id) ? ' sel' : ''}" id="u-${u.id.replace(/\./g, '-')}">${marked(u.t, sel.has(u.id) || !r.u.length ? r.w : [])}</p>`).join('')}</section>`).join('')}
+        <details class="tech" data-k="tech"><summary>Chi tiết kỹ thuật</summary><dl>
+          <dt>Tệp</dt><dd>${esc(D.file)}</dd><dt>Cách lấy chữ</dt><dd>${D.ocr ? 'OCR (Tesseract, tiếng Việt)' : isPdf(D) ? 'PDF có lớp chữ' : 'Word'}</dd>
+          <dt>Trạng thái OCR</dt><dd>${D.ocr ? 'Chưa đối chiếu' : 'Không cần OCR'}</dd><dt>Mã băm</dt><dd>sha256 3f9c…a41e (mẫu)</dd></dl>
+          ${isPdf(D) ? '' : `<p>Văn bản này không có ảnh trang. Phần ngoài Điều (căn cứ, nơi nhận) xem ở nguyên văn từng trang:</p><pre>Nguyên văn trang 1 (mẫu)
+CHÍNH PHỦ … Căn cứ Luật Tổ chức Chính phủ ngày 25 tháng 12 năm 2001; …</pre>`}
+        </details>
+      </div></div>` : `<p class="rd-empty">Mẫu chưa có nguyên văn của văn bản này. App thật hiện toàn văn từ kho.</p>`;
+  const pg = S.page || 1;
+  const onPage = dieus.filter(x => (PAGEOF[r.d] || {})[x.n] === pg);
+  const orig = D.gone
+    ? `<div class="orig"><div class="none" role="alert"><h2>Không mở được ảnh trang</h2><p>Tệp ${esc(D.file)} không còn ở thư mục đã nạp. Chữ trong kho vẫn đọc được ở tab Văn bản.</p><button type="button" class="btn" data-retry>Thử lại</button></div></div>`
+    : `<div class="orig"><div class="orig-bar"><span>Trang ${pg} trên ${D.pages}</span>
+      <button type="button" class="btn" data-page="-1"${pg <= 1 ? ' disabled' : ''}>Trang trước</button><button type="button" class="btn" data-page="1"${pg >= D.pages ? ' disabled' : ''}>Trang sau</button></div>
+      <div class="sheet" role="img" aria-label="Trang ${pg} của ${esc(docName(D))}">${onPage.length ? onPage.map(x => `<h4>${esc(x.title)}</h4>${x.units.filter(u => !u.gap).map(u => `<p>${esc(u.t)}</p>`).join('')}`).join('') : '<p>Trang này không có Điều nào trong dữ liệu mẫu.</p>'}<p class="pno">${pg}</p></div>
+      <p class="cap">Mẫu dựng lại trang từ chữ. App thật hiện ảnh chụp trang gốc của tệp ${esc(D.file)}, không có khung tô.</p></div>`;
+  const tabs = isPdf(D) ? [['text', 'Văn bản'], ['orig', 'Bản gốc']] : [['text', 'Văn bản']];
+  R.innerHTML = `<div class="rd-top"><div class="who"><h2 id="rd-title" tabindex="-1">${esc(docName(D))}</h2>${hlPill(r.d)}</div>
+      <button type="button" class="btn" data-copy="${esc(cite)}" aria-label="Sao chép trích dẫn: ${esc(cite)}">Sao chép<span>&nbsp;trích dẫn</span></button>
+      <button type="button" class="icon-btn" id="rd-wide" aria-pressed="${wide}" aria-label="${wide ? 'Thu nhỏ trình đọc' : 'Mở rộng trình đọc'}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">${wide ? '<path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/>' : '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>'}</svg></button>
+      <button type="button" class="icon-btn" id="rd-close" aria-label="Đóng trình đọc (Esc)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+    <div class="tabs" role="tablist" aria-label="Cách xem văn bản">${tabs.map(([k, l]) => `<button type="button" role="tab" id="tab-${k}" data-tab="${k}" aria-selected="${S.tab === k}" aria-controls="rd-body" tabindex="${S.tab === k ? 0 : -1}">${l}</button>`).join('')}</div>
+    <div class="rd-body" id="rd-body" role="tabpanel" aria-labelledby="tab-${S.tab}" tabindex="-1">${S.tab === 'text' ? meta + text : orig}</div>`;
+  R.hidden = false;
+  $('#app').classList.add('reading');
+  $$('details[data-k]', R).forEach(d => { d.open = S.open.has(d.dataset.k); });
+  setModal();
+  if (scroll) {
+    $('#rd-title').focus({ preventScroll: true });
+    const t = whole ? $('#d-' + whole) : tu && $('#u-' + tu.replace(/\./g, '-'));
+    requestAnimationFrame(() => { if (t) t.scrollIntoView({ block: whole ? 'start' : 'center' }); });
+  }
+}
+
+/* ---------- Hỏi ---------- */
+const SOHIEU = /\d+\/\d{4}\/[A-ZĐa-zđ0-9-]+/;
+function route(q, f) {
+  const fq = fold(q);
+  const dm = q.match(/điều\s*(\d+)/i), so = q.match(SOHIEU);
+  if (so) {
+    const d = DOCS.find(x => fold(x.so) === fold(so[0]));
+    if (d && dm) {
+      const n = +dm[1], di = dieuOf(d.id, n);
+      if (di) { const key = `dieu-${d.id}-${n}`; RES[key] = { items: [{ d: d.id, u: [di.units.find(u => u.id).id], k: 'r2', whole: n }] }; return { k: 'res', a: key, f }; }
+      return { k: 'full', docs: [d.id], dieuMiss: `Mẫu chưa có nguyên văn Điều ${n} của văn bản này; mở toàn văn để xem các Điều có trong mẫu.` };
+    }
+    if (d) return { k: 'full', docs: [d.id] };
+  }
+  const part = q.match(/\d+\/\d{4}|\d{4}\/[A-ZĐa-zđ-]+/);
+  if (part) {
+    const hits = DOCS.filter(x => x.so && fold(x.so).includes(fold(part[0])));
+    if (hits.length) return { k: 'full', docs: hits.slice(0, 5).map(x => x.id), more: Math.max(0, hits.length - 5) };
+  }
+  if (fq.includes('bao hiem')) return { k: 'res', a: fq.includes('o to') ? 'oto' : 'bh', f };
+  if (fq.includes('toc do')) return { k: 'res', a: 'td', f };
+  if (fq.includes('quang cao')) return { k: 'res', a: 'qc', f };
+  if (fq.includes('giay phep lai xe')) return { k: 'res', a: 'gplx', f };
+  return { k: 'none', q: q.replace(/[?？.]+$/, '') };
+}
+function now() { const t = 10 * 60 + 30 + S.seq; return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); }
+function filters() { const f = { loai: $('#f-loai').value, cq: $('#f-cq').value, hl: $('#f-hl').value }; return f.loai || f.cq || f.hl ? f : null; }
+function ask(q) {
+  q = q.trim(); if (!q) return;
+  if (S.emptyKho) { toast('Kho chưa có văn bản. Hãy nạp văn bản trước.'); return; }
+  let c = cur();
+  S.seq++;
+  if (!c) {
+    c = { id: 'n' + S.seq, age: 0, at: now(), title: q.length > 60 ? q.slice(0, 60).trimEnd() + '…' : q, msgs: [] };
+    CONVS.unshift(c); S.conv = c.id; setHash(c.id);
+  }
+  const f = filters();
+  c.msgs.push({ r: 'u', t: q, at: now() });
+  const wait = { r: 'b', k: 'wait' };
+  c.msgs.push(wait);
+  render(); scrollEnd();
+  setTimeout(() => {
+    Object.assign(wait, route(q, f));
+    if (S.conv !== c.id) { renderSide(); return; }
+    render(); scrollTurnTop();
+  }, 650);
+}
+function scrollEnd() { const s = $('#scroll'); s.scrollTop = s.scrollHeight; }
+function scrollTurnTop() { const t = $$('.turn'), s = $('#scroll'); if (t.length) s.scrollTop = Math.max(0, t[t.length - 1].offsetTop - 140); }
+function setHash(id) { history.replaceState(null, '', id ? '#' + id : location.pathname + location.search); }
+function openConv(id) { S.conv = id; S.menu = null; closeSide(); render(); $('#scroll').scrollTop = 0; setHash(id); }
+function newChat() { S.conv = null; S.menu = null; closeSide(); render(); setHash(''); $('#ask').focus(); }
+
+/* ---------- Hộp thoại ---------- */
+function dialog(html) {
+  S.dlgOpener = document.activeElement;
+  $('#dialog').innerHTML = html; $('#scrim').hidden = false; $('#app').inert = true;
+  const b = $('#dialog [data-first]') || $('#dialog button'); if (b) b.focus();
+}
+function closeDialog(focusEl) {
+  $('#scrim').hidden = true; $('#app').inert = false;
+  const t = focusEl || (S.dlgOpener && document.contains(S.dlgOpener) ? S.dlgOpener : $('.newchat'));
+  if (t) t.focus();
+}
+
+/* ---------- Sự kiện ---------- */
+document.addEventListener('click', e => {
+  const t = e.target.closest('a, button, input');
+  if (!t) { if (S.menu) { S.menu = null; renderSide(); } return; }
+  const ds = t.dataset;
+  if (ds.conv) { e.preventDefault(); openConv(ds.conv); return; }
+  if (t.hasAttribute('data-new')) { newChat(); return; }
+  if (ds.menu) { S.menu = S.menu === ds.menu ? null : ds.menu; renderSide(); const m = $('.menu button'); if (m && S.menu) m.focus(); return; }
+  if (ds.rename) {
+    S.menu = null; S.renaming = ds.rename;
+    const c = CONVS.find(x => x.id === ds.rename);
+    if (S.q && !fold(c.title).includes(fold(S.q.trim()))) { S.q = ''; $('#hq').value = ''; }
+    if (narrowSide()) openSide(true);
+    renderSide(); return;
+  }
+  if (ds.del) {
+    const id = ds.del; S.menu = null; renderSide();
+    const c = CONVS.find(x => x.id === id);
+    dialog(`<h2 id="dlg-t">Xoá “${esc(c.title)}”?</h2><p>Cuộc trò chuyện và các kết quả đã lưu sẽ mất. Câu hỏi vẫn còn trong nhật ký truy vấn (dùng cho trang Truy vấn bỏ sót).</p>
+      <div class="row"><button type="button" class="btn" data-cancel data-first>Huỷ</button><button type="button" class="btn danger" data-confirm-del="${c.id}">Xoá cuộc trò chuyện</button></div>`);
+    return;
+  }
+  if (ds.confirmDel) {
+    const i = CONVS.findIndex(x => x.id === ds.confirmDel), name = CONVS[i].title;
+    CONVS.splice(i, 1);
+    if (S.conv === ds.confirmDel) { S.conv = CONVS[0] ? CONVS[0].id : null; setHash(S.conv); }
+    render(); closeDialog($('.hrow.on a') || $('.newchat')); toast('Đã xoá “' + name + '”.'); return;
+  }
+  if (t.hasAttribute('data-cancel')) { closeDialog(); return; }
+  if (t.hasAttribute('data-import')) {
+    dialog(`<h2 id="dlg-t">Nạp văn bản</h2><p>Chọn tệp PDF, Word, ảnh chụp, hoặc cả một thư mục. App đọc chữ ngay trên máy này; văn bản quét sẽ được OCR.</p>
+      <div class="row"><button type="button" class="btn" data-cancel>Đóng</button><button type="button" class="btn" data-pickfile>Chọn thư mục</button><button type="button" class="btn primary" data-pickfile data-first>Chọn tệp</button></div>`);
+    return;
+  }
+  if (t.hasAttribute('data-pickfile')) { closeDialog($('#btn-import')); toast('Mẫu: app thật mở hộp chọn tệp của Windows.'); return; }
+  if (ds.open !== undefined) { e.preventDefault(); openReader(ds.open, ds.w, t); return; }
+  if (ds.copy) { copy(ds.copy); return; }
+  if (ds.more) {
+    const before = S.shown[ds.more] || SHOW;
+    S.shown[ds.more] = Math.min(before + MORE, CAP);
+    render(`#it-${ds.more.replace(':', '-')}-${before} .go`); return;
+  }
+  if (ds.pick) { if (t.checked) S.picked.add(ds.pick); else S.picked.delete(ds.pick); render(`[data-pick="${ds.pick}"]`); return; }
+  if (ds.export) { const k = [...S.picked].filter(p => p.startsWith(ds.export + '|')).length; toast(`Mẫu: app thật tải tệp Word gồm ${k} đoạn đã chọn, kèm trích dẫn và hiệu lực.`); return; }
+  if (ds.legend) { if (S.legend.has(ds.legend)) S.legend.delete(ds.legend); else S.legend.add(ds.legend); render(`[data-legend="${ds.legend}"]`); return; }
+  if (ds.unfilter) { const [cid, i] = ds.unfilter.split(':'); const m = CONVS.find(c => c.id === cid).msgs[+i]; delete m.f; ['#f-loai', '#f-cq', '#f-hl'].forEach(s => { $(s).value = ''; }); render(); return; }
+  if (ds.reask) { ask(ds.reask); return; }
+  if (ds.ex) { ask(ds.ex); $('#ask').focus(); return; }
+  if (ds.src) {
+    e.preventDefault();
+    const q = $('#src-' + ds.src); if (q) { q.scrollIntoView({ block: 'center' }); const a = $('[data-open]', q); if (a) a.focus({ preventScroll: true }); }
+    return;
+  }
+  if (ds.goto) { e.preventDefault(); const h = $('#d-' + ds.goto); if (h) h.scrollIntoView({ block: 'start' }); $$('.toc a').forEach(a => { a.classList.toggle('on', a === t); a.toggleAttribute('aria-current', a === t); }); return; }
+  if (ds.page) { S.page = Math.max(1, Math.min(doc(S.rd.d).pages, (S.page || 1) + +ds.page)); renderReader(false); const b = $(`[data-page="${ds.page}"]`); (b && !b.disabled ? b : $(`[data-page="${-ds.page}"]`)).focus(); return; }
+  if (t.hasAttribute('data-retry')) { toast('Vẫn không thấy tệp. Nếu đã chuyển chỗ, hãy nạp lại tệp từ chỗ mới.'); return; }
+  if (ds.old) { e.preventDefault(); toast(`“${ds.old}” giữ như bản 0.8 trong P1.`); return; }
+  if (ds.tab) { S.tab = ds.tab; renderReader(false); $('#tab-' + ds.tab).focus(); return; }
+  if (t.id === 'rd-close') { closeReader(); return; }
+  if (t.id === 'rd-wide') { $('#reader').classList.toggle('wide'); renderReader(false); $('#rd-wide').focus(); return; }
+  if (t.id === 'open-side') { openSide(); return; }
+});
+document.addEventListener('toggle', e => { const d = e.target; if (d.matches && d.matches('details[data-k]')) { if (d.open) S.open.add(d.dataset.k); else S.open.delete(d.dataset.k); } }, true);
+$('#rd-scrim').addEventListener('click', closeReader);
+$('#side-scrim').addEventListener('click', () => closeSide(true));
+$('#scrim').addEventListener('click', e => { if (e.target.id === 'scrim') closeDialog(); });
+document.addEventListener('change', e => { if (e.target.id === 'goto') { const h = $('#d-' + e.target.value); if (h) h.scrollIntoView({ block: 'start' }); } });
+document.addEventListener('keydown', e => {
+  if (e.altKey && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); if ($('#scrim').hidden) newChat(); return; }
+  if (e.target.matches && e.target.matches('[role="tab"]') && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+    const tabs = $$('[role="tab"]'), i = tabs.indexOf(e.target);
+    const j = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    e.preventDefault(); S.tab = tabs[j].dataset.tab; renderReader(false); $('#tab-' + S.tab).focus(); return;
+  }
+  if (e.key === 'Escape') {
+    if (!$('#scrim').hidden) { closeDialog(); return; }
+    if (S.menu) { const id = S.menu; S.menu = null; renderSide(); const b = $(`[data-menu="${id}"]`); if (b) b.focus(); return; }
+    if (S.renaming) { S.renaming = null; renderSide(); return; }
+    if (S.rd) { closeReader(); return; }
+    if ($('#side').classList.contains('open')) { closeSide(true); return; }
+  }
+  if (e.target.id && e.target.id.startsWith('rn-') && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); saveRename(e.target); }
+});
+function saveRename(inp) {
+  const v = inp.value.trim(), id = S.renaming, c = CONVS.find(x => x.id === id);
+  S.renaming = null;
+  if (!c) return;
+  if (!v) { renderSide(); toast('Tên không được để trống. Giữ tên cũ.'); return; }
+  const changed = v.slice(0, 80) !== c.title;
+  c.title = v.slice(0, 80); render();
+  const a = $(`[data-conv="${id}"]`); if (a) a.focus();
+  if (changed) toast('Đã đổi tên.');
+}
+document.addEventListener('focusout', e => {
+  if (e.target.id && e.target.id.startsWith('rn-') && S.renaming) { const inp = e.target; setTimeout(() => { if (S.renaming && document.activeElement !== inp) saveRename(inp); }, 0); }
+});
+$('#hq').addEventListener('input', e => { S.q = e.target.value; renderSide(); });
+const ta = $('#ask');
+function grow() { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 132) + 'px'; $('#send').disabled = !ta.value.trim(); }
+ta.addEventListener('input', grow);
+ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('#composer').requestSubmit(); } });
+$('#composer').addEventListener('submit', e => { e.preventDefault(); const q = ta.value; ta.value = ''; grow(); ask(q); });
+const narrowSide = () => matchMedia('(max-width: 900px)').matches;
+function openSide(keepFocus) {
+  $('#side').classList.add('open'); $('#side-scrim').classList.add('open'); $('#open-side').setAttribute('aria-expanded', 'true');
+  setModal();
+  if (!keepFocus) { const a = $('#side .hrow.on a') || $('#side [data-new]'); if (a) a.focus(); }
+}
+function closeSide(returnFocus) {
+  const was = $('#side').classList.contains('open');
+  $('#side').classList.remove('open'); $('#side-scrim').classList.remove('open'); $('#open-side').setAttribute('aria-expanded', 'false');
+  setModal();
+  if (was && returnFocus) $('#open-side').focus();
+}
+matchMedia('(max-width: 900px)').addEventListener('change', () => closeSide(false));
+matchMedia('(max-width: 1240px)').addEventListener('change', setModal);
+window.addEventListener('hashchange', () => {
+  const h = location.hash.slice(1);
+  if (h === 'import') { $('#btn-import').click(); return; }
+  if (CONVS.some(c => c.id === h) && h !== S.conv) openConv(h);
+});
+
+/* ---------- Khởi động ---------- */
+const h0 = location.hash.slice(1);
+if (h0 === 'kho-trong') { S.emptyKho = true; S.conv = null; CONVS.length = 0; }
+else if (CONVS.some(c => c.id === h0)) S.conv = h0;
+render();
+closeSide(false);
+if (h0 === 'import') $('#btn-import').click();
+})();
+</script>

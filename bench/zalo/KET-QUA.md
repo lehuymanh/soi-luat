@@ -194,3 +194,18 @@ K = 20 tốn thêm ~65 MB thường trực, đỉnh +66 MB. Câu đầu dao đ�
 **Ngưỡng `DENSE_MIN = 0,50`.** Không có ngưỡng thì câu BM25 không ra gì ("?", "qwzx plokm vbnrt", "smartphone warranty refund") vẫn nhận đủ 20 thẻ không liên quan thay vì "Không tìm thấy". Đo cosine cao nhất toàn kho Zalo: 15 câu vô nghĩa 0,27–0,47; Điều đáp án của 784 câu thật p5 / p10 / p50 = 0,51 / 0,54 / 0,65 (≥ 0,50: 752 / 784). Chỉ Điều **thêm từ vector** phải đạt ngưỡng; Điều BM25 tìm ra không bị lọc. 788 câu với ngưỡng: Hit@1 / @3 / @5 / @10 = 60,2 / 83,5 / 89,1 / 92,5%, MRR 0,723 — giống hệt K = 20 không ngưỡng (cùng 6 câu lên, 6 câu xuống; `ket_qua_test_full_k20_min50.json`). Câu vô nghĩa nay về trang "Không tìm thấy" (đã xem trên Search App).
 
 Giao diện: thẻ chỉ có nhờ vector (không chung chữ với câu hỏi) mang tầng khớp 7 và nhãn "tìm theo nghĩa, không chung từ khoá"; thẻ đoạn của file không số hiệu có tên file trước tiêu đề ("kn-vang · trang 1 đoạn 1" thay vì "trang 1 đoạn 1"). Câu "cửa hàng kim hoàn từ chối giao chứng từ lúc sắm trang sức" trên kho 21 văn bản + 6 ghi chú: 72 thẻ, 14 thẻ mang nhãn này (vị trí 8, 10, 17, 24, 27–36), ghi chú ở vị trí 8. Kịch bản đo: `realtools/matrix_load.py`, `realtools/zalo_k.py` trong scratchpad phiên đo; kết quả từng câu: `ket_qua_test_full_k0.json`, `ket_qua_test_full_k20.json`.
+
+
+## P1 K3: đo theo mục hiển thị (31/10/2026)
+
+Quy ước (kế hoạch P1, mục 2b, chủ dự án duyệt 31/10/2026): "theo mục" là mục hiển thị sau `cards.compact` (một mục mỗi (văn bản, Điều), Điều cùng nội dung ở văn bản khác gộp vào "Cũng có ở"). Zalo và gold tính trúng khi khoá đáp án nằm ở bản đại diện hoặc một bản trùng (kho Zalo gần như không có ngày ban hành để chọn đại diện); văn bản thật tính theo bản đại diện. Mọi bộ báo cả hai cách.
+
+Zalo test 788 câu, Normal (`SOILUAT_SEMANTIC=0`), bản dựng sau sửa parser điểm nhiều dòng (N1a), mã `c803116`; `python -I bench/zalo/eval.py <zalo> <data> test --tag muc --only hien_tai,hien_tai_muc,hien_tai_muc_dai_dien` (`ket_qua_test_muc.json`):
+
+| Cách tính | Hit@1 | Hit@5 | Hit@10 | MRR@10 |
+|---|---|---|---|---|
+| theo thẻ (`hien_tai`, mốc 0.8) | 58,6 | 86,3 | 90,5 | 0,710 |
+| theo mục, kèm "Cũng có ở" (`hien_tai_muc`, cổng P1) | 61,0 | 86,4 | 90,5 | 0,723 |
+| theo mục, chỉ bản đại diện (`hien_tai_muc_dai_dien`) | 58,6 | 83,6 | 87,7 | 0,697 |
+
+Cổng P1 (Hit@1, @5 theo mục không thấp hơn mốc theo thẻ trên cùng bản dựng): đạt (@1 +2,4 điểm, @5 +0,1). Chỉ tính bản đại diện thì @5 thấp hơn 2,7 điểm: đáp án Zalo hay nằm ở bản trùng mà bản đại diện được chọn theo hiệu lực và ngày ban hành, kho Zalo thiếu cả hai. Tính theo mục chỉ thêm ~74 ms mỗi câu (p50).

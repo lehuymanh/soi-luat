@@ -2,143 +2,61 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8">
-  <title>Soi Luật</title>
+  <title>{% if title %}{{ title }} · {% endif %}Soi Luật</title>
   {% include "_style.html" %}
-  <style>
-    /* Khung chat: thanh trên (Nạp file | tên | Cài đặt), luồng hỏi–đáp, ô hỏi dính đáy */
-    body.chat { min-height: 100vh; display: flex; flex-direction: column; }
-    .bar { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px;
-           padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--border); }
-    .bar .title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.05rem; justify-self: center; }
-    .bar .title svg { color: var(--primary); }
-    .bar .title .sub { font-weight: 400; font-size: 12.5px; color: var(--muted); }
-    .tool { display: inline-flex; align-items: center; gap: 8px; border-radius: 10px; min-height: 40px; padding: 0 12px; background: transparent; border-color: transparent; }
-    .tool:hover { background: var(--surface-2); }
-    .tool.icon { padding: 0; width: 40px; justify-content: center; justify-self: end; }
-    #btn-import { justify-self: start; }
-    .busy { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--primary); background: var(--primary-soft); border-radius: 999px; padding: 3px 9px; }
-    .busy::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 1.1s ease-in-out infinite; }
-    @keyframes pulse { 50% { opacity: .25; } }
-
-    .thread { flex: 1; width: 100%; max-width: 920px; margin: 0 auto; padding: 18px 16px 24px; }
-    .msg { margin: 14px 0; }
-    .msg.user { display: flex; justify-content: flex-end; scroll-margin-top: 70px; }
-    .bubble { max-width: 85%; background: var(--primary); color: var(--primary-fg); border-radius: 18px 18px 4px 18px; padding: 9px 15px; white-space: pre-wrap; overflow-wrap: anywhere; }
-    .typing { display: inline-flex; gap: 5px; padding: 10px 4px; }
-    .typing i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); animation: pulse 1s ease-in-out infinite; }
-    .typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
-
-    .hello { text-align: center; padding: 9vh 8px 0; }
-    .hello svg { color: var(--primary); }
-    .hello h1 { font-size: 1.6rem; margin: 10px 0 6px; }
-    .hello .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 18px; }
-    .chip { font-weight: 500; border-radius: 999px; min-height: 34px; padding: 4px 14px; font-size: 13.5px; color: var(--muted); }
-    .chip:hover { color: var(--fg); }
-    .hello .empty-kho { background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; padding: 16px; margin: 18px auto 0; max-width: 460px; }
-
-    .composer { position: sticky; bottom: 0; z-index: 15; background: var(--bg); border-top: 1px solid var(--border); padding: 10px 12px 14px; }
-    .composer .in { max-width: 920px; margin: 0 auto; }
-    [hidden] { display: none !important; }
-    .composer .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
-    .composer .filters select, .composer .filters input { font-size: 14px; min-height: 34px; padding: 6px 10px; }
-    .composer .filters input { width: 170px; }
-    .composer .row { display: flex; align-items: flex-end; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 6px 6px 6px 8px; box-shadow: var(--shadow); }
-    .composer .row:focus-within { border-color: var(--ring); }
-    .composer textarea { flex: 1; border: 0; background: transparent; resize: none; font: inherit; font-size: 1.02rem; color: var(--fg); padding: 8px 4px; max-height: 140px; outline: none; min-height: 40px; }
-    .composer .chip { align-self: center; min-height: 32px; position: relative; }
-    .composer .chip[aria-expanded=true] { background: var(--primary-soft); color: var(--primary); }
-    .composer .chip .dot { position: absolute; top: 3px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--r2); }
-    .send { width: 42px; min-height: 42px; padding: 0; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; }
-    .composer .hint { max-width: 920px; margin: 6px auto 0; text-align: center; }
-
-    /* Cửa sổ nổi dưới thanh trên: Nạp file bám trái, Cài đặt bám phải */
-    dialog.panel { position: fixed; top: 60px; bottom: auto; margin: 0; width: min(440px, calc(100vw - 24px)); max-width: none; max-height: calc(100vh - 76px);
-                   padding: 0; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--fg); box-shadow: 0 16px 48px rgba(16, 24, 40, .28); overflow: auto; }
-    dialog.panel.left { left: 12px; right: auto; }
-    dialog.panel.right { right: 12px; left: auto; }
-    dialog.panel::backdrop { background: rgba(15, 20, 27, .32); }
-    .panel-body { padding: 14px 16px 18px; }
-    .panel-head { display: flex; align-items: center; justify-content: space-between; }
-    .panel-head h2 { margin: 0; }
-    .panel h3 { font-size: .95rem; margin: 18px 0 6px; }
-    .x { border: 0; background: transparent; width: 34px; min-height: 34px; padding: 0; font-size: 22px; line-height: 1; color: var(--muted); }
-    .link { border: 0; background: transparent; min-height: 28px; padding: 0 4px; color: var(--primary); font-weight: 500; text-decoration: underline; }
-    .drop { margin-top: 12px; border: 2px dashed var(--border); border-radius: 12px; padding: 18px 14px; text-align: center; background: var(--surface-2); }
-    .drop.over, body.dragging .drop { border-color: var(--ring); background: var(--primary-soft); }
-    .drop .btns { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
-    .opt { display: block; margin-top: 10px; font-size: 14px; }
-    details.adv { margin-top: 12px; font-size: 14px; }
-    details.adv form { margin: 8px 0 4px; }
-    .qhead { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; }
-    .qlist { list-style: none; padding: 0; margin: 6px 0 0; max-height: 240px; overflow: auto; }
-    .qlist li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 7px 2px; border-bottom: 1px solid var(--border); font-size: 13.5px; }
-    .qlist .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .qlist .st { font-weight: 600; color: var(--muted); white-space: nowrap; }
-    .qlist li.s-du .st { color: var(--ok); } .qlist li.s-loi .st, .qlist li.s-can_ocr .st { color: var(--err); }
-    .qlist li.s-dang_nap .st { color: var(--primary); }
-    .qlist .nt { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
-    .linkrow { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 4px 0; }
-    .seg { display: inline-flex; padding: 3px; background: var(--surface-2); border-radius: 9px; gap: 2px; }
-    .seg button { min-height: 30px; padding: 4px 14px; border: 0; background: transparent; color: var(--muted); border-radius: 7px; font-size: 13px; }
-    .seg button[aria-pressed=true] { background: var(--surface); color: var(--primary); box-shadow: 0 1px 2px rgba(16, 24, 40, .12); }
-
-    /* Kết quả (_results.html) */
-    .notice { margin-top: 4px; }
-    .empty { background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; padding: 20px; text-align: center; }
-    .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 6px 0; }
-    .stat { background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--r4); border-radius: 10px; padding: 10px 12px; }
-    .stat b { display: block; font-size: 1.4rem; line-height: 1.2; }
-    .stat span { font-size: 12.5px; color: var(--muted); }
-    .stat.r1 { border-top-color: var(--r1); } .stat.r1 b { color: var(--r1); }
-    .stat.r2 { border-top-color: var(--r2); } .stat.r2 b { color: var(--r2); }
-    .stat.r3 { border-top-color: var(--r3); } .stat.r3 b { color: var(--r3); }
-    .card { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--r4); border-radius: 12px; padding: 14px 18px; margin: 12px 0; box-shadow: var(--shadow); }
-    .card.r1 { border-left-color: var(--r1); } .card.r2 { border-left-color: var(--r2); } .card.r3 { border-left-color: var(--r3); }
-    .card.grey { opacity: .65; }
-    .chead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-    .chead .badge { white-space: normal; line-height: 1.3; }
-    .pick { margin-left: auto; font-size: 13px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; padding: 4px 6px; border-radius: 6px; }
-    .pick:hover { background: var(--surface-2); }
-    .card h2 { font-size: 1.12rem; margin: 10px 0 4px; }
-    .sample { color: var(--muted); font-size: 14px; }
-    .law.sanction { border-left-color: var(--r1); }
-    .law-tag { display: block; font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--r1); margin-bottom: 4px; }
-    .meta { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 13px; color: var(--muted); margin: 8px 0 4px; }
-    .meta .m + .m::before { content: "·"; margin-right: 12px; color: var(--border); }
-    .card .warn { font-size: 13px; padding: 6px 10px; margin: 6px 0; }
-    .cfoot { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 13px; }
-    .cfoot .file { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-    .cfoot .src { font-weight: 600; white-space: nowrap; text-decoration: none; }
-    .export-bar { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;
-                  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; margin-top: 12px; }
-    .linklike { border: 0; background: transparent; min-height: 0; padding: 0; color: var(--primary); text-decoration: underline; font-weight: 600; }
-    @media (max-width: 600px) {
-      .summary { grid-template-columns: repeat(2, 1fr); } .card { padding: 12px 14px; }
-      .export-bar .note { display: none; } .export-bar button { width: 100%; }
-      .tool .lbl { display: none; } .bar .title .sub { display: none; } .bubble { max-width: 92%; }
-      .composer .filters > * { flex: 1 1 140px; } .composer .filters input { width: auto; }
-    }
-    @media (prefers-reduced-motion: reduce) { .busy::before, .typing i { animation: none; } }
-  </style>
+  <link rel="stylesheet" href="/static/app.css">
 </head>
-<body class="chat">
-  <header class="bar">
-    <button type="button" class="tool" id="btn-import" data-open="import" aria-haspopup="dialog">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4"/><path d="m7 9 5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg>
-      <span class="lbl">Nạp file</span>
-      <span class="busy" id="busy" hidden></span>
-    </button>
-    <div class="title">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18"/><path d="M5 7h14"/><path d="M5 7l-3 7a3 3 0 0 0 6 0z"/><path d="M19 7l-3 7a3 3 0 0 0 6 0z"/><path d="M8 21h8"/></svg>
-      Soi Luật <span class="sub" id="kho-count">{{ n_docs }} văn bản</span>
-    </div>
-    <button type="button" class="tool icon" id="btn-settings" data-open="settings" aria-haspopup="dialog" aria-label="Cài đặt" title="Cài đặt">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-    </button>
+<body class="chat" data-csrf="{{ csrf_token }}" data-suffixes="{{ suffixes }}">
+  <div class="app" id="app">
+  <header class="topbar">
+    <button type="button" class="icon-btn" id="open-side" aria-label="Mở thanh bên" aria-controls="side" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <b>Soi Luật</b>
+    <a class="icon-btn" href="/" aria-label="Cuộc trò chuyện mới"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a>
   </header>
 
-  <main class="thread" id="thread" aria-live="polite">
-    {% if q %}
+  <aside class="side" id="side" aria-label="Thanh bên">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="2.5" width="13" height="17" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6.5 7h7M6.5 10h7M6.5 13h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="16" r="4.2" fill="var(--surface)" stroke="var(--pen)" stroke-width="1.8"/><path d="m19 19 2.5 2.5" stroke="var(--pen)" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <b>Soi Luật</b>
+    </div>
+    <p class="scope">Kho văn phòng · <span id="kho-count">{{ n_docs }} văn bản</span></p>
+    <a class="btn newchat" href="/">Cuộc trò chuyện mới <span class="kbd">Alt+N</span></a>
+    <label class="hsearch"><span class="sr">Tìm trong lịch sử</span>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+      <input id="hq" type="search" placeholder="Tìm trong lịch sử" autocomplete="off">
+    </label>
+    <p class="sr" id="hist-status" role="status"></p>
+    <nav class="hist" id="hist" aria-label="Các cuộc trò chuyện">{% include "_history.html" %}</nav>
+    <div class="util">
+      <button type="button" class="u-item" id="btn-import" data-open="import" aria-haspopup="dialog">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M4 15v5h16v-5"/></svg>Nạp văn bản
+        <span class="busy" id="busy" hidden></span>
+      </button>
+      <a href="/review/docs"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 4h6l2 2h8v14H4z"/></svg>Văn bản trong kho</a>
+      <a href="/review"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>Liên kết chờ duyệt{% if n_queue %} <span class="cnt">{{ n_queue }}</span>{% endif %}</a>
+      <button type="button" class="u-item" id="btn-settings" data-open="settings" aria-haspopup="dialog">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Cài đặt
+      </button>
+      <p class="u-note warn" id="migrate-line" role="status" hidden></p>
+      <p class="local"><i></i>Chạy trên máy này, không gửi gì ra ngoài</p>
+    </div>
+  </aside>
+  <div class="side-scrim" id="side-scrim"></div>
+
+  <main class="main" id="main">
+  <div class="scroll" id="scroll"><div class="col">
+  <div class="thread" id="thread" aria-live="polite"{% if conversation_id %} data-cid="{{ conversation_id }}"{% endif %}>
+    {% if thread %}
+      <header class="title-row"><h1>{{ title }}</h1><p class="sub">{{ sub }}</p></header>
+      {% for m in thread %}
+      <div class="msg user"><div class="bubble">{{ m.q }}</div></div>
+      <div class="msg bot">
+        {%- if m.html is none %}<div class="later"><span class="note">Câu trả lời cũ, chưa dựng lại để trang mở nhanh.</span><button type="button" class="btn" data-mid="{{ m.mid }}" aria-label="Xem lại kết quả cho: {{ m.q }}">Xem lại</button></div>
+        {%- else %}{{ m.html | safe }}{% endif -%}
+      </div>
+      {% endfor %}
+    {% elif q %}
+      <header class="title-row"><h1>{{ q }}</h1></header>
       <div class="msg user"><div class="bubble">{{ q }}</div></div>
       <div class="msg bot">{% include "_results.html" %}</div>
     {% else %}
@@ -158,7 +76,8 @@
         </div>
       </section>
     {% endif %}
-  </main>
+  </div>
+  </div></div>
 
   <form class="composer" id="composer" method="get" action="/" aria-label="Hỏi">
     <div class="in">
@@ -169,7 +88,11 @@
           <option value="{{ v }}" {% if loai==v %}selected{% endif %}>{{ t }}</option>
           {% endfor %}
         </select>
-        <input type="text" name="co_quan" value="{{ co_quan }}" placeholder="Cơ quan ban hành" aria-label="Cơ quan ban hành">
+        <select name="co_quan" aria-label="Cơ quan ban hành">
+          <option value="">Cơ quan: tất cả</option>
+          {% for cq in co_quans if cq %}<option value="{{ cq }}" {% if co_quan == cq %}selected{% endif %}>{{ cq }}</option>{% endfor %}
+          {% if co_quan and co_quan not in co_quans %}<option value="{{ co_quan }}" selected>{{ co_quan }}</option>{% endif %}
+        </select>
         <select name="hieu_luc" aria-label="Hiệu lực">
           <option value="">Hiệu lực: tất cả</option>
           <option value="con" {% if hieu_luc=='con' %}selected{% endif %}>Còn</option>
@@ -187,6 +110,10 @@
     </div>
     <p class="note hint">Enter để gửi, Shift+Enter xuống dòng. Chế độ tìm: <b id="mode-chip">{{ 'Advance' if mode.mode == 'advance' else 'Normal' }}</b> (đổi ở Cài đặt).</p>
   </form>
+  </main>
+  <aside class="reader" id="reader" aria-label="Trình đọc văn bản" hidden></aside>
+  <div class="rd-scrim" id="rd-scrim"></div>
+  </div>
 
   <dialog class="panel left" id="dlg-import" aria-labelledby="t-import">
     <div class="panel-body">
@@ -258,193 +185,8 @@
     </div>
   </dialog>
 
-  <script>
-  (() => {
-    const CSRF = {{ csrf_token | tojson }};
-    const SUFF = new Set({{ suffixes.split(",") | tojson }});
-    const $ = (s, r = document) => r.querySelector(s);
-    const thread = $("#thread"), composer = $("#composer"), qbox = $("#q");
-    const post = (url, body) => fetch(url, { method: "POST", body, headers: { "X-CSRF-Token": CSRF }, redirect: "manual" });
-    let last = null, ocrInfo = null, timer = null;
-
-    /* ---- hỏi đáp ---- */
-    qbox.addEventListener("input", () => { qbox.style.height = "auto"; qbox.style.height = Math.min(qbox.scrollHeight, 140) + "px"; });
-    qbox.addEventListener("keydown", e => {
-      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); composer.requestSubmit(); }
-    });
-    composer.addEventListener("submit", e => { e.preventDefault(); const q = qbox.value; qbox.value = ""; qbox.style.height = "auto"; ask(q); });
-    document.addEventListener("click", e => { const c = e.target.closest("[data-ask]"); if (c) ask(c.dataset.ask); });
-
-    async function ask(q) {
-      q = q.trim();
-      if (!q) return;
-      $("#hello")?.remove();
-      const u = document.createElement("div"); u.className = "msg user";
-      const bub = document.createElement("div"); bub.className = "bubble"; bub.textContent = q; u.append(bub);
-      const b = document.createElement("div"); b.className = "msg bot";
-      b.innerHTML = '<div class="typing" role="status" aria-label="Đang tìm"><i></i><i></i><i></i></div>';
-      thread.append(u, b);
-      u.scrollIntoView({ behavior: "smooth", block: "start" });
-      const p = new URLSearchParams({ q });
-      for (const n of ["loai", "co_quan", "hieu_luc"]) { const v = composer.elements[n].value.trim(); if (v) p.set(n, v); }
-      try {
-        const r = await fetch("/?" + p, { headers: { "HX-Request": "true" } });
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        b.innerHTML = await r.text();
-      } catch (err) {
-        b.innerHTML = '<p class="err"></p>'; b.firstChild.textContent = "Không tìm được: " + err.message;
-      }
-      u.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-
-    const fbtn = $("#btn-filters"), fbox = $("#filters");
-    const filtersOn = () => ["loai", "co_quan", "hieu_luc"].some(n => composer.elements[n].value.trim());
-    const syncDot = () => { $("#filters-dot").hidden = !filtersOn(); };
-    fbtn.addEventListener("click", () => { const open = fbox.hidden; fbox.hidden = !open; fbtn.setAttribute("aria-expanded", open); });
-    fbox.addEventListener("input", syncDot);
-    if (filtersOn()) { fbox.hidden = false; fbtn.setAttribute("aria-expanded", "true"); }
-    syncDot();
-
-    /* ---- cửa sổ Nạp file / Cài đặt ---- */
-    function openPanel(name) { const d = $("#dlg-" + name); if (!d.open) d.showModal(); refresh(name === "settings" || !ocrInfo); }
-    document.addEventListener("click", e => {
-      const o = e.target.closest("[data-open]"); if (o) { openPanel(o.dataset.open); return; }
-      const c = e.target.closest("[data-close]"); if (c) c.closest("dialog").close();
-    });
-    for (const d of document.querySelectorAll("dialog.panel")) {
-      d.addEventListener("click", e => { if (e.target === d) d.close(); });
-      d.addEventListener("close", schedule);
-    }
-    if (location.hash === "#import") openPanel("import");
-
-    /* ---- trạng thái (nạp file, nhúng, OCR, chế độ) ---- */
-    async function refresh(withOcr = false) {
-      try {
-        const r = await fetch("/api/status" + (withOcr ? "?ocr=1" : ""));
-        last = await r.json();
-        if (last.ocr) ocrInfo = last.ocr;
-        render();
-      } catch (_) { /* app đang tắt */ }
-      schedule();
-    }
-    function schedule() {
-      clearTimeout(timer);
-      const open = $("#dlg-import").open || $("#dlg-settings").open;
-      const active = last && last.jobs.active;
-      if (open || active) timer = setTimeout(() => refresh(false), active ? 1000 : 5000);
-    }
-    const noteFor = m => {
-      if (m.mode === "advance" && !m.installed) return ["Chưa cài mô hình tìm theo nghĩa — đang tìm như Normal (xem README).", true];
-      if (m.mode === "advance" && m.pending) return [`Còn ${m.pending} Điều chưa nhúng (vẫn tìm được); app tự nhúng nền khi rảnh.`, false];
-      if (m.mode === "advance") return ["BM25 + vector + reranker. Mỗi câu ~9 giây; câu đầu sau khi mở app có thể chậm hơn (nạp mô hình).", false];
-      return ["BM25 thuần: nhẹ, chạy mọi máy.", false];
-    };
-    function render() {
-      const j = last.jobs, m = last.mode;
-      $("#kho-count").textContent = $("#kho-line").textContent = last.docs + " văn bản";
-      $("#empty-kho")?.toggleAttribute("hidden", last.docs > 0);
-      const busy = $("#busy"), e = j.embed;
-      const n_busy = j.total - j.done;
-      busy.hidden = !j.active;
-      busy.textContent = n_busy ? `Nạp ${j.done}/${j.total}` : (e.running ? `Nhúng ${Math.round(100 * e.done / Math.max(e.total, 1))}%` : "");
-      $("#q-sum").textContent = j.total ? `Đã xử lý ${j.done}/${j.total} file` : "Chưa nạp file nào";
-      $("#q-clear").hidden = !j.total;
-      const ul = $("#q-list"); ul.replaceChildren();
-      for (const it of [...j.items].reverse()) {
-        const li = document.createElement("li"); li.className = "s-" + it.state;
-        const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = it.name; nm.title = it.path;
-        const st = document.createElement("span"); st.className = "st";
-        st.textContent = it.label + (it.pages ? ` ${it.pages[0]}/${it.pages[1]} trang` : "");
-        li.append(nm, st);
-        if (it.note) { const nt = document.createElement("span"); nt.className = "nt"; nt.textContent = it.note; li.append(nt); }
-        ul.append(li);
-      }
-      const el = $("#embed-line");
-      el.hidden = !e.running;
-      el.textContent = e.running ? `Đang nhúng vector cho chế độ Advance: ${e.done}/${e.total} Điều (nền, không cần chờ).` : "";
-      for (const b of document.querySelectorAll("#mode-form .seg button")) b.setAttribute("aria-pressed", b.value === m.mode);
-      const [txt, warn] = noteFor(m); const mn = $("#mode-note");
-      mn.textContent = txt; mn.className = warn ? "note warn" : "note";
-      $("#mode-chip").textContent = m.mode === "advance" ? "Advance" : "Normal";
-      if (ocrInfo) {
-        const ok = ocrInfo.ok === true;
-        $("#ocr-line").textContent = ok ? `Sẵn sàng (${(ocrInfo.langs || []).join(", ")}).` : (ocrInfo.message || "OCR chưa dùng được.");
-        $("#ocr-line").className = ok ? "note ok" : "note warn";
-        const cb = $("#opt-ocr");
-        if (cb.dataset.init !== "1") { cb.checked = ok; cb.dataset.init = "1"; }
-        cb.disabled = !ok;
-        $("#ocr-note").textContent = ok ? "" : "(chưa dùng được — xem Cài đặt)";
-      }
-    }
-    $("#ocr-recheck").addEventListener("click", async () => {
-      $("#ocr-line").textContent = "Đang kiểm tra…";
-      const r = await fetch("/api/status?ocr=lai"); last = await r.json(); ocrInfo = last.ocr; render();
-    });
-    $("#mode-form").addEventListener("submit", async e => {
-      e.preventDefault();
-      const fd = new FormData(e.target); fd.set("mode", e.submitter.value);
-      await post("/settings/mode", fd);
-      refresh();
-    });
-    $("#btn-backup").addEventListener("click", async () => {
-      const msg = $("#backup-msg"); msg.textContent = "Đang sao lưu…";
-      try { const r = await fetch("/backup", { method: "POST", headers: { "X-CSRF-Token": CSRF } }); msg.textContent = "Đã lưu: " + (await r.json()).path; }
-      catch (err) { msg.textContent = "Lỗi: " + err.message; }
-    });
-    $("#q-clear").addEventListener("click", async () => { await post("/import/clear", new FormData()); refresh(); });
-
-    /* ---- nạp file: chọn, kéo thả, đường dẫn ---- */
-    const say = t => { $("#import-msg").textContent = t; };
-    const opts = fd => { if ($("#opt-ocr").checked) fd.append("ocr", "on"); if ($("#opt-doan").checked) fd.append("doan", "on"); return fd; };
-    async function sendFiles(files) {
-      const ext = f => (f.name.match(/\.[^.]+$/) || [""])[0].toLowerCase();
-      const ok = files.filter(f => SUFF.has(ext(f))), skipped = files.length - ok.length;
-      openPanel("import");
-      if (!ok.length) { say(files.length ? `Không có file nào đúng định dạng hỗ trợ (bỏ qua ${skipped}).` : "Không có file nào."); return; }
-      const BATCH = 8;
-      for (let i = 0; i < ok.length; i += BATCH) {
-        const fd = opts(new FormData());
-        ok.slice(i, i + BATCH).forEach(f => fd.append("files", f, f.name));
-        say(`Đang gửi ${Math.min(i + BATCH, ok.length)}/${ok.length} file…`);
-        const r = await fetch("/import/files", { method: "POST", body: fd, headers: { "X-CSRF-Token": CSRF } });
-        if (!r.ok) { say("Lỗi khi gửi file: HTTP " + r.status); return; }
-        refresh();
-      }
-      say(skipped ? `Đã xếp hàng ${ok.length} file; bỏ qua ${skipped} file không hỗ trợ.` : `Đã xếp hàng ${ok.length} file.`);
-    }
-    const pick = (btn, inp) => { $(btn).addEventListener("click", () => inp.click()); inp.addEventListener("change", () => { sendFiles([...inp.files]); inp.value = ""; }); };
-    pick("#pick-files", $("#in-files")); pick("#pick-dir", $("#in-dir"));
-    $("#path-form").addEventListener("submit", async e => {
-      e.preventDefault();
-      const r = await fetch("/import/path", { method: "POST", body: opts(new FormData(e.target)), headers: { "X-CSRF-Token": CSRF } });
-      const j = await r.json();
-      say(j.ok ? `Đã xếp hàng ${j.queued} file${j.skipped ? `, bỏ qua ${j.skipped} file không hỗ trợ` : ""}.` : j.error);
-      if (j.ok) { e.target.reset(); refresh(); }
-    });
-    const hasFiles = e => e.dataTransfer && [...e.dataTransfer.types].includes("Files");
-    let depth = 0;
-    window.addEventListener("dragenter", e => { if (hasFiles(e)) { depth++; document.body.classList.add("dragging"); openPanel("import"); } });
-    window.addEventListener("dragleave", e => { if (hasFiles(e) && --depth <= 0) { depth = 0; document.body.classList.remove("dragging"); } });
-    window.addEventListener("dragover", e => { if (hasFiles(e)) e.preventDefault(); });
-    window.addEventListener("drop", async e => {
-      if (!hasFiles(e)) return;
-      e.preventDefault(); depth = 0; document.body.classList.remove("dragging");
-      sendFiles(await filesFromDrop(e.dataTransfer));
-    });
-    async function filesFromDrop(dt) {
-      const entries = [...dt.items].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
-      if (!entries.length) return [...dt.files];
-      const out = [];
-      const walk = async en => {
-        if (en.isFile) out.push(await new Promise(res => en.file(res)));
-        else { const rd = en.createReader(); let part; do { part = await new Promise(res => rd.readEntries(res)); for (const c of part) await walk(c); } while (part.length); }
-      };
-      for (const en of entries) await walk(en);
-      return out;
-    }
-
-    refresh(false);
-  })();
-  </script>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/static/reader.js"></script>
+  <script src="/static/app.js"></script>
 </body>
 </html>

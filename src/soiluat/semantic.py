@@ -14,6 +14,7 @@ import os
 import re
 import sqlite3
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -157,25 +158,31 @@ def root_ids(conn: sqlite3.Connection, unit_ids: list[int]) -> dict[int, int]:
 
 def _marker(path: str) -> str:
     """Số khoản / chữ điểm dựng lại từ đường dẫn: 'D3.K1' → '1.', 'D3.K1.Đa' → 'a)'."""
-    seg = path.rsplit(".", 1)[-1]
+    seg = re.sub(r"~\d+$", "", path.rsplit(".", 1)[-1])  # hậu tố ~n của số lặp không phải chữ của luật
     return seg[1:] + "." if seg.startswith("K") else seg[1:] + ")" if seg.startswith("Đ") else ""
 
 
-def root_parts(conn: sqlite3.Connection, root_id: int) -> tuple[str, str]:
-    """(tiêu đề, nội dung) của Điều gốc theo dạng văn bản luật mà mô hình đã được đo: 'Điều 3. Tên Điều' rồi từng khoản,
-    điểm kèm số/chữ ('1.', 'a)') mỗi dòng một đơn vị. App tách số điều và số khoản khỏi chữ, nên dựng lại ở đây."""
+def root_lines(conn: sqlite3.Connection, root_id: int) -> tuple[str, list[tuple[str, str]]]:
+    """(tiêu đề, [(đường dẫn, dòng)]) của Điều gốc theo dạng văn bản luật mà mô hình đã được đo: 'Điều 3. Tên Điều' rồi
+    từng khoản, điểm kèm số/chữ ('1.', 'a)') mỗi dòng một đơn vị. App tách số điều và số khoản khỏi chữ, nên dựng lại ở đây."""
     r = conn.execute("SELECT doc_id, path, level, title, COALESCE(reviewed_text, normalized_text) FROM units WHERE id = ?",
                      (root_id,)).fetchone()
     title = (r[3] or "").strip()
     m = re.match(r"^D(\d+[a-z]?)$", r[1] or "", re.I) if r[2] == "dieu" else None
     head = f"Điều {m.group(1)}. {title}" if m else title
-    lines = [f"{_marker(p)} {t}".strip() for p, t in conn.execute(
+    lines = [(p, f"{_marker(p)} {t}".strip()) for p, t in conn.execute(
         "SELECT path, COALESCE(reviewed_text, normalized_text) FROM units WHERE doc_id = ? AND path LIKE ? ORDER BY id",
         (r[0], r[1] + ".%")) if t]
     own = (r[4] or "").strip()
     if own and own != title:  # Điều có nội dung ngay dưới tên (đoạn mở đầu, hoặc không chia khoản)
-        lines.insert(0, own)
-    return head, "\n".join(lines)
+        lines.insert(0, (r[1], own))
+    return head, lines
+
+
+def root_parts(conn: sqlite3.Connection, root_id: int) -> tuple[str, str]:
+    """(tiêu đề, nội dung) của Điều gốc: như `root_lines`, các dòng nối bằng xuống dòng."""
+    head, lines = root_lines(conn, root_id)
+    return head, "\n".join(t for _, t in lines)
 
 
 def root_text(conn: sqlite3.Connection, root_id: int) -> str:
@@ -206,19 +213,39 @@ def embed_roots(conn: sqlite3.Connection, enc: Encoder, ids: list[int], *, chunk
 
 
 _ALL: dict = {}  # ma trận vector toàn kho, nạp lại khi (file db, số vector, id lớn nhất) đổi
+_ALL_LOCK = threading.Lock()  # một luồng nạp, luồng khác chờ rồi dùng chung (ba bản song song ≈ 1,65 GB ở kho Zalo)
+
+
+def _vec_rows(conn: sqlite3.Connection, after: int):
+    return conn.execute("SELECT v.unit_id, u.doc_id, v.vec FROM unit_vectors v JOIN units u ON u.id = v.unit_id"
+                        " WHERE v.model = ? AND v.unit_id > ? ORDER BY v.unit_id", (MODEL_NAME, after)).fetchall()
 
 
 def _all_vectors(conn: sqlite3.Connection, np):
     """(id gốc, doc_id, ma trận float32) của mọi gốc đã nhúng. Kho Zalo 61 nghìn Điều × 1024 ≈ 252 MB RAM."""
+    from soiluat.jobs import JOBS  # nạp chậm: jobs import semantic
+
     db = conn.execute("PRAGMA database_list").fetchone()[2]
     key = (db, *conn.execute("SELECT COUNT(*), MAX(unit_id) FROM unit_vectors WHERE model = ?",
                              (MODEL_NAME,)).fetchone())
-    if _ALL.get("key") != key:
-        rows = conn.execute("SELECT v.unit_id, u.doc_id, v.vec FROM unit_vectors v JOIN units u ON u.id = v.unit_id"
-                            " WHERE v.model = ? ORDER BY v.unit_id", (MODEL_NAME,)).fetchall()
-        mat = np.frombuffer(b"".join(r[2] for r in rows), np.float16).reshape(len(rows), -1).astype(np.float32)
-        _ALL.update(key=key, ids=np.array([r[0] for r in rows]), docs=np.array([r[1] for r in rows]), mat=mat)
-    return _ALL["ids"], _ALL["docs"], _ALL["mat"]
+    with _ALL_LOCK:
+        old = _ALL.get("key")
+        if old != key:
+            same = old is not None and old[0] == db
+            if same and JOBS.migrate["running"]:
+                pass  # đang nâng cấp: mỗi văn bản dựng lại đổi khoá; dùng ma trận cũ (rerank bỏ Điều đã mất), nạp lại khi xong
+            else:
+                # nhúng nền chỉ thêm hàng mới có id lớn hơn: chỉ nối thêm khi đúng như vậy, không thì nạp lại cả ma trận
+                rows = _vec_rows(conn, old[2]) if same else []
+                grow = bool(rows) and old[1] + len(rows) == key[1] and rows[-1][0] == key[2]
+                if not grow:
+                    rows = _vec_rows(conn, -1)
+                mat = np.frombuffer(b"".join(r[2] for r in rows), np.float16).reshape(len(rows), -1).astype(np.float32)
+                ids, docs = np.array([r[0] for r in rows]), np.array([r[1] for r in rows])
+                if grow:
+                    ids, docs, mat = (np.concatenate([_ALL[k], v]) for k, v in (("ids", ids), ("docs", docs), ("mat", mat)))
+                _ALL.update(key=key, ids=ids, docs=docs, mat=mat)
+        return _ALL["ids"], _ALL["docs"], _ALL["mat"]
 
 
 def warm(conn: sqlite3.Connection) -> None:
@@ -249,6 +276,9 @@ def rerank(conn: sqlite3.Connection, query: str, ids: list[int], doc_ids: list[i
     sim_all = mat @ enc.encode([Q_PRE + query])[0]
     ok = np.isin(all_docs, doc_ids) if doc_ids else np.ones(len(all_ids), bool)
     best = [int(all_ids[k]) for k in np.argsort(-np.where(ok, sim_all, -np.inf))[:DENSE_K] if ok[k]]
+    alive = {r[0] for r in conn.execute("SELECT id FROM units WHERE id IN (SELECT value FROM json_each(?))",
+                                        (json.dumps(best),))}
+    best = [r for r in best if r in alive]  # ma trận cũ dùng lúc nâng cấp còn Điều đã bị dựng lại
     dense = {r: k for k, r in enumerate(best, 1)}
     have = {int(r) for r in all_ids}
     score = {}

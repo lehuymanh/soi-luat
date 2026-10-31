@@ -33,3 +33,58 @@ def test_docx_list_number_prefix(tmp_path):
     text = extract_docx(path)[0].text
     assert "Điều 4" in text
     assert "1." in text or "1)" in text
+
+
+def _docx_xml_lon(path: Path, n_doan: int) -> None:
+    """Docx hợp lệ mà document.xml có n_doan đoạn rỗng: nén còn rất nhỏ, giải nén ra rất lớn."""
+    import zipfile
+
+    Document().save(str(path))
+    with zipfile.ZipFile(path) as z:
+        parts = {n: z.read(n) for n in z.namelist()}
+    parts["word/document.xml"] = parts["word/document.xml"].replace(b"<w:body>", b"<w:body>" + b"<w:p/>" * n_doan, 1)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for n, b in parts.items():
+            z.writestr(n, b)
+
+
+def test_sec3_docx_giai_nen_qua_lon_bi_tu_choi_truoc_khi_parse(tmp_path, monkeypatch):
+    """SEC-3: file docx vài chục KB mà XML giải nén hàng trăm MB làm luồng nạp (duy nhất) treo hàng chục phút: từ chối sớm."""
+    import pytest
+
+    from soiluat import extract
+
+    monkeypatch.setattr(extract, "MAX_XML_BYTES", 100_000)
+    path = tmp_path / "bom.docx"
+    _docx_xml_lon(path, 40_000)  # ~240 KB XML
+    assert path.stat().st_size < 50_000  # nén còn bé hơn nhiều so với 240 KB XML
+    with pytest.raises(ValueError, match="quá lớn"):
+        extract_docx(path)
+
+
+def test_sec3_docx_qua_nhieu_doan_bi_tu_choi(tmp_path, monkeypatch):
+    """SEC-3: dưới trần byte vẫn có thể có hàng triệu đoạn rỗng (~0,5 ms mỗi đoạn): cũng có trần số đoạn."""
+    import pytest
+
+    from soiluat import extract
+
+    monkeypatch.setattr(extract, "MAX_PARAGRAPHS", 100)
+    path = tmp_path / "doan.docx"
+    _docx_xml_lon(path, 500)
+    with pytest.raises(ValueError, match="quá nhiều đoạn"):
+        extract_docx(path)
+
+
+def test_sec3_xlsx_giai_nen_qua_lon_bi_tu_choi(tmp_path, monkeypatch):
+    import zipfile
+
+    import pytest
+
+    from soiluat import extract
+
+    monkeypatch.setattr(extract, "MAX_XML_BYTES", 100_000)
+    path = tmp_path / "bom.xlsx"
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("xl/workbook.xml", "<workbook>" + " " * 200_000 + "</workbook>")
+    with pytest.raises(ValueError, match="quá lớn"):
+        extract.extract_xlsx(path)

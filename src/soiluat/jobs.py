@@ -3,10 +3,12 @@
 Search App không tự import OCR/trích chữ ở mức module: chúng chỉ nạp khi luồng nền chạy lần đầu,
 nên chế độ Normal không tốn RAM cho phần nạp. Khi hàng đợi trống và đang ở chế độ Advance,
 luồng này nhúng nốt các Điều chưa có vector, từng khối nhỏ để file mới nạp xen vào được ngay.
+Kho cũ (app_meta.parse_rev khác PARSE_REV) được nâng cấp một lần ở đây: sao lưu, rồi dựng lại từng văn bản có chữ đổi.
 """
 
 from __future__ import annotations
 
+import sqlite3
 import threading
 from collections import deque
 from dataclasses import dataclass
@@ -14,9 +16,9 @@ from pathlib import Path
 
 from soiluat import semantic
 from soiluat.config import data_dir, db_path
+from soiluat.extract import SUPPORTED_SUFFIXES
+from soiluat.parse import PARSE_REV
 
-# trùng importer.SUPPORTED_SUFFIXES (có test giữ hai tập khớp nhau)
-SUFFIXES = frozenset(".docx .doc .rtf .pdf .txt .md .jpg .jpeg .png .tif .tiff .bmp .xlsx".split())
 LABELS = {
     "cho": "Chờ", "dang_nap": "Đang nạp…", "du": "Xong", "can_ocr": "Cần OCR", "trung": "Trùng",
     "khong_doi": "Không đổi", "loi": "Lỗi", "bo_qua": "Bỏ qua",
@@ -48,6 +50,14 @@ class Jobs:
         self._todo: list[int] | None = None  # Điều chờ nhúng; None = chưa đếm / cần đếm lại
         self._stop = False
         self.embed = {"running": False, "done": 0, "total": 0}
+        # nâng cấp dữ liệu: mỗi lần mở app đúng một lượt (cờ _migrate_tried; submit và wake không đặt lại, khác _todo)
+        self.migrate = {"running": False, "done": 0, "total": 0, "error": "", "failed": 0}  # failed: văn bản chưa nâng cấp
+        self._migrate_todo: list[int] | None = None  # doc_id chốt một lần lúc bắt đầu lượt
+        self._migrate_tried = False
+        self._migrate_bad: dict[int, str] = {}  # doc_id lỗi → lý do; còn sót thì không ghi parse_rev
+        self._migrate_ok = 0  # văn bản đã nâng cấp xong (kể cả không đổi)
+        self._migrate_streak = 0  # số văn bản lỗi liên tiếp
+        self._migrate_retried = False  # đã qua lượt thử lại cuối lượt (hoặc bỏ lượt vì khoá giữ lâu)
 
     # ---- giao diện cho app ----
 
@@ -66,7 +76,7 @@ class Jobs:
                 for f in files:
                     self._seq += 1
                     it = Item(self._seq, f.name, f, ocr, doan)
-                    if f.suffix.lower() not in SUFFIXES:
+                    if f.suffix.lower() not in SUPPORTED_SUFFIXES:
                         it.state, it.note = "bo_qua", f"đuôi {f.suffix or '(không có)'} không hỗ trợ"
                     else:
                         self._queue.append(it)
@@ -120,8 +130,9 @@ class Jobs:
             "items": out,
             "total": len(items),
             "done": len(items) - n_busy,
-            "active": n_busy > 0 or self.embed["running"],
+            "active": n_busy > 0 or self.embed["running"] or self.migrate["running"],
             "embed": dict(self.embed),
+            "migrate": dict(self.migrate),
         }
 
     # ---- luồng nền ----
@@ -157,8 +168,15 @@ class Jobs:
                 if item is not None:
                     self._import(conn, root, item, import_one)
                     continue
-                if self._embed_chunk(conn):
+                if self._migrate_chunk(conn):
                     continue
+                try:
+                    if self._embed_chunk(conn):
+                        continue
+                except Exception as e:  # noqa: BLE001 (khoá ghi giữ quá 5 s, đĩa đầy, onnx lỗi: luồng nền không được chết im)
+                    conn.rollback()  # nhả khoá ghi nếu lỗi nằm giữa lần ghi vector
+                    self._todo = None  # đếm lại và thử lại sau lượt chờ 60 s hoặc lần wake() kế
+                    self.embed.update(running=False, error=f"{type(e).__name__}: {e}")
                 with self._cv:
                     if not self._queue and not self._stop:
                         self._cv.wait(timeout=60)
@@ -175,6 +193,71 @@ class Jobs:
         finally:
             self._current = None
             self._todo = None  # có Điều mới: đếm lại phần cần nhúng
+
+    def _migrate_chunk(self, conn) -> bool:
+        """Nâng cấp dữ liệu một lần, mỗi lần một văn bản (file mới nạp xen vào được). True nếu đã làm gì đó."""
+        if self._migrate_tried:
+            return False
+        try:
+            return self._migrate_step(conn)
+        except sqlite3.Error as e:  # khoá ghi quá 5 s lúc đếm văn bản hay ghi cờ: báo và dừng lượt, luồng không chết im
+            conn.rollback()
+            self.migrate.update(running=False, error=f"{type(e).__name__}: {e}", failed=self.migrate["total"] - self._migrate_ok)
+            self._migrate_tried = True
+            return False
+
+    def _migrate_step(self, conn) -> bool:
+        from soiluat.db import backup_db
+        from soiluat.rebuild import rebuild_if_changed
+
+        if self._migrate_todo is None:  # đầu lượt của lần mở app này
+            if conn.execute("SELECT 1 FROM app_meta WHERE key = 'parse_rev' AND value = ?", (PARSE_REV,)).fetchone():
+                self._migrate_tried = True
+                return False
+            self._migrate_todo = [r[0] for r in conn.execute("SELECT id FROM documents ORDER BY id")]
+            self.migrate.update(running=bool(self._migrate_todo), done=0, total=len(self._migrate_todo), error="", failed=0)
+            # mỗi lần tăng PARSE_REV có bản sao lưu riêng (lần sau không đè, cũng không bị bỏ vì bản cũ còn đó)
+            bak = data_dir() / "backup" / f"soiluat-truoc-parse{PARSE_REV}.db"
+            if self._migrate_todo and not bak.exists():  # backup_db ghi qua .tmp nên tên chính có nghĩa là bản đủ
+                try:
+                    backup_db(db_path(), bak)
+                except Exception as e:  # noqa: BLE001 — không sao lưu được thì không dựng lại
+                    if not bak.exists():  # trừ khi bản chạy kia (cổng khác, cùng kho) đã sao lưu xong
+                        self.migrate.update(running=False, failed=len(self._migrate_todo),
+                                            error=f"Không sao lưu được ({type(e).__name__}: {e})")
+                        self._migrate_tried = True
+                        return False
+        if self._migrate_todo:
+            doc_id = self._migrate_todo.pop(0)
+            first_pass = not self._migrate_retried
+            try:
+                rebuild_if_changed(conn, doc_id)
+                self._migrate_bad.pop(doc_id, None)
+                self._migrate_ok += 1
+                self._migrate_streak = 0
+            except Exception as e:  # noqa: BLE001 — văn bản lỗi hoặc bị khoá ghi: bỏ qua và báo, luồng không chết im
+                conn.rollback()
+                self._migrate_bad[doc_id] = f"Văn bản {doc_id}: {type(e).__name__}: {e}"
+                self._migrate_streak += 1
+                if self._migrate_streak >= 3:  # khoá giữ lâu: mỗi văn bản chờ 5 s vô ích, bỏ cả lượt, không thử lại
+                    self._migrate_todo.clear()
+                    self._migrate_retried = True
+            self.migrate.update(error=next(reversed(self._migrate_bad.values()), ""), failed=self.migrate["total"] - self._migrate_ok)
+            if first_pass:  # lượt thử lại không tính thêm vào x/y
+                self.migrate["done"] += 1
+            return True
+        if self._migrate_bad and not self._migrate_retried:  # khoá thoáng qua đã hết: thử lại các văn bản lỗi một lần
+            self._migrate_retried = True
+            self._migrate_todo = list(self._migrate_bad)
+            self._migrate_streak = 0
+            return True
+        if not self._migrate_bad:  # duyệt hết mà không sót văn bản nào (kho trống cũng vào đây) mới ghi cờ
+            conn.execute("INSERT OR REPLACE INTO app_meta(key, value) VALUES ('parse_rev', ?)", (PARSE_REV,))
+            conn.commit()
+        self.migrate["running"] = False
+        self._migrate_tried = True
+        self._todo = None  # Điều dựng lại mất vector: đếm lại phần cần nhúng (chỉ Advance)
+        return False
 
     def _embed_chunk(self, conn) -> bool:
         """Nhúng một khối Điều chưa có vector. True nếu đã làm gì đó (vòng lặp kiểm hàng đợi rồi làm tiếp)."""

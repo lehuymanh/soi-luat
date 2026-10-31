@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import threading
 from dataclasses import dataclass, field
 
 from soiluat.fold import (
-    dieu_path,
     fold_search,
     iy_norm_text,
     iy_norm_token,
@@ -36,15 +36,6 @@ _OCR_PAGE_COND = """
 p.extraction_method LIKE '%ocr%'
 AND IFNULL(p.verification_status, '') != 'da_doi_chieu'
 AND p.ocr_status NOT IN ('khong_can', 'da_doi_chieu')
-"""
-OCR_SQL = f"""
-u.id IN (
-  SELECT u2.id FROM units u2
-  JOIN pages p ON p.doc_id = u2.doc_id
-    AND p.page_no BETWEEN IFNULL(u2.page_from, 1)
-                      AND IFNULL(u2.page_to, IFNULL(u2.page_from, 1))
-  WHERE {_OCR_PAGE_COND}
-)
 """
 
 
@@ -123,25 +114,36 @@ def _db_file(conn: sqlite3.Connection) -> str:
     return f":memory:{id(conn)}"
 
 
+_TITLE_LOCK = threading.Lock()  # tìm đồng thời dùng chung một lần dựng, không mỗi luồng một bản
+
+
 def _title_index(conn: sqlite3.Connection, accent: bool) -> PhraseIndex:
+    from soiluat.jobs import JOBS  # nạp chậm: jobs không import search ở mức module
+
     ver = tuple(conn.execute("SELECT IFNULL(MAX(id), 0), COUNT(*) FROM units").fetchone())
     key = (_db_file(conn), accent)
     hit = _TITLE_CACHE.get(key)
-    if hit and hit[0] == ver:
+    # đang nâng cấp dữ liệu: mỗi văn bản dựng lại đổi khoá mà tên Điều gần như không đổi, nên dùng bản cũ (dựng lại 1–2 s mỗi lần tìm);
+    # xong nâng cấp khoá lệch bản đã giữ nên lần tìm sau dựng lại đúng một lần
+    if hit and (hit[0] == ver or JOBS.migrate["running"]):
         return hit[1]
-    if accent:
-        rows = conn.execute(
-            "SELECT DISTINCT title FROM units WHERE level = 'dieu' AND title != ''"
-        )
-        titles = (search_accent(r[0]) for r in rows)
-    else:
-        rows = conn.execute(
-            "SELECT DISTINCT title_search FROM units WHERE level = 'dieu' AND title_search != ''"
-        )
-        titles = (r[0] for r in rows)
-    idx = phrase_index(t for t in titles if t and 1 < len(t.split()) <= 6)
-    _TITLE_CACHE[key] = (ver, idx)
-    return idx
+    with _TITLE_LOCK:
+        hit = _TITLE_CACHE.get(key)
+        if hit and hit[0] == ver:
+            return hit[1]
+        if accent:
+            rows = conn.execute(
+                "SELECT DISTINCT title FROM units WHERE level = 'dieu' AND title != ''"
+            )
+            titles = (search_accent(r[0]) for r in rows)
+        else:
+            rows = conn.execute(
+                "SELECT DISTINCT title_search FROM units WHERE level = 'dieu' AND title_search != ''"
+            )
+            titles = (r[0] for r in rows)
+        idx = phrase_index(t for t in titles if t and 1 < len(t.split()) <= 6)
+        _TITLE_CACHE[key] = (ver, idx)
+        return idx
 
 
 def vocab_indexes(conn: sqlite3.Connection, *, accent: bool) -> list[PhraseIndex]:
@@ -163,36 +165,9 @@ def _fts_term(tok: str) -> str:
     return "(" + " OR ".join(alts) + ")"
 
 
-def fts_phrase(tokens: list[str]) -> str:
-    toks = [t for t in tokens if t]
-    if not toks:
-        return ""
-    variants = [toks]
-    last_alts = iy_token_alts(toks[-1])
-    if len(last_alts) > 1:
-        variants = [toks[:-1] + [a] for a in last_alts]
-    bodies = []
-    for v in variants:
-        inner = " ".join(t.replace('"', '""') for t in v)
-        if inner:
-            bodies.append(f'"{inner}"')
-    if not bodies:
-        return ""
-    if len(bodies) == 1:
-        return bodies[0]
-    return "(" + " OR ".join(bodies) + ")"
-
-
 def fts_and(tokens: list[str]) -> str:
     parts = [_fts_term(t) for t in tokens if _fts_term(t)]
     return " AND ".join(parts)
-
-
-def fts_near(tokens: list[str], window: int = 10) -> str:
-    parts = [_fts_term(t) for t in tokens if _fts_term(t)]
-    if len(parts) < 2:
-        return ""
-    return f"NEAR({' '.join(parts)}, {window})"
 
 
 def load_synonyms(conn: sqlite3.Connection, *, accent: bool) -> list[tuple[str, str]]:
@@ -219,20 +194,25 @@ def _replace_term(tokens: list[str], term: str, alt: str) -> list[str] | None:
     return None
 
 
+def _zero_pad(key: str) -> str:
+    """'2/2021/tt-btc' → '02/2021/tt-btc': văn bản ghi số hiệu một chữ số có số 0 đứng đầu, người gõ hay bỏ."""
+    return re.sub(r"^(\d)/", r"0\1/", key)
+
+
 def _so_hieu_docs(conn: sqlite3.Connection, raw_query: str) -> list[int]:
     full = find_so_hieu(raw_query)
     prefix = None if full else find_so_hieu_prefix(raw_query)
     if full:
         key = so_hieu_search_key(full)
         rows = conn.execute(
-            "SELECT id FROM documents WHERE so_hieu_search = ?",
-            (key,),
+            "SELECT id FROM documents WHERE so_hieu_search IN (?, ?)",
+            (key, _zero_pad(key)),
         ).fetchall()
     elif prefix:
         key = fold_search(prefix)
         rows = conn.execute(
-            "SELECT id FROM documents WHERE so_hieu_search LIKE ?",
-            (key + "/%",),
+            "SELECT id FROM documents WHERE so_hieu_search LIKE ? OR so_hieu_search LIKE ?",
+            (key + "/%", _zero_pad(key) + "/%"),
         ).fetchall()
     else:
         return []
@@ -243,7 +223,7 @@ def _dieu_where(dieu: str) -> tuple[str, list[str]]:
     """Điều n gồm cả bản trùng số D{n}~k (H4)."""
     needle = f"D{dieu}"
     return (
-        "(path = ? OR path LIKE ? OR path LIKE ?)",
+        "(path = ? COLLATE NOCASE OR path LIKE ? OR path LIKE ?)",  # văn bản viết "Điều 1A" hay "1a", người gõ bất kỳ
         [needle, needle + ".%", needle + "~%"],
     )
 
@@ -288,21 +268,21 @@ DIEU_CAP = 100  # "Điều n" không kèm số hiệu: mỗi văn bản một Đ
 def lookup_dieu_all_docs(conn: sqlite3.Connection, dieu: str) -> list[int]:
     needle = f"D{dieu}"
     rows = conn.execute(
-        "SELECT id FROM units WHERE (path = ? OR path LIKE ?) AND level = 'dieu' ORDER BY id",
+        "SELECT id FROM units WHERE (path = ? COLLATE NOCASE OR path LIKE ?) AND level = 'dieu' ORDER BY id",
         (needle, needle + "~%"),
     ).fetchall()
     return [int(r["id"]) for r in rows]
 
 
 def _ids_on_dieu(conn: sqlite3.Connection, ids: list[int], dieu: str) -> list[int]:
-    needle = f"D{dieu}"
+    needle = f"D{dieu}".lower()
     keep: list[int] = []
     meta = _fetch_units(conn, ids)
     for uid in ids:
         row = meta.get(uid)
         if row is None:
             continue
-        path = row["path"] or ""
+        path = (row["path"] or "").lower()
         if path == needle or path.startswith((needle + ".", needle + "~")):
             keep.append(uid)
     return keep
@@ -318,7 +298,6 @@ def match_units(
     limit: int = 50,
     match_sql: str | None = None,
     branch: str = "fold",
-    ocr_unverified_only: bool = False,
     only_ids: list[int] | None = None,
 ) -> list[int]:
     if match_sql is None:
@@ -327,7 +306,7 @@ def match_units(
         i
         for i, _ in scored_units(
             conn, match_sql, branch=branch, doc_id=doc_id, doc_ids=doc_ids, labels=labels,
-            limit=limit, ocr_unverified_only=ocr_unverified_only, only_ids=only_ids,
+            limit=limit, only_ids=only_ids,
         )
     ]
 
@@ -346,7 +325,6 @@ def scored_units(
     doc_ids: list[int] | None = None,
     labels: tuple[str, ...] | None = None,
     limit: int = 50,
-    ocr_unverified_only: bool = False,
     only_ids: list[int] | None = None,
 ) -> list[tuple[int, float]]:
     """(id, điểm bm25) — điểm âm, càng nhỏ càng liên quan."""
@@ -360,7 +338,7 @@ def scored_units(
     sql_match = f"{cols} : ({match_sql})"
     extra = ""
     params: list = [sql_match]
-    join = bool(doc_ids or doc_id is not None or labels or ocr_unverified_only)
+    join = bool(doc_ids or doc_id is not None or labels)
     if doc_ids:
         placeholders = ",".join("?" * len(doc_ids))
         extra += f" AND u.doc_id IN ({placeholders})"
@@ -374,8 +352,6 @@ def scored_units(
             f" AND u.id IN (SELECT unit_id FROM unit_labels WHERE label IN ({placeholders}))"
         )
         params.extend(labels)
-    if ocr_unverified_only:
-        extra += f" AND {OCR_SQL}"
     if only_ids is not None:
         # dấu +: không để SQLite duyệt từng id rồi chạy lại cả truy vấn FTS cho mỗi id (kho OCR: 0,7 s → 3 ms)
         extra += " AND +f.rowid IN (SELECT value FROM json_each(?))"
@@ -401,13 +377,15 @@ def scored_units(
 
 
 def _ocr_unit_ids(conn: sqlite3.Connection) -> list[int]:
-    """Unit thuộc trang OCR chưa đối chiếu (F2). Đi từ pages (ít) sang units."""
+    """Unit thuộc trang OCR chưa đối chiếu (F2). Chỉ xét văn bản có trang OCR (kho chữ không đụng tới), rồi mỗi unit tra
+    trang của nó qua chỉ mục (doc_id, page_no): không ghép trang x unit cùng văn bản (bậc hai theo số trang)."""
     rows = conn.execute(
         f"""
-        SELECT DISTINCT u.id FROM pages p CROSS JOIN units u ON u.doc_id = p.doc_id
-        WHERE {_OCR_PAGE_COND}
-          AND p.page_no BETWEEN IFNULL(u.page_from, 1)
-                            AND IFNULL(u.page_to, IFNULL(u.page_from, 1))
+        SELECT u.id FROM units u
+        WHERE u.doc_id IN (SELECT p.doc_id FROM pages p WHERE {_OCR_PAGE_COND})
+          AND EXISTS (SELECT 1 FROM pages p WHERE p.doc_id = u.doc_id AND {_OCR_PAGE_COND}
+                      AND p.page_no BETWEEN IFNULL(u.page_from, 1)
+                                        AND IFNULL(u.page_to, IFNULL(u.page_from, 1)))
         """
     ).fetchall()
     return [int(r[0]) for r in rows]
@@ -420,13 +398,6 @@ def _token_df(conn: sqlite3.Connection, token: str) -> int:
     except sqlite3.OperationalError:
         return 0
     return int(row[0]) if row else 0
-
-
-def group_key_row(row: sqlite3.Row) -> tuple[int, str]:
-    # Ghi chú (H4) gom theo đơn vị cha nếu có.
-    if row["level"] == "ghi_chu" and row["ppath"]:
-        return (int(row["doc_id"]), dieu_path(row["ppath"], row["plevel"]))
-    return (int(row["doc_id"]), dieu_path(row["path"], row["level"]))
 
 
 _RISK_IN = ",".join(f"'{x}'" for x in RISK_LABELS)
@@ -589,6 +560,8 @@ def _fts_cascade(
     doc_ids: list[int] | None = None,
     full_query: str | None = None,
 ) -> CascadeResult:
+    if doc_ids is not None and not doc_ids:  # [] = không văn bản nào qua bộ lọc; scored_units/rerank hiểu [] là "không giới hạn"
+        return CascadeResult([], 6, "")
     accented = query_has_accent(raw_query)
     dense_q = full_query or raw_query  # embedding cần nguyên câu hỏi: BM25 bỏ cụm "mức phạt", nghĩa của câu thì không
     tok_f = tokenize(fold_search(raw_query), indexes=vocab_indexes(conn, accent=False))
@@ -628,14 +601,17 @@ def _tier0(ids: list[int], note: str) -> CascadeResult:
     return CascadeResult(ids, 0, note, tiers={i: 0 for i in ids})
 
 
-def cascade_search(conn: sqlite3.Connection, raw_query: str) -> CascadeResult:
+def cascade_search(conn: sqlite3.Connection, raw_query: str, doc_ids: list[int] | None = None) -> CascadeResult:
+    """`doc_ids`: chỉ tìm trong các văn bản này (bộ lọc áp trong truy vấn, không sau khi cắt top); None = cả kho.
+    Hai nhánh tra thẳng (chỉ số hiệu, chỉ Điều) không đi qua đây: nơi gọi vẫn lọc bằng apply_doc_filters."""
     intent, q = split_intent(raw_query)
-    result = _cascade(conn, q, full_query=raw_query)
+    result = _cascade(conn, q, full_query=raw_query, doc_ids=doc_ids)
     result.intent = intent
     return result
 
 
-def _cascade(conn: sqlite3.Connection, raw_query: str, full_query: str | None = None) -> CascadeResult:
+def _cascade(conn: sqlite3.Connection, raw_query: str, full_query: str | None = None,
+             doc_ids: list[int] | None = None) -> CascadeResult:
     docs = _so_hieu_docs(conn, raw_query)
     dieu = find_dieu_so(raw_query)
     rest = citation_remainder(raw_query)
@@ -644,7 +620,8 @@ def _cascade(conn: sqlite3.Connection, raw_query: str, full_query: str | None = 
         return _tier0(lookup_so_hieu(conn, raw_query), "so_hieu")
 
     if docs and rest:
-        result = _fts_cascade(conn, rest, doc_ids=docs, full_query=full_query)
+        scope = docs if doc_ids is None else [d for d in docs if d in set(doc_ids)]
+        result = _fts_cascade(conn, rest, doc_ids=scope, full_query=full_query)
         if dieu:
             narrowed = _ids_on_dieu(conn, result.ids, dieu)
             if narrowed:
@@ -658,7 +635,19 @@ def _cascade(conn: sqlite3.Connection, raw_query: str, full_query: str | None = 
     if dieu and not rest:
         return _tier0(lookup_dieu_all_docs(conn, dieu), "dieu")
 
-    return _fts_cascade(conn, raw_query, full_query=full_query)
+    return _fts_cascade(conn, raw_query, doc_ids=doc_ids, full_query=full_query)
+
+
+def _filter_sql(loai: str, co_quan: str, hieu_luc: str) -> tuple[str, list]:
+    """Điều kiện lọc trên bảng documents (bí danh d), dùng chung cho lọc đơn vị và lọc văn bản. Ô cơ quan là danh sách
+    chọn nên so khớp đúng giá trị lưu (LIKE làm 'CHÍNH PHỦ' kéo theo 'THỦ TƯỚNG CHÍNH PHỦ', và '%' thành ký tự đại diện)."""
+    sql, params = "", []
+    for col, v in (("loai", loai), ("co_quan", co_quan), ("hieu_luc", hieu_luc)):
+        v = (v or "").strip()
+        if v:
+            sql += f" AND d.{col} = ?"
+            params.append(v)
+    return sql, params
 
 
 def apply_doc_filters(
@@ -669,25 +658,28 @@ def apply_doc_filters(
     co_quan: str = "",
     hieu_luc: str = "",
 ) -> list[int]:
-    loai = (loai or "").strip()
-    co_quan = (co_quan or "").strip()
-    hieu_luc = (hieu_luc or "").strip()
-    if not ids or not (loai or co_quan or hieu_luc):
+    where, params = _filter_sql(loai, co_quan, hieu_luc)
+    if not ids or not where:
         return ids
     q = ",".join("?" * len(ids))
-    sql = (
-        f"SELECT u.id FROM units u JOIN documents d ON d.id = u.doc_id "
-        f"WHERE u.id IN ({q})"
-    )
-    params: list = list(ids)
-    if loai:
-        sql += " AND d.loai = ?"
-        params.append(loai)
-    if co_quan:
-        sql += " AND IFNULL(d.co_quan, '') LIKE ?"
-        params.append(f"%{co_quan}%")
-    if hieu_luc:
-        sql += " AND d.hieu_luc = ?"
-        params.append(hieu_luc)
-    keep = {int(r["id"]) for r in conn.execute(sql, params).fetchall()}
+    rows = conn.execute(f"SELECT u.id FROM units u JOIN documents d ON d.id = u.doc_id WHERE u.id IN ({q}){where}", [*ids, *params])
+    keep = {int(r["id"]) for r in rows}
     return [i for i in ids if i in keep]
+
+
+def filtered_doc_ids(conn: sqlite3.Connection, *, loai: str = "", co_quan: str = "", hieu_luc: str = "") -> list[int] | None:
+    """Mọi văn bản qua bộ lọc; None khi không đặt bộ lọc nào (khác danh sách rỗng: lọc mà không văn bản nào khớp)."""
+    where, params = _filter_sql(loai, co_quan, hieu_luc)
+    if not where:
+        return None
+    return [int(r[0]) for r in conn.execute(f"SELECT d.id FROM documents d WHERE 1{where}", params)]
+
+
+def filter_docs(conn: sqlite3.Connection, doc_ids: list[int], *, loai: str = "", co_quan: str = "", hieu_luc: str = "") -> list[int]:
+    """Như apply_doc_filters, cho danh sách văn bản."""
+    where, params = _filter_sql(loai, co_quan, hieu_luc)
+    if not doc_ids or not where:
+        return doc_ids
+    q = ",".join("?" * len(doc_ids))
+    keep = {int(r[0]) for r in conn.execute(f"SELECT d.id FROM documents d WHERE d.id IN ({q}){where}", [*doc_ids, *params])}
+    return [i for i in doc_ids if i in keep]

@@ -13,6 +13,10 @@ IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp"})
 SUPPORTED_SUFFIXES = frozenset(
     {".docx", ".doc", ".rtf", ".pdf", ".txt", ".md", ".xlsx"} | IMAGE_SUFFIXES
 )
+# Luồng nạp chỉ có một, không huỷ được: file docx/xlsx vài chục KB mà XML giải nén hàng trăm MB (hay triệu đoạn rỗng,
+# ~0,5 ms mỗi đoạn) làm treo cả hàng đợi hàng chục phút. Văn bản luật thật: document.xml vài MB, dưới chục nghìn đoạn.
+MAX_XML_BYTES = 64 << 20
+MAX_PARAGRAPHS = 300_000
 
 
 @dataclass
@@ -321,6 +325,12 @@ _SKIP = set(map(_w, ("del", "delText", "instrText", "rPr", "pPr", "footnoteRef",
 MC_ALT, MC_CHOICE, MC_FALLBACK = (f"{{{_MC}}}{t}" for t in ("AlternateContent", "Choice", "Fallback"))
 
 
+def _check_zip_size(z: zipfile.ZipFile) -> None:
+    """Tổng cỡ khai báo của các phần XML (file_size là hạn đọc cứng của zipfile, không khai thấp để lách được)."""
+    if sum(i.file_size for i in z.infolist() if i.filename.endswith((".xml", ".rels"))) > MAX_XML_BYTES:
+        raise ValueError("Tệp .docx/.xlsx quá lớn khi giải nén")
+
+
 def _parse_part(z: zipfile.ZipFile, name: str):
     from lxml import etree
 
@@ -402,6 +412,7 @@ class _DocxReader:
         self.footnotes = _notes_part(z, "word/footnotes.xml", "footnote")
         self.endnotes = _notes_part(z, "word/endnotes.xml", "endnote")
         self.n_ref = 0
+        self.n_para = 0
         self.pages: list[ExtractedPage] = []
         self.lines: list[str] = []
         self.page_notes: list[Note] = []
@@ -485,6 +496,9 @@ class _DocxReader:
             self.first_notes.append(Note(kind="textbox", text=text))
 
     def para_text(self, p_el) -> str:
+        self.n_para += 1  # thân và ô bảng đều qua đây
+        if self.n_para > MAX_PARAGRAPHS:
+            raise ValueError("Tệp .docx có quá nhiều đoạn")
         text = self.run_text(p_el)
         ppr = p_el.find(W_PPR)
         if ppr is not None and ppr.find(W_PBB) is not None:
@@ -538,8 +552,9 @@ class _DocxReader:
 def extract_docx(path: Path) -> list[ExtractedPage]:
     from docx import Document
 
-    doc = Document(str(path))
     with zipfile.ZipFile(path) as z:
+        _check_zip_size(z)  # trước Document(): python-docx dựng cả cây XML trong bộ nhớ
+        doc = Document(str(path))
         r = _DocxReader(doc, z)
         body = doc.element.body
         r.walk(body)
@@ -884,6 +899,7 @@ def extract_xlsx(path: Path) -> list[ExtractedPage]:
 
     pages: list[ExtractedPage] = []
     with zipfile.ZipFile(path) as z:
+        _check_zip_size(z)
         names = set(z.namelist())
         shared: list[str] = []
         if "xl/sharedStrings.xml" in names:

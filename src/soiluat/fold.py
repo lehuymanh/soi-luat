@@ -117,6 +117,9 @@ def pretty_path(path: str) -> str:
     m = re.match(r"^p(\d+)\.para(\d+)$", p, re.I)
     if m:
         return f"trang {m.group(1)} đoạn {m.group(2)}"
+    m = re.match(r"^PL(\d+)\.para(\d+)$", p, re.I)
+    if m:
+        return f"phụ lục {m.group(1)} đoạn {m.group(2)}"
     return p
 
 
@@ -134,3 +137,11 @@ def dieu_path(path: str, level: str = "") -> str:
         return p
     m = re.match(r"(D\d+[a-z]?(?:~\d+)?)", p, re.I)
     return m.group(1) if m else p
+
+
+_PAGE_NO_LINE = re.compile(r"(?m)^[ \t]*[-–]?[ \t]*\d{1,3}[ \t]*[-–]?[ \t]*(?:\n|$)")
+
+
+def strip_page_numbers(text: str) -> str:
+    """Bỏ dòng chỉ có số trang ("12", "- 13 -") lọt vào chữ đơn vị khi hiển thị; chỉ mục giữ nguyên chữ gốc."""
+    return _PAGE_NO_LINE.sub("", text or "").rstrip("\n")

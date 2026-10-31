@@ -5,7 +5,8 @@ Phần nạp (trích chữ, OCR) chỉ nạp khi dùng lần đầu (soiluat.job
 from __future__ import annotations
 
 import argparse
-import hashlib
+import json
+import mimetypes
 import os
 import re
 import secrets
@@ -14,35 +15,67 @@ import socket
 import sqlite3
 import sys
 import threading
+import unicodedata
 import uuid
 import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import (
     FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response,
 )
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 import uvicorn
 
-from soiluat import crossrank, pageimg, semantic
-from soiluat.cards import assemble_cards, summarize
+from soiluat import conversations, crossrank, pageimg, reader, semantic
+from soiluat.cards import OCR_LABEL, _ocr_unverified, assemble_cards, compact, doc_groups, summarize
 from soiluat.config import HOST, PORT, data_dir, db_path
-from soiluat.db import backup_db, connect, init_schema
-from soiluat.export_word import card_pages, export_cards, page_label
-from soiluat.fold import display_addr
-from soiluat.jobs import JOBS, SUFFIXES
-from soiluat.search import DIEU_CAP, apply_doc_filters, cascade_search
+from soiluat.db import BUSY_MS, backup_db, connect, init_schema
+from soiluat.export_word import card_pages, export_units, page_label
+from soiluat.extract import SUPPORTED_SUFFIXES, sha256_file
+from soiluat.fold import display_addr, fold_search
+from soiluat.jobs import JOBS
+from soiluat.search import DIEU_CAP, _so_hieu_docs, apply_doc_filters, cascade_search, filter_docs, filtered_doc_ids, lookup_so_hieu
+from soiluat.sohieu import find_dieu_so, so_hieu_search_key
+
+
+def _ngay(s):
+    """'2020-02-01' thành '01/02/2020' như mẫu; giá trị không đúng dạng ISO giữ nguyên."""
+    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", s or "")
+    return f"{m[3]}/{m[2]}/{m[1]}" if m else s
+
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
-TEMPLATES.env.globals.update(page_label=page_label, card_pages=card_pages)
+TEMPLATES.env.filters["ngay"] = _ngay
+TEMPLATES.env.globals.update(
+    page_label=page_label, card_pages=card_pages, addr=reader.addr, cite=reader.cite, doc_groups=doc_groups,
+    highlight=lambda text, q: reader.highlight(text, reader.query_words(q)),  # đã thoát HTML, gạch dưới từ khớp
+    fname=lambda p: re.split(r"[\\/]", (p or "").split("#vb", 1)[0])[-1], LOAI=reader.LOAI, OCR_LABEL=OCR_LABEL,
+)
 CSRF_TOKEN = secrets.token_urlsafe(32)
+STEM_MAX = 100  # ký tự tối đa của tên file lưu (không tính đuôi)
+SHOW_CAP = 25  # mục hiện tối đa trên trang (5 đầu, "Xem thêm" từng 10); nhiều hơn thì dòng "còn nữa"
 _ocr_cache: dict | None = None
 
 app = FastAPI(title="Soi Luật")
+# Windows lấy MIME từ registry; máy có registry lỗi trả text/plain và trình duyệt bỏ qua JS/CSS
+for _ext, _type in ((".js", "text/javascript"), (".css", "text/css"), (".woff2", "font/woff2")):
+    mimetypes.add_type(_type, _ext)
+
+
+class _NoCacheStatic(StaticFiles):
+    async def get_response(self, path, scope):
+        r = await super().get_response(path, scope)
+        r.headers["Cache-Control"] = "no-cache"  # sau khi nâng cấp app, trình duyệt phải hỏi lại app.js mới
+        return r
+
+
+app.mount("/static", _NoCacheStatic(directory=str(Path(__file__).parent / "static")), name="static")
 
 
 def _now() -> str:
@@ -61,14 +94,24 @@ def _host_ok(host_header: str) -> bool:
     return name in allowed
 
 
+def _csrf_cookie(request: Request) -> str:
+    """Cookie không phân biệt cổng: hai bản app (cổng 8000, 8001) dùng chung một cookie sẽ ghi đè token của nhau.
+    app.js đọc đúng tên này theo `location.port`."""
+    return f"soiluat_csrf_{request.url.port or ''}"
+
+
 class HostGuard(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
-        if not _host_ok(request.headers.get("host") or ""):
+        host = request.headers.get("host") or ""
+        if not _host_ok(host):
             return PlainTextResponse("Bad Host", status_code=400)
+        origin = request.headers.get("origin")  # trình duyệt luôn gửi khi POST; curl và test thì không
+        if request.method not in ("GET", "HEAD") and origin and origin != f"http://{host}":
+            return PlainTextResponse("Bad Origin", status_code=403)  # chặn trước khi đọc thân (tải lên lớn)
         response = await call_next(request)
         if not _test_bypass():
             response.set_cookie(
-                "soiluat_csrf",
+                _csrf_cookie(request),
                 CSRF_TOKEN,
                 samesite="strict",
                 httponly=False,
@@ -79,10 +122,16 @@ class HostGuard(BaseHTTPMiddleware):
 app.add_middleware(HostGuard)
 
 
+@app.exception_handler(OverflowError)
+async def _id_qua_lon(request, exc):
+    """Id gõ tay lớn hơn số nguyên SQLite (2**63-1): không có bản ghi nào, không phải lỗi máy chủ."""
+    return HTMLResponse("Không tìm thấy.", status_code=404)
+
+
 def _check_csrf(request: Request, token: str = "") -> None:
     if _test_bypass():
         return
-    cookie = request.cookies.get("soiluat_csrf")
+    cookie = request.cookies.get(_csrf_cookie(request))
     header = request.headers.get("x-csrf-token") or token
     if cookie != CSRF_TOKEN or header != CSRF_TOKEN:
         raise HTTPException(status_code=403, detail="CSRF")
@@ -100,96 +149,153 @@ def _tpl(request: Request, name: str, ctx: dict):
 
 
 def _card_dates(conn, cards) -> dict[int, dict]:
-    """Ngày ban hành/hiệu lực theo unit đầu của thẻ (Card không mang ngày)."""
+    """Ngày ban hành/hiệu lực, loại và cơ quan theo unit đầu của thẻ (Card không mang các trường này)."""
     ids = [c.unit_ids[0] for c in cards if c.unit_ids]
     if not ids:
         return {}
     q = ",".join("?" * len(ids))
     rows = conn.execute(
-        "SELECT u.id, d.ngay_ban_hanh, d.ngay_hieu_luc FROM units u "
+        "SELECT u.id, d.ngay_ban_hanh, d.ngay_hieu_luc, d.loai, d.co_quan FROM units u "
         f"JOIN documents d ON d.id = u.doc_id WHERE u.id IN ({q})",
         ids,
     ).fetchall()
     return {r["id"]: dict(r) for r in rows}
 
 
-def _search_ctx(
-    q: str,
-    loai: str,
-    co_quan: str,
-    hieu_luc: str,
-) -> dict:
+def _search(conn: sqlite3.Connection, q: str, loai: str, co_quan: str, hieu_luc: str) -> dict:
+    """Tìm và lọc: `ids` đã lọc và cắt, `n_found` đoạn tìm được (lọc trong truy vấn; hai nhánh tra thẳng thì trước lọc), `n_ids` sau lọc trước cắt (P1 K1; H2, H3 dùng lại)."""
+    # BM25 OR tự hạ trọng số từ phổ biến ("như thế nào", "được quy định"): không bỏ khung hỏi bằng danh sách
+    result = cascade_search(conn, q, filtered_doc_ids(conn, loai=loai, co_quan=co_quan, hieu_luc=hieu_luc))
+    ids = apply_doc_filters(conn, result.ids, loai=loai, co_quan=co_quan, hieu_luc=hieu_luc)
+    n_ids = len(ids)
+    if result.note == "dieu" and n_ids > DIEU_CAP:
+        ids = ids[:DIEU_CAP]
+    # nhãn tin cậy nói về kết quả đầu: bộ lọc/giới hạn đổi kết quả đầu thì bỏ nhãn
+    sure = result.sure if ids and result.ids and ids[0] == result.ids[0] else None
+    return {"result": result, "ids": ids, "n_found": len(result.ids), "n_ids": n_ids, "sure": sure}
+
+
+def _full_docs(conn: sqlite3.Connection, q: str, s: dict, loai: str = "", co_quan: str = "", hieu_luc: str = "") -> list[SimpleNamespace] | None:
+    """Truy vấn chỉ có số hiệu (kể cả số hiệu một phần): mỗi văn bản khớp một mục "Mở toàn văn", không liệt kê
+    mọi đơn vị. "Số hiệu + Điều n" mà văn bản không có Điều n cũng ra "Mở toàn văn", kèm câu không có Điều n.
+    Văn bản lấy từ số hiệu (không từ đơn vị: bản quét chưa OCR hay văn bản chỉ có đoạn không có đơn vị Điều/Khoản) rồi lọc."""
+    r = s["result"]
+    dieu = find_dieu_so(q)
+    if r.note != "so_hieu" or r.intent or (dieu and r.ids):
+        return None
+    doc_ids = filter_docs(conn, _so_hieu_docs(conn, q), loai=loai, co_quan=co_quan, hieu_luc=hieu_luc)
+    if "docs" in s:  # mở lại: chỉ các văn bản đã lưu và còn đúng nguồn, không văn bản nào mới khớp số hiệu sau đó
+        doc_ids = [d for d in doc_ids if d in s["docs"]]
+    out = []
+    for did in doc_ids:
+        d = conn.execute(
+            "SELECT d.*, (SELECT COUNT(*) FROM units u WHERE u.doc_id = d.id AND u.level = 'dieu') AS n_dieu, "
+            "(SELECT COUNT(*) FROM pages p WHERE p.doc_id = d.id) AS n_pages FROM documents d WHERE d.id = ?", (did,)
+        ).fetchone()
+        out.append(SimpleNamespace(full=True, doc_id=did, missing_dieu=dieu or "", **{k: d[k] for k in (
+            "so_hieu", "so_hieu_search", "loai", "co_quan", "file_path", "hieu_luc", "ngay_ban_hanh", "ngay_hieu_luc", "n_dieu", "n_pages")}))
+    return out
+
+
+def _ctx(conn: sqlite3.Connection, q: str, s: dict, loai: str = "", co_quan: str = "", hieu_luc: str = "") -> dict:
+    """Thẻ và mục gọn từ kết quả tìm (P1 K1)."""
+    r, ids = s["result"], s["ids"]
+    full = None if s.get("kind") == "list" else _full_docs(conn, q, s, loai, co_quan, hieu_luc)  # mở lại: kind đã lưu, không đoán lại
+    idset = set(ids)
+    cards = [] if full is not None else assemble_cards(
+        conn, ids, synonym_note=r.note,
+        fold_ids={i for i in r.fold_ids if i in idset}, f2_ids={i for i in r.f2_ids if i in idset},
+        tiers=r.tiers, intent=r.intent,
+    )
+    items = full if full is not None else compact(conn, cards, q, limit=SHOW_CAP, cap=DIEU_CAP)
+    cut_note = ""
+    if r.note == "dieu" and s["n_ids"] > DIEU_CAP:
+        cut_note = (f"Có {s['n_ids']} văn bản có Điều này, chỉ hiển thị {min(DIEU_CAP, SHOW_CAP, len(items))}. "
+                    "Thêm số hiệu văn bản để thu hẹp.")
+    return {"cards": cards, "items": items, "n_items": len(items), "cut_note": cut_note,
+            "n": summarize(cards), "dates": _card_dates(conn, cards)}
+
+
+def _log_query(conn: sqlite3.Connection, q: str, n: int) -> None:
+    conn.execute("PRAGMA busy_timeout=300")  # chỉ là một dòng nhật ký: đang nạp file giữ khoá ghi thì bỏ ngay, không chờ BUSY_MS
+    try:
+        conn.execute("INSERT INTO query_log(query_raw, result_count, created_at) VALUES (?,?,?)", (q, n, _now()))
+        conn.commit()
+    except sqlite3.OperationalError:  # bỏ một dòng nhật ký, không làm hỏng kết quả
+        conn.rollback()
+    finally:
+        conn.execute(f"PRAGMA busy_timeout={BUSY_MS}")  # lưu lịch sử trò chuyện sau đó vẫn chờ đủ
+
+
+def _kho(conn: sqlite3.Connection) -> dict:
+    """Trạng thái kho cho trang và ghi chú đầu kết quả: số văn bản, kho chưa có văn bản xử phạt, số liên kết chờ duyệt."""
+    n_docs = int(conn.execute("SELECT COUNT(*) AS n FROM documents").fetchone()["n"] or 0)
+    n_che = conn.execute("SELECT COUNT(*) AS n FROM unit_labels WHERE label = 'CHE_TAI'").fetchone()["n"]
+    note = "Kho chưa có văn bản xử phạt — phần lớn thẻ là rủi ro chưa rõ chế tài (loại 3)." if n_docs and not n_che else ""
+    return {"n_docs": n_docs, "empty_kho": n_docs == 0, "kho_note": note,  # n_queue: số trên thanh bên, cùng hàng chờ với trang /review
+            "n_queue": conn.execute("SELECT COUNT(*) FROM links WHERE confirmed = 0").fetchone()[0]}
+
+
+def _msg_ctx(conn: sqlite3.Connection, q: str, s: dict, loai: str, co_quan: str, hieu_luc: str, kho: dict) -> dict:
+    """Mọi biến `_results.html` cần cho một câu trả lời, từ `s` (tìm mới, hoặc dựng lại từ ref đã lưu ở H3) và kho."""
+    ctx = {**_ctx(conn, q, s, loai, co_quan, hieu_luc), "n_found": s["n_found"]}  # n_found: đoạn tìm được trước bộ lọc ("Không còn kết quả sau khi lọc")
+    note = kho["kho_note"]
+    if ctx["cut_note"]:
+        note = (note + " " if note else "") + ctx["cut_note"]
+    hints = [] if ctx["items"] else [r["term"] for r in conn.execute("SELECT term FROM synonyms WHERE approved = 1 LIMIT 8")]
+    return {**ctx, **kho, "q": q, "loai": loai, "co_quan": co_quan, "hieu_luc": hieu_luc, "hints": hints,
+            "q2_note": note, "sure": s["sure"]}
+
+
+def _search_ctx(q: str, loai: str, co_quan: str, hieu_luc: str, ask: bool = False, cid: int | None = None) -> dict:
+    """`ask`: POST /ask, lưu thành tin của cuộc `cid` (None = cuộc mới); `conversation_id` trong kết quả là cuộc đã lưu."""
     conn = get_conn()
-    cards = []
-    dates: dict[int, dict] = {}
-    n = {"n1": 0, "n2": 0, "n3": 0, "n4": 0}
-    hints: list[str] = []
-    q2_note = ""
-    empty_kho = False
-    sure = None
-    n_docs = conn.execute("SELECT COUNT(*) AS n FROM documents").fetchone()["n"]
-    empty_kho = int(n_docs or 0) == 0
-    n_che = conn.execute(
-        "SELECT COUNT(*) AS n FROM unit_labels WHERE label = 'CHE_TAI'"
-    ).fetchone()["n"]
-    if not empty_kho and int(n_che or 0) == 0:
-        q2_note = (
-            "Kho chưa có văn bản xử phạt — phần lớn thẻ là rủi ro chưa rõ chế tài (loại 3)."
-        )
+    kho = _kho(conn)
+    saved = None
+    out = {"cards": [], "items": [], "n_items": 0, "n_found": 0, "cut_note": "", "dates": {}, "n": {"n1": 0, "n2": 0, "n3": 0, "n4": 0},
+           **kho, "q": q, "loai": loai, "co_quan": co_quan, "hieu_luc": hieu_luc, "hints": [], "q2_note": kho["kho_note"], "sure": None}
     if q.strip():
-        # BM25 OR tự hạ trọng số từ phổ biến ("như thế nào", "được quy định"): không bỏ khung hỏi bằng danh sách
-        result = cascade_search(conn, q)
-        ids = apply_doc_filters(
-            conn, result.ids, loai=loai, co_quan=co_quan, hieu_luc=hieu_luc
-        )
-        if result.note == "dieu" and len(ids) > DIEU_CAP:
-            q2_note = (q2_note + " " if q2_note else "") + (
-                f"Có {len(ids)} văn bản có Điều này, chỉ hiển thị {DIEU_CAP} — "
-                "thêm số hiệu văn bản để thu hẹp."
-            )
-            ids = ids[:DIEU_CAP]
-        # nhãn tin cậy nói về kết quả đầu: bộ lọc/giới hạn đổi kết quả đầu thì bỏ nhãn
-        sure = result.sure if ids and result.ids and ids[0] == result.ids[0] else None
-        idset = set(ids)
-        cards = assemble_cards(
-            conn,
-            ids,
-            synonym_note=result.note,
-            fold_ids={i for i in result.fold_ids if i in idset},
-            f2_ids={i for i in result.f2_ids if i in idset},
-            tiers=result.tiers,
-            intent=result.intent,
-        )
-        n = summarize(cards)
-        try:
-            conn.execute(
-                "INSERT INTO query_log(query_raw, result_count, created_at) VALUES (?,?,?)",
-                (q, len(cards), _now()),
-            )
-            conn.commit()
-        except sqlite3.OperationalError:  # đang nạp file giữ khoá ghi: bỏ một dòng nhật ký, không làm hỏng kết quả
-            conn.rollback()
-        if not cards:
-            rows = conn.execute(
-                "SELECT term FROM synonyms WHERE approved = 1 LIMIT 8"
-            ).fetchall()
-            hints = [r["term"] for r in rows]
-        dates = _card_dates(conn, cards)
+        s = _search(conn, q, loai, co_quan, hieu_luc)
+        out = _msg_ctx(conn, q, s, loai, co_quan, hieu_luc, kho)
+        # "Mở toàn văn": số văn bản, để gõ số hiệu không lọt vào trang "Truy vấn bỏ sót" (lọc result_count = 0)
+        _log_query(conn, q, len(out["items"]) if not out["cards"] else len(out["cards"]))
+        if ask:  # tìm xong và ghi nhật ký xong mới lưu: không giữ khoá ghi suốt phần tìm (Advance ~9 s)
+            try:
+                filters = {"loai": loai, "co_quan": co_quan, "hieu_luc": hieu_luc}
+                saved = conversations.save(conn, cid, q, conversations.result_of(conn, q, filters, s, out), _now())
+            except sqlite3.Error:  # đang nạp file giữ khoá ghi: vẫn trả kết quả, nói rõ chưa lưu (không nuốt im như nhật ký)
+                out["q2_note"] = (out["q2_note"] + " " if out["q2_note"] else "") + "Chưa lưu được vào lịch sử (đang nạp file)."
     conn.close()
-    return {
-        "q": q,
-        "loai": loai,
-        "co_quan": co_quan,
-        "hieu_luc": hieu_luc,
-        "cards": cards,
-        "dates": dates,
-        "n": n,
-        "hints": hints,
-        "q2_note": q2_note,
-        "sure": sure,
-        "empty_kho": empty_kho,
-        "n_docs": int(n_docs or 0),
-    }
+    return {**out, "conversation_id": saved}
+
+
+def _render_results(ctx: dict) -> str:
+    """`_results.html` ra chuỗi. Phải qua đây, không `get_template(...).render(ctx)` trần: `csrf_token` chỉ được chèn ở
+    `_tpl`, mà form "Chọn xuất" cần nó (thiếu thì "Xuất Word" trong cuộc cũ ra 403)."""
+    return TEMPLATES.get_template("_results.html").render({**ctx, "csrf_token": CSRF_TOKEN})
+
+
+def _reopen(conn: sqlite3.Connection, res: dict, kho: dict) -> str:
+    """Dựng lại một tin trả lời từ ref đã lưu (P1 H3), không tìm lại: thứ tự cũ, bỏ ref hỏng; hiệu lực, ghi chú và dòng
+    "Còn N mục nữa" tính từ dữ liệu hiện tại. Có ref hỏng thì thêm dải cảnh báo (biến `stale` của `_results.html`)."""
+    got = list(conversations.match(conn, res["refs"]))
+    ok = [(ref, i) for ref, i in got if i is not None]
+    f, full = res["filters"], res["kind"] == "full"
+    units = [] if full else ok  # ref tin toàn văn là văn bản (mức văn bản), không phải đơn vị
+    # tin toàn văn dựng từ chữ câu hỏi: "Số hiệu + Điều n" lúc hỏi không có Điều n mà nay có thì `ids` khác rỗng, `_full_docs` ngừng
+    # nói "không có Điều n" (câu cũ sai) và chỉ còn dải cảnh báo bên dưới
+    ids = lookup_so_hieu(conn, res["q"]) if full and find_dieu_so(res["q"]) else []
+    r = SimpleNamespace(note=res["note"], intent=res["intent"], ids=ids,  # tin danh sách: ids rỗng, không dùng
+                        tiers={i: ref[3] for ref, i in units}, fold_ids={i for ref, i in units if ref[4]}, f2_ids={i for ref, i in units if ref[5]})
+    # nhãn tin cậy nói về kết quả đầu: ref đầu hỏng thì thẻ đầu là cái khác, bỏ nhãn (cùng luật `_search`)
+    s = {"kind": res["kind"], "result": r, "ids": [i for _, i in units], "n_found": res["n_found"], "n_ids": res["n_ids"],
+         "sure": res["sure"] if got and got[0][1] is not None else None}
+    if full:
+        s["docs"] = {i for _, i in ok}  # `_full_docs` chỉ dựng lại các văn bản đã lưu và còn đúng nguồn
+    ctx = _msg_ctx(conn, res["q"], s, f["loai"], f["co_quan"], f["hieu_luc"], kho)
+    if len(ok) < len(got) or ids:
+        ctx["stale"] = {"bad": len(got) if ids else len(got) - len(ok), "total": len(got), "filters": f}
+    return _render_results(ctx)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -203,7 +309,124 @@ def home(
     ctx = _search_ctx(q, loai, co_quan, hieu_luc)
     if request.headers.get("HX-Request"):
         return _tpl(request, "_results.html", ctx)
-    return _tpl(request, "index.html", {**ctx, "mode": _mode_status(), "suffixes": ",".join(sorted(SUFFIXES))})
+    return _index(request, ctx)
+
+
+def _index(request: Request, ctx: dict):
+    """Trang chính (`index.html`): `ctx` của kết quả hoặc của cuộc trò chuyện, cộng chế độ tìm, đuôi file, cơ quan ban hành
+    và lịch sử cho thanh bên (`conversation_id` trong `ctx` là cuộc đang mở, được đánh dấu)."""
+    conn = get_conn()
+    try:
+        co_quans = [r[0] for r in conn.execute(
+            "SELECT DISTINCT co_quan FROM documents WHERE co_quan IS NOT NULL AND co_quan != '' ORDER BY co_quan")]
+        groups, hmore = conversations.history(conn, "", _now())
+    finally:
+        conn.close()
+    return _tpl(request, "index.html", {**ctx, "mode": _mode_status(), "suffixes": ",".join(sorted(SUPPORTED_SUFFIXES)), "co_quans": co_quans,
+                                        "groups": groups, "hmore": hmore})
+
+
+PREBUILT = 3  # tin gần nhất dựng sẵn khi mở cuộc; tin cũ hơn hiện nút "Xem lại". Đo 31/10/2026: dựng một tin ~230 ms (compact ~200), cuộc 10 câu ~2,3-2,6 s
+
+
+@app.get("/c/{cid}", response_class=HTMLResponse)
+def open_conversation(request: Request, cid: int):
+    """Mở lại cuộc trò chuyện từ ref đã lưu, không tìm lại (P1 H3). Không có cuộc: về trang chủ."""
+    conn = get_conn()
+    try:
+        c = conn.execute("SELECT title, created_at FROM conversations WHERE id = ?", (cid,)).fetchone()
+        if c is None:
+            return RedirectResponse("/", status_code=303)
+        kho = _kho(conn)
+        rows = conn.execute("SELECT id, result_json FROM messages WHERE conversation_id = ? AND role = 'bot' ORDER BY id", (cid,)).fetchall()
+        thread, advance = [], False
+        for k, row in enumerate(rows):
+            res = json.loads(row["result_json"])
+            # result_json không ghi chế độ tìm: kết quả có chấm "Khớp rõ" hoặc có đoạn chỉ do vector tìm ra (tầng 7) là của Advance
+            advance = advance or res["sure"] is not None or any(ref[3] == 7 for ref in res["refs"])
+            thread.append({"q": res["q"], "mid": row["id"], "html": None if k < len(rows) - PREBUILT else _reopen(conn, res, kho)})
+    finally:
+        conn.close()
+    when = datetime.fromisoformat(c["created_at"]).astimezone().strftime("%d/%m/%Y, %H:%M")  # giờ máy, không phải UTC lưu trong kho
+    sub = f"{when} · {len(rows)} câu hỏi" + (" · tìm theo nghĩa" if advance else "")
+    return _index(request, {**kho, "q": "", "conversation_id": cid, "thread": thread, "title": c["title"], "sub": sub})
+
+
+@app.get("/c/{cid}/m/{mid}", response_class=HTMLResponse)
+def reopen_message(cid: int, mid: int):
+    """Một tin cũ của cuộc, dựng lúc bấm "Xem lại" (cùng `_reopen` với trang cuộc)."""
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT result_json FROM messages WHERE id = ? AND conversation_id = ? AND role = 'bot'", (mid, cid)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Không có tin này")
+        return HTMLResponse(_reopen(conn, json.loads(row["result_json"]), _kho(conn)))
+    finally:
+        conn.close()
+
+
+@app.post("/ask", response_class=HTMLResponse)
+def ask(
+    request: Request,
+    q: str = Form(""),
+    conversation_id: str = Form(""),
+    loai: str = Form(""),
+    co_quan: str = Form(""),
+    hieu_luc: str = Form(""),
+    csrf_token: str = Form(""),
+):
+    """Hỏi và lưu vào cuộc trò chuyện (P1 H2): mảnh kết quả như GET /?q= kèm X-Conversation-Id (cuộc mới nếu cuộc cũ không còn)."""
+    _check_csrf(request, csrf_token)
+    m = re.fullmatch(r"[0-9]{1,18}", conversation_id)  # id rác: cuộc mới (không để số quá lớn thành OverflowError ở SQLite)
+    ctx = _search_ctx(q, loai, co_quan, hieu_luc, ask=True, cid=int(m[0]) if m else None)
+    resp = _tpl(request, "_results.html", ctx)
+    if ctx["conversation_id"]:
+        resp.headers["X-Conversation-Id"] = str(ctx["conversation_id"])
+    return resp
+
+
+@app.get("/history", response_class=HTMLResponse)
+def history_list(request: Request, q: str = Query(""), cid: int = Query(0)):
+    """Mảnh `<nav>` của thanh bên (P1 H4): lịch sử lọc theo `q`, đánh dấu cuộc `cid`. JS gọi khi tìm và sau mỗi câu hỏi."""
+    conn = get_conn()
+    try:
+        groups, hmore = conversations.history(conn, q, _now())
+    finally:
+        conn.close()
+    return _tpl(request, "_history.html", {"groups": groups, "hmore": hmore, "hq": q.strip(), "conversation_id": cid})
+
+
+def _conv_write(sql: str, args: tuple) -> None:
+    """Một lệnh ghi vào `conversations`: 404 khi không có cuộc, 503 khi đang nạp file giữ khoá ghi (không 500)."""
+    conn = get_conn()
+    try:
+        n = conn.execute(sql, args).rowcount
+        conn.commit()
+    except sqlite3.OperationalError:
+        raise HTTPException(status_code=503, detail="Đang nạp file, thử lại sau")
+    finally:
+        conn.close()
+    if not n:
+        raise HTTPException(status_code=404, detail="Không có cuộc trò chuyện này")
+
+
+@app.post("/c/{cid}/rename")
+def rename_conversation(request: Request, cid: int, title: str = Form(""), csrf_token: str = Form("")):
+    """Đổi tên cuộc (P1 H4): không rỗng, tối đa 80 ký tự. Không đổi `updated_at`: đổi tên không đẩy cuộc lên đầu danh sách."""
+    _check_csrf(request, csrf_token)
+    title = " ".join(unicodedata.normalize("NFC", title).split())
+    if not title or len(title) > conversations.RENAME_MAX:
+        raise HTTPException(status_code=400, detail=f"Tên từ 1 đến {conversations.RENAME_MAX} ký tự")
+    _conv_write("UPDATE conversations SET title = ? WHERE id = ?", (title, cid))
+    return {"ok": True, "title": title}
+
+
+@app.post("/c/{cid}/delete")
+def delete_conversation(request: Request, cid: int, csrf_token: str = Form("")):
+    """Xoá cuộc và các tin của nó (cascade); `query_log` giữ nguyên (trang "Truy vấn bỏ sót")."""
+    _check_csrf(request, csrf_token)
+    _conv_write("DELETE FROM conversations WHERE id = ?", (cid,))
+    return {"ok": True}
 
 
 def _mode_status(count_pending: bool = True) -> dict:
@@ -228,8 +451,12 @@ def set_search_mode(request: Request, mode: str = Form(...), q: str = Form(""), 
     return RedirectResponse("/?" + urlencode({"q": q}) if q else "/", status_code=303)
 
 
+REVIEW_PAGE = 50  # số dòng mỗi trang duyệt: hàng chờ và danh sách văn bản của kho 3,3 nghìn văn bản không dựng một lần
+
+
 @app.get("/review", response_class=HTMLResponse)
 def review(request: Request):
+    """Chỉ REVIEW_PAGE liên kết đầu hàng chờ; hàng chờ co lại khi duyệt nên không cần số trang."""
     conn = get_conn()
     rows = conn.execute(
         """
@@ -242,8 +469,12 @@ def review(request: Request):
         JOIN documents ds ON ds.id = su.doc_id
         JOIN documents dd ON dd.id = du.doc_id
         WHERE l.confirmed = 0
-        """
+        ORDER BY l.id
+        LIMIT ?
+        """,
+        (REVIEW_PAGE,),
     ).fetchall()
+    n_queue = conn.execute("SELECT COUNT(*) FROM links WHERE confirmed = 0").fetchone()[0]
     conn.close()
     items = []
     for r in rows:
@@ -251,7 +482,7 @@ def review(request: Request):
         d["saddr"] = display_addr(d.get("s_so"), d["spath"])
         d["daddr"] = display_addr(d.get("d_so"), d["dpath"])
         items.append(d)
-    return _tpl(request, "review.html", {"rows": items})
+    return _tpl(request, "review.html", {"rows": items, "more": n_queue - len(items)})
 
 
 @app.post("/links/{link_id}/confirm")
@@ -279,24 +510,6 @@ def reject_link(
     conn.commit()
     conn.close()
     return RedirectResponse("/review", status_code=303)
-
-
-@app.get("/review/pages", response_class=HTMLResponse)
-def review_pages(request: Request):
-    conn = get_conn()
-    rows = conn.execute(
-        """
-        SELECT p.id, p.page_no, p.kind, p.ocr_status, p.verification_status,
-               p.raw_text, d.file_path, d.so_hieu
-        FROM pages p
-        JOIN documents d ON d.id = p.doc_id
-        WHERE p.extraction_method LIKE '%ocr%'
-           OR p.ocr_status IN ('cho_ocr','ocr_xong','can_duyet')
-        ORDER BY p.id
-        """
-    ).fetchall()
-    conn.close()
-    return _tpl(request, "review_pages.html", {"rows": [dict(r) for r in rows]})
 
 
 @app.get("/review/hints", response_class=HTMLResponse)
@@ -361,8 +574,6 @@ def add_subject(
         kind = "uu_tien"
     phrase = phrase.strip()
     if phrase:
-        from soiluat.fold import fold_search
-
         conn = get_conn()
         try:
             conn.execute(
@@ -455,26 +666,33 @@ def delete_synonym(request: Request, syn_id: int, csrf_token: str = Form("")):
 
 
 @app.get("/review/docs", response_class=HTMLResponse)
-def review_docs(request: Request):
+def review_docs(request: Request, doc_id: int | None = Query(None, alias="id"), trang: int = Query(1)):
+    """?id=N chỉ một văn bản (liên kết "Sửa số hiệu" từ trình đọc); không có thì cả kho, REVIEW_PAGE văn bản mỗi ?trang=."""
     conn = get_conn()
+    total = conn.execute("SELECT COUNT(*) FROM documents WHERE ? IS NULL OR id = ?", (doc_id, doc_id)).fetchone()[0]
+    pages = max(1, -(-total // REVIEW_PAGE))
+    trang = min(max(trang, 1), pages)
     docs = conn.execute(
         """
         SELECT id, file_path, so_hieu, loai, co_quan, hieu_luc, struct_score,
                extraction_method, ngay_ban_hanh, ngay_hieu_luc
         FROM documents
-        ORDER BY IFNULL(struct_score, 1) ASC
-        """
+        WHERE ? IS NULL OR id = ?
+        ORDER BY IFNULL(struct_score, 1) ASC, id
+        LIMIT ? OFFSET ?
+        """,
+        (doc_id, doc_id, REVIEW_PAGE, (trang - 1) * REVIEW_PAGE),
     ).fetchall()
     items = []
     for d in docs:
         units = conn.execute(
             "SELECT id, path, level, title, boundary_confidence, raw_text "
-            "FROM units WHERE doc_id = ? ORDER BY id LIMIT 40",
-            (d["id"],),
+            "FROM units WHERE doc_id = ? ORDER BY id LIMIT ?",
+            (d["id"], 40 if doc_id is not None else 5),
         ).fetchall()
         items.append({"doc": dict(d), "units": [dict(u) for u in units]})
     conn.close()
-    return _tpl(request, "review_docs.html", {"items": items})
+    return _tpl(request, "review_docs.html", {"items": items, "only": doc_id is not None, "trang": trang, "pages": pages, "total": total})
 
 
 @app.post("/docs/{doc_id}/hieu-luc")
@@ -494,7 +712,7 @@ def set_hieu_luc(
     )
     conn.commit()
     conn.close()
-    return RedirectResponse("/review/docs", status_code=303)
+    return RedirectResponse(f"/review/docs?id={doc_id}", status_code=303)
 
 
 @app.post("/docs/{doc_id}/so-hieu")
@@ -505,8 +723,6 @@ def set_so_hieu(
     csrf_token: str = Form(""),
 ):
     _check_csrf(request, csrf_token)
-    from soiluat.sohieu import so_hieu_search_key
-
     so = so_hieu.strip()
     conn = get_conn()
     conn.execute(
@@ -515,51 +731,64 @@ def set_so_hieu(
     )
     conn.commit()
     conn.close()
-    return RedirectResponse("/review/docs", status_code=303)
+    return RedirectResponse(f"/review/docs?id={doc_id}", status_code=303)
 
 
-@app.get("/unit/{unit_id}", response_class=HTMLResponse)
-def unit_view(request: Request, unit_id: int):
+@app.get("/unit/{unit_id}")
+def unit_view(unit_id: int, q: str = ""):
+    """Liên kết cũ (0.8, thẻ Word đã xuất) và "Xem nguồn" mở trình đọc tại đúng đơn vị."""
     conn = get_conn()
-    u = conn.execute("SELECT * FROM units WHERE id = ?", (unit_id,)).fetchone()
-    if u is None:
-        conn.close()
-        return HTMLResponse("Không tìm thấy đơn vị.", status_code=404)
-    doc = conn.execute(
-        "SELECT * FROM documents WHERE id = ?", (u["doc_id"],)
-    ).fetchone()
-    pages = conn.execute(
-        "SELECT page_no, kind, ocr_status, verification_status FROM pages "
-        "WHERE doc_id = ? AND page_no BETWEEN ? AND ? ORDER BY page_no",
-        (u["doc_id"], u["page_from"] or 1, u["page_to"] or u["page_from"] or 1),
-    ).fetchall()
-    notes = _unit_notes(conn, u)
-    try:
-        conn.execute(
-            "UPDATE query_log SET selected_unit = ?, selected_doc_id = ?, selected_path = ? "
-            "WHERE id = (SELECT id FROM query_log ORDER BY id DESC LIMIT 1)",
-            (unit_id, u["doc_id"], u["path"]),
-        )
-        conn.commit()
-    except sqlite3.OperationalError:  # đang nạp file giữ khoá ghi
-        conn.rollback()
+    u = conn.execute("SELECT doc_id, path FROM units WHERE id = ?", (unit_id,)).fetchone()
     conn.close()
-    ud = dict(u)
-    dd = dict(doc) if doc else {}
-    ud["addr"] = display_addr(dd.get("so_hieu"), ud.get("path") or "")
-    for nt in notes:
-        nt["addr"] = display_addr(None, nt["path"])
-    return _tpl(
-        request,
-        "unit.html",
-        {
-            "u": ud,
-            "doc": dd,
-            "pages": [dict(p) for p in pages],
-            "notes": notes,
-            "can_view": pageimg.can_view(dd.get("file_path")),
-        },
-    )
+    if u is None:
+        return HTMLResponse("Không tìm thấy đơn vị.", status_code=404)
+    qs = urlencode({"path": u["path"], "u": unit_id, **({"q": q} if q else {})})
+    return RedirectResponse(f"/doc/{u['doc_id']}?{qs}#u{unit_id}", status_code=303)
+
+
+HL_PILL = {"con": ("Còn hiệu lực", "pos"), "het": ("Hết hiệu lực", "neg")}
+
+
+@app.get("/doc/{doc_id}", response_class=HTMLResponse)
+def doc_view(request: Request, doc_id: int, u: int | None = None, path: str = "", q: str = "",
+             page: int | None = None):
+    """Trình đọc: toàn văn, đơn vị chọn được tô và cuộn tới. Không ghi DB."""
+    conn = get_conn()
+    try:
+        if conn.execute("SELECT 1 FROM documents WHERE id = ?", (doc_id,)).fetchone() is None:
+            return HTMLResponse("Không tìm thấy văn bản.", status_code=404)
+        sel = reader.resolve_sel(conn, doc_id, u, path)
+        view = reader.build_view(conn, doc_id, sel, q)
+        d = view["doc"]
+        su = conn.execute("SELECT * FROM units WHERE id = ?", (sel,)).fetchone() if sel else None
+        pf, pt = (su["page_from"], su["page_to"]) if su else (1, 2**31)
+        pages = conn.execute(
+            "SELECT page_no, kind, ocr_status, verification_status, raw_text, reviewed_text FROM pages "
+            "WHERE doc_id = ? ORDER BY page_no", (doc_id,)
+        ).fetchall()
+        ocr_warn = _ocr_unverified(conn, pf, pt, doc_id)
+    finally:
+        conn.close()
+    fname = Path(d["file_path"].split("#vb", 1)[0]).name
+    name = " ".join(x for x in (reader.LOAI.get(d["loai"] or "", ""), d["so_hieu"] or "") if x) or fname
+    if su is None:
+        where, cite = "Toàn văn", name
+    else:
+        where = reader.addr(su["path"])
+        cite = reader.cite(d["so_hieu"], d["loai"], su["path"]) if d["so_hieu"] else f"{where} {fname}"
+    can_view = pageimg.can_view(d["file_path"])
+    has_img = can_view and pageimg.source_file(d["file_path"]) is not None
+    in_sel = [p for p in pages if su and (su["page_from"] or 0) <= p["page_no"] <= (su["page_to"] or su["page_from"] or 0)]
+    ctx = {
+        "view": view, "d": d, "su": su, "name": name, "fname": fname, "where": where, "cite": cite,
+        "pill": HL_PILL.get(d["hieu_luc"], ("Hiệu lực chưa rõ", "neu")), "ocr_warn": ocr_warn,
+        "pages": in_sel, "raw_pages": [] if has_img else pages, "q": q,
+        "can_view": can_view, "has_img": has_img, "page_nos": [p["page_no"] for p in pages],
+        "orig_path": str(pageimg.stored_path(d["file_path"])),
+        "page": page or (su["page_from"] if su else None) or (pages[0]["page_no"] if pages else 1),  # văn bản tách từ tệp lớn bắt đầu ở trang > 1
+        "full": not request.headers.get("HX-Request"),
+    }
+    return _tpl(request, "doc.html" if ctx["full"] else "_reader.html", ctx)
 
 
 @app.get("/page/{doc_id}/{page_no}")
@@ -578,28 +807,9 @@ def page_image(doc_id: int, page_no: int):
         if png is None:
             return HTMLResponse("Không có trang này.", status_code=404)
         return Response(png, media_type="image/png", headers=hdr)
+    if page_no != 1:  # ảnh đơn chỉ có một trang
+        return HTMLResponse("Không có trang này.", status_code=404)
     return FileResponse(src, media_type="image/png" if kind == "png" else "image/jpeg", headers=hdr)
-
-
-def _unit_notes(conn, u) -> list[dict]:
-    """Đơn vị ghi_chu treo dưới Điều chứa unit (hoặc dưới chính unit nếu không có Điều)."""
-    root = u
-    cur = u
-    while cur is not None and cur["level"] != "dieu" and cur["parent_id"]:
-        cur = conn.execute("SELECT * FROM units WHERE id = ?", (cur["parent_id"],)).fetchone()
-    if cur is not None and cur["level"] == "dieu":
-        root = cur
-    rows = conn.execute(
-        """
-        WITH RECURSIVE sub(id) AS (
-          SELECT ? UNION SELECT x.id FROM units x JOIN sub ON x.parent_id = sub.id
-        )
-        SELECT id, path, page_from, page_to, reviewed_text, raw_text FROM units
-        WHERE level = 'ghi_chu' AND parent_id IN (SELECT id FROM sub) ORDER BY id
-        """,
-        (root["id"],),
-    ).fetchall()
-    return [dict(r) for r in rows]
 
 
 @app.get("/missed", response_class=HTMLResponse)
@@ -626,15 +836,8 @@ def ocr_status(refresh: bool = False) -> dict:
 def _safe_name(name: str) -> str:
     base = Path((name or "").replace("\\", "/")).name
     base = re.sub(r'[<>:"/\|?*\x00-\x1f]', "_", base).strip(" .")
-    return base or "tai-lieu"
-
-
-def _sha(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
+    p = Path(base)
+    return (p.stem[:STEM_MAX] + p.suffix) or "tai-lieu"  # tên dài làm đường dẫn vượt MAX_PATH (Windows): 500 và bỏ cả lô
 
 
 def _store_upload(up: UploadFile, folder: Path) -> Path:
@@ -642,20 +845,24 @@ def _store_upload(up: UploadFile, folder: Path) -> Path:
     trùng tên khác nội dung: 'tên (2).đuôi'. Giữ bản gốc để còn xem trang gốc đối chiếu."""
     folder.mkdir(parents=True, exist_ok=True)
     tmp = folder / f".{uuid.uuid4().hex}.part"
-    with open(tmp, "wb") as out:
-        shutil.copyfileobj(up.file, out)
-    name = _safe_name(up.filename or "")
-    stem, suf = Path(name).stem, Path(name).suffix
-    dest, n, sha = folder / name, 1, ""
-    while dest.exists():
-        sha = sha or _sha(tmp)
-        if _sha(dest) == sha:
-            tmp.unlink()
-            return dest
-        n += 1
-        dest = folder / f"{stem} ({n}){suf}"
-    tmp.replace(dest)
-    return dest
+    try:
+        with open(tmp, "wb") as out:
+            shutil.copyfileobj(up.file, out)
+        name = _safe_name(up.filename or "")
+        stem, suf = Path(name).stem, Path(name).suffix
+        dest, n, sha = folder / name, 1, ""
+        while dest.exists():
+            sha = sha or sha256_file(tmp)
+            if sha256_file(dest) == sha:
+                tmp.unlink()
+                return dest
+            n += 1
+            dest = folder / f"{stem} ({n}){suf}"
+        tmp.replace(dest)
+        return dest
+    except BaseException:
+        tmp.unlink(missing_ok=True)  # đĩa đầy hay tên quá dài: không để .part mồ côi
+        raise
 
 
 @app.get("/api/status")
@@ -685,7 +892,7 @@ def import_files(
 ):
     """Nhận nhiều file (hoặc cả thư mục) từ trình duyệt, lưu vào data/files rồi xếp hàng nạp."""
     _check_csrf(request, csrf_token)
-    ok = [f for f in files if Path(_safe_name(f.filename or "")).suffix.lower() in SUFFIXES]
+    ok = [f for f in files if Path(_safe_name(f.filename or "")).suffix.lower() in SUPPORTED_SUFFIXES]
     paths = [_store_upload(f, data_dir() / "files") for f in ok]
     res = JOBS.submit(paths, ocr=bool(ocr), doan=bool(doan)) if paths else {"queued": 0, "skipped": 0}
     res["skipped"] += len(files) - len(ok)
@@ -729,9 +936,10 @@ def export(
     _check_csrf(request, csrf_token)
     conn = get_conn()
     dest = data_dir() / "export.docx"
-    cards = assemble_cards(conn, uid)
-    export_cards(cards, dest)
-    conn.close()
+    try:
+        export_units(conn, uid, dest)
+    finally:
+        conn.close()
     return FileResponse(
         dest,
         filename="soiluat-baocao.docx",
@@ -804,6 +1012,7 @@ def main(argv: list[str] | None = None) -> None:
     data_dir().mkdir(parents=True, exist_ok=True)
     conn = get_conn()
     conn.close()
+    JOBS.wake()  # luồng nền chạy ngay để nâng cấp dữ liệu kho cũ (PARSE_REV), không đợi file đầu tiên
     threading.Thread(target=_warm_models, name="soiluat-warm", daemon=True).start()
     port = pick_port(args.port)
     url = f"http://{HOST}:{port}/"

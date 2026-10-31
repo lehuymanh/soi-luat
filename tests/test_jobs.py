@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 import time
 
 import pytest
@@ -135,3 +136,28 @@ def test_keeps_at_most_keep_rows_dropping_finished_first(advance, tmp_path, monk
     _until(lambda: not advance.snapshot()["active"])
     names = [i["name"] for i in advance.snapshot()["items"]]
     assert len(names) <= 3 and names[-1] == "f4.txt"
+
+
+def test_s2_nhung_loi_khong_giet_luong_nen_va_lan_sau_nhung_lai(advance, db, tmp_path, monkeypatch):
+    """S2: embed_roots lỗi (khoá ghi giữ quá 5 s, đĩa đầy, onnx lỗi) không được làm chết luồng im lặng: chip "Nhúng" tắt
+    thay vì quay mãi, và lần wake() sau nhúng lại được."""
+    f = tmp_path / "nd9.txt"
+    f.write_text(DOC, encoding="utf-8")
+    ingest_path(db, f, tmp_path)
+    real, calls = semantic.embed_roots, []
+
+    def hong_mot_lan(conn, enc, ids):
+        calls.append(1)
+        if len(calls) == 1:
+            raise sqlite3.OperationalError("database is locked")
+        return real(conn, enc, ids)
+
+    monkeypatch.setattr(semantic, "embed_roots", hong_mot_lan)
+    advance.wake()
+    _until(lambda: calls and not advance.snapshot()["active"])
+    snap = advance.snapshot()
+    assert advance._thread.is_alive() and snap["embed"]["running"] is False
+    assert "database is locked" in snap["embed"]["error"] and _vectors(db) == 0
+    advance.wake()  # khoá đã nhả: lần đếm lại nhúng được
+    _until(lambda: not semantic.missing_roots(db))
+    assert _vectors(db) == 3

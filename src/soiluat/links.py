@@ -134,7 +134,7 @@ def suggest_fts_links(conn: sqlite3.Connection, doc_id: int, limit: int = 3) -> 
         "WHERE u.doc_id = ? AND l.label = 'CHE_TAI'",
         (doc_id,),
     ).fetchall()
-    n = 0
+    todo: list[tuple[int, int]] = []
     for row in rows:
         existing = conn.execute(
             "SELECT 1 FROM links WHERE sanction_unit = ?",
@@ -153,16 +153,16 @@ def suggest_fts_links(conn: sqlite3.Connection, doc_id: int, limit: int = 3) -> 
             limit=limit,
             branch="fold",
         )
-        for hid in hits:
-            if hid == row["id"]:
-                continue
-            try:
-                conn.execute(
-                    "INSERT INTO links(sanction_unit, duty_unit, method, confirmed) "
-                    "VALUES (?, ?, 'goi_y', 0)",
-                    (row["id"], hid),
-                )
-                n += 1
-            except sqlite3.IntegrityError:
-                pass
+        todo.extend((row["id"], hid) for hid in hits if hid != row["id"])
+    n = 0
+    for sid, hid in todo:  # ghi sau khi đọc xong: các truy vấn FTS ở trên không nằm trong giao dịch ghi (rebuild_document)
+        try:
+            conn.execute(
+                "INSERT INTO links(sanction_unit, duty_unit, method, confirmed) "
+                "VALUES (?, ?, 'goi_y', 0)",
+                (sid, hid),
+            )
+            n += 1
+        except sqlite3.IntegrityError:
+            pass
     return n

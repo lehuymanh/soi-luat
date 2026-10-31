@@ -1,0 +1,60 @@
+# Nhật ký thay đổi
+
+## 0.9.0 (31/10/2026)
+
+Bản đầu tiên của lộ trình 1.0 (`docs/ke-hoach/lo-trinh-1.0.md`, giai đoạn P1: mở đúng đoạn, kết quả gọn, lịch sử trò chuyện). Kế hoạch và số đo từng việc: `docs/ke-hoach/ke-hoach-p1.md`.
+
+### Mới
+
+- **Mở văn bản tại đúng đoạn.** Bấm "Mở tại đoạn này": văn bản mở ngay trong app (cột bên phải ở màn rộng, phủ lên ở màn hẹp), cuộn tới đúng khoản/điểm, tô đoạn và chữ khớp, có "Sao chép trích dẫn" (ví dụ "Điểm a khoản 1 Điều 5 Nghị định 15/2020/NĐ-CP"). Tab **Bản gốc** cuộn liên tục ảnh các trang PDF/PNG/JPG, mở ở trang chứa đoạn. Liên kết cũ `/unit/{id}` (thẻ Word đã xuất) vẫn mở được.
+- **Kết quả gọn.** Mỗi mục là một Điều, gom theo văn bản; địa chỉ lấy đúng dòng nằm trong phần trích 350 ký tự; Điều giống hệt ở văn bản khác gộp vào "Cũng có ở"; 5 mục đầu rồi "Xem thêm"; "hiệu lực từ" và pill hiệu lực ở đầu nhóm; cảnh báo chữ OCR một lần mỗi nhóm. Gõ số hiệu thì ra "Mở toàn văn".
+- **Lịch sử trò chuyện.** Mỗi câu hỏi được lưu; thanh bên có "Cuộc trò chuyện mới" (Alt+N), tìm lại cuộc cũ (khớp không dấu), đổi tên, xoá qua hộp thoại. Mở lại cuộc cũ không phải tìm lại; nguồn đã đổi thì báo và cho "Hỏi lại".
+- **Giao diện mới** theo mẫu đã duyệt (thanh bên, một màu nhấn cho chữ khớp và đoạn được dẫn, phông Be Vietnam Pro đóng kèm, không tải gì từ mạng).
+- **Đọc văn bản đúng hơn** (parser): giữ đủ điểm nhiều dòng; không nuốt Điều sau dấu ngoặc mở nhầm do OCR; nhận lại đầu Điều OCR hỏng; cắt đúng khối nơi nhận và chữ ký; nội dung Phụ lục sau chữ ký thành đoạn tìm được (một mục mỗi Phụ lục). Dòng số trang lọt vào chữ không còn hiện.
+- **Nâng cấp dữ liệu tự động** lần đầu mở 0.9: sao lưu kho ra `data/backup/soiluat-truoc-parse2.db`, rồi chỉ dựng lại văn bản có chữ đổi, chạy nền (thanh bên ghi "Nâng cấp dữ liệu x/y"); vẫn tìm được trong lúc đó.
+
+### Sửa
+
+- Xoá một văn bản trên kho lớn từ 41,5 s còn 0,01 s (bốn chỉ mục khoá ngoại).
+- Dựng lại văn bản giữ gợi ý hiệu lực và liên kết đã duyệt (kèm người và ngày duyệt), lỗi giữa chừng thì hoàn lại.
+- Ảnh trang PDF tải song song không còn làm sập app (khoá pdfium).
+- Lỗi do các lượt soát độc lập tìm ra, mỗi lỗi có test hoặc kịch bản trình duyệt hỏng trên mã cũ: 23 ở trình đọc, kết quả gọn và giao diện; 15 ở nâng cấp dữ liệu; 12 ở lịch sử trò chuyện (một phần nhỏ của 2 điểm giao diện còn chờ chốt).
+- Đợt soát toàn repo trước phát hành (bốn góc nhìn, mỗi phát hiện có một lượt cố bác bỏ): 36 phát hiện, 33 được xác nhận; đã sửa 32 (ba mục một phần: C6, F5, F10), hoãn 1 (C8). Mỗi lỗi sửa có test hỏng trên mã cũ; phần xoá mã chết kiểm bằng grep toàn cây. Những điểm người dùng thấy:
+  - Xuất Word ghi đúng nguyên văn các Điều/khoản đã tick, kèm trích dẫn và trang; không còn câu do máy đoán.
+  - Lọc theo văn bản, cơ quan áp ngay trong truy vấn, không còn giấu kết quả có thật nằm ngoài 100 kết quả đầu.
+  - Mở tệp .doc/.rtf qua Word không chạy macro.
+  - Trang "Văn bản trong kho" và "Liên kết chờ duyệt" chia trang: trên kho 3.271 văn bản từ 39–50 MB còn khoảng 0,1 MB mỗi trang.
+  - Bản quét có dòng "Số:" hỏng không còn bị gán số hiệu của văn bản được dẫn ở phần căn cứ (để trống cho người duyệt điền).
+  - Hai cửa sổ app chạy ở hai cổng khác nhau không làm hỏng nút bấm của nhau.
+  - Ngày trong câu hỏi ("05/02/2021", "tháng 10/2020") không còn bị đọc là số hiệu; gõ "2/2021/TT-BTC" tìm được văn bản ghi "02/2021/TT-BTC"; "Điều 1A" và "1a" như nhau; chữ dán từ nguồn khác bảng mã vẫn khớp.
+  - Tra "khoản 2 Điều 5 <số hiệu>" (đúng câu app tự chép) ra Điều 5, không còn ra khoản khác.
+  - Luật, Nghị quyết của Quốc hội: chữ ký và Phụ lục tách khỏi Điều cuối; dòng "Tiểu mục" không dính vào điểm cuối; hậu tố "~2" không lọt vào chữ trích.
+  - Hỏi trong lúc đang nạp văn bản bớt được 5 s chờ ghi nhật ký (bước lưu lịch sử vẫn có thể chờ tới 5 s); nhúng vector gặp lỗi thì dừng và ghi lỗi, chip "Nhúng" không còn quay mãi; tệp docx/xlsx nén bất thường bị từ chối thay vì treo hàng đợi; tên tệp quá dài và ký tự điều khiển không còn làm lỗi 500.
+  - Bỏ trang duyệt từng trang không còn lối vào và mã tìm kiếm không dùng.
+
+### Số đo (Normal)
+
+| Bộ | Hit@1 | Hit@5 | Ghi chú |
+|---|---|---|---|
+| 21 văn bản thật, 84 câu (rộng) | 86,9% | 97,6% | 0.8: 83,3% / 96,4% |
+| Zalo test, 788 câu (theo mục) | 61,2% | 86,5% | theo thẻ 0.8: 58,6% / 86,3% |
+| Gold, 500 câu (theo mục) | 52,4% | 77,4% | theo thẻ 0.8: 51,2% / 77,0% |
+
+Số Zalo và gold đo trên mã cuối, sau đợt soát (`a13af05`). Gold kém mốc giữa P1 (52,6%) đúng một câu: ba thông tư có khoản giống nhau từng chữ, dựng lại văn bản đổi thứ tự giữa các bản trùng; lượt đối chứng với parser và mã cũ cho cùng kết quả. Mở trình đọc trên kho Zalo (3.271 văn bản): p95 27 ms phía máy chủ. Điều tách được trên 21 văn bản thật, đo trên máy Linux của phiên soạn: 345/344 (0.8, cùng máy: 322). Mốc P0 trên Windows là 341/344; hai máy lệch vì bộ chữ `vie` của Tesseract khác nhau (`docs/nghien-cuu/ghi-nho.md` mục 4, bước 5).
+
+### Cài đặt và nâng cấp
+
+- Bộ cài Windows dựng bằng `pack/build.ps1` trên máy Windows (xem README); cài đè lên 0.8 được, kho dữ liệu giữ nguyên và tự nâng cấp lần đầu mở.
+- Gói Python (wheel) cho người chạy từ mã nguồn: `pip install soiluat-0.9.0-py3-none-any.whl`.
+
+### Chưa có trong bản này
+
+- Thử với 3–5 người dùng thật và bấm tay trên máy Windows (việc Z1 của kế hoạch).
+- Số hiệu sửa tay vẫn bị nạp lại ghi đè (cần đánh dấu trường đã sửa tay, xếp ở P2). Tra "khoản 2 Điều 5" mới ra cả Điều 5, chưa nhảy đúng tới khoản 2.
+- Đo lại câu trả lời AI (việc B1, khoảng 15 giờ máy) và chế độ Advance sau đợt soát.
+
+### Cho người phát triển
+
+- Tài liệu gom vào `docs/`, vào từ `docs/README.md`: kiến trúc và chức năng (`docs/kien-truc.md`), sổ thử nghiệm của cả dự án kèm lý do thất bại và bài học (`docs/nghien-cuu/so-thu-nghiem.md`), quy trình làm việc (`docs/quy-trinh.md`), bàn giao (`docs/nghien-cuu/ghi-nho.md`), bảng script đo (`bench/README.md`).
+- Harness của dự án nằm trong repo: skill ở `.claude/skills/`, bốn workflow có tham số ở `.claude/workflows/` (soát theo góc nhìn, soát toàn repo, làm từng bước kế hoạch theo test trước, nghiên cứu mẫu giao diện).
+- Trợ lý trả lời bằng AI (P3), kho văn bản có tag/ghi chú/@ (P2), liên kết văn bản kiểu Obsidian (P4). Bản mẫu khái niệm cho project, ghi chú rủi ro và đồ thị: `mau/khai-niem-du-an-do-thi.html` (chưa duyệt).

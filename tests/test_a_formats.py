@@ -120,6 +120,47 @@ def test_convert_uses_second_converter(tmp_path, monkeypatch):
     assert extract_file(src)[0].text == "Điều 1. Từ LibreOffice"
 
 
+def test_sec1_word_tat_macro_truoc_khi_mo_file(tmp_path, monkeypatch):
+    """SEC-1: Word mở file qua COM mặc định bật mọi macro (AutomationSecurity = Low); phải ép tắt TRƯỚC Documents.Open."""
+    import sys
+    import types
+
+    seen: dict = {}
+
+    class Doc:
+        def SaveAs2(self, *a, **k):
+            seen["saved"] = True
+
+        def Close(self, *a):
+            pass
+
+    class Docs:
+        def Open(self, *a, **k):
+            seen["security_at_open"] = getattr(word, "AutomationSecurity", None)
+            return Doc()
+
+    class Word:
+        Documents = Docs()
+
+        def Quit(self):
+            seen["quit"] = True
+
+    word = Word()
+    client = types.ModuleType("win32com.client")
+    client.DispatchEx = lambda name: word
+    pkg = types.ModuleType("win32com")
+    pkg.client = client
+    pycom = types.ModuleType("pythoncom")
+    pycom.CoInitialize = pycom.CoUninitialize = lambda: None
+    for name, mod in (("win32com", pkg), ("win32com.client", client), ("pythoncom", pycom)):
+        monkeypatch.setitem(sys.modules, name, mod)
+    src = tmp_path / "x.doc"
+    src.write_bytes(b"x")
+    convert.word_to_docx(src, tmp_path / "x.docx")
+    assert seen["security_at_open"] == 3  # msoAutomationSecurityForceDisable
+    assert seen["saved"] and seen["quit"]
+
+
 def test_rtf_via_word(tmp_path):
     pytest.importorskip("win32com.client")
     src = tmp_path / "a.rtf"

@@ -1,0 +1,84 @@
+{# Thân trình đọc (R2a). doc.html bọc thành trang đủ; R2b chèn vào <aside class="reader"> trên trang hỏi đáp. #}
+{% set h = "h1" if full else "h2" %}
+<div class="rd-top" data-sel="{{ view.sel or '' }}" data-url="{{ request.url.path }}?{{ request.url.query }}"{% if full %} data-full="1"{% endif %}>
+  <div class="who">
+    <{{ h }} class="rd-name" id="rd-title" tabindex="-1">{{ name }}</{{ h }}>
+    <span class="pill {{ pill[1] }}">{{ pill[0] }}</span>
+    <small class="where">{{ where }}</small>
+  </div>
+  <button type="button" class="btn" data-copy="{{ cite }}" aria-label="Sao chép trích dẫn: {{ cite }}">Sao chép<span>&nbsp;trích dẫn</span></button>
+  {% if full %}
+  <a class="icon-btn" href="/" aria-label="Về trang hỏi đáp"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></a>
+  {% else %}
+  <button type="button" class="icon-btn" id="rd-wide" aria-label="Mở rộng trình đọc"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+  <button type="button" class="icon-btn" id="rd-close" aria-label="Đóng trình đọc (Esc)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  {% endif %}
+</div>
+<div class="tabs" role="tablist" aria-label="Cách xem văn bản">
+  <button type="button" role="tab" id="tab-text" aria-selected="true" aria-controls="rd-text" tabindex="0">Văn bản</button>
+  {% if can_view %}<button type="button" role="tab" id="tab-orig" aria-selected="false" aria-controls="rd-orig" tabindex="-1">Bản gốc</button>{% endif %}
+</div>
+<div class="rd-body" id="rd-text" role="tabpanel" aria-labelledby="tab-text" tabindex="-1">
+  <div class="rd-meta">
+    <p class="mt">
+      <span>{{ d.co_quan or "Chưa có cơ quan" }}</span>
+      <span>{% if d.ngay_ban_hanh %}ban hành {{ d.ngay_ban_hanh | ngay }}{% else %}chưa có ngày ban hành{% endif %}</span>
+      {% if d.ngay_hieu_luc %}<span>hiệu lực từ {{ d.ngay_hieu_luc | ngay }}</span>{% endif %}
+      <span>tệp {{ fname }}</span>
+      <span>Số hiệu sai? <a href="/review/docs?id={{ d.id }}">Sửa ở trang Văn bản</a></span>
+    </p>
+    <div class="cite"><output aria-label="Trích dẫn">{{ cite }}</output><small>Chọn dòng này hoặc bấm “Sao chép” để dán vào Word.</small></div>
+    {% if ocr_warn %}<div class="band" role="note">Chữ của đoạn này lấy từ bản quét (OCR) và chưa được đối chiếu với bản gốc. Kiểm lại số liệu trên bản gốc trước khi dùng.{% if can_view %} <button type="button" class="link" data-goto-tab="tab-orig">Xem bản gốc</button>{% endif %}</div>{% endif %}
+  </div>
+  <div class="rd-grid">
+    {% if view.toc %}
+    <nav class="toc" aria-label="Mục lục"><h3>Mục lục</h3><ul>
+      {% for t in view.toc %}<li><a href="#u{{ t.id }}">{{ t.label }}</a></li>{% endfor %}
+    </ul></nav>
+    {% endif %}
+    <div class="text">
+      {% if view.toc %}
+      <div class="toc-sel"><label class="sr" for="goto">Đi tới</label><select id="goto">
+        {% for t in view.toc %}<option value="u{{ t.id }}">{{ t.label }}{% if t.title %}. {{ t.title | truncate(70) }}{% endif %}</option>{% endfor %}
+      </select></div>
+      {% endif %}
+      {% for ln in view.lines %}
+        {% if ln.level == "dieu" %}<h3 class="{{ ln.cls }} dieu" id="u{{ ln.id }}">{{ addr(ln.path) }}{% if ln.title %}. {{ ln.title }}{% endif %}</h3>{% if ln.html %}<p class="u{{ ' sel' if 'sel' in ln.cls.split() }}">{{ ln.html }}</p>{% endif %}
+        {% else %}<p class="{{ ln.cls }}" id="u{{ ln.id }}">{% if ln.label %}<b class="lbl">{{ ln.label }}</b> {% endif %}{{ ln.html }}</p>{% endif %}
+        {% for nt in ln.notes %}<p class="{{ nt.cls }} note-u" id="u{{ nt.id }}"><small>Ghi chú:</small> {{ nt.html }}</p>{% endfor %}
+      {% endfor %}
+      {% if view.orphan_notes %}
+      <details class="tech"{% if view.orphan_open %} open{% endif %}><summary>Đầu trang / chân trang / ghi chú chung</summary>
+        {% for nt in view.orphan_notes %}<p class="{{ nt.cls }}" id="u{{ nt.id }}">{{ nt.html }}</p>{% endfor %}
+      </details>
+      {% endif %}
+      <details class="tech"><summary>Chi tiết kỹ thuật</summary><dl>
+        <dt>Tệp</dt><dd>{{ d.file_path }}</dd>
+        <dt>Số hiệu</dt><dd>{{ d.so_hieu or "chưa có" }}</dd>
+        {% if su %}<dt>Đoạn chọn</dt><dd>{{ su.path }} · {{ page_label(su.page_from, su.page_to) or "trang chưa rõ" }} · cách trích {{ su.extraction_method }}</dd>{% endif %}
+        <dt>Mã băm</dt><dd>sha256 {{ d.sha256 }}</dd>
+        {% for p in pages %}<dt>Trang {{ p.page_no }}</dt><dd>{{ p.kind }} · OCR {{ p.ocr_status }} · {{ p.verification_status }}</dd>{% endfor %}
+      </dl>
+      {% if raw_pages %}<p>Văn bản này không có ảnh trang. Phần ngoài Điều (căn cứ, nơi nhận, phụ lục) xem ở nguyên văn từng trang:</p>
+        {# shortcut: chép thẳng mọi trang vào HTML (văn bản lớn nhất thêm ~0,5 MB); chậm thì nạp khi mở <details> #}
+        {% for p in raw_pages %}<details><summary>Nguyên văn trang {{ p.page_no }}</summary><pre>{{ p.reviewed_text or p.raw_text or "" }}</pre></details>{% endfor %}
+      {% endif %}
+      </details>
+    </div>
+  </div>
+</div>
+{% if can_view %}
+<div class="rd-body" id="rd-orig" role="tabpanel" aria-labelledby="tab-orig" tabindex="0" hidden>
+  <div class="orig" data-start="{{ page }}">
+    <div class="none" role="alert"{% if has_img %} hidden{% endif %}>
+      <h2>Không mở được ảnh trang</h2>
+      <p>Tệp {{ fname }} không còn ở chỗ đã nạp. Chữ trong kho vẫn đọc được ở tab Văn bản.</p>
+      <p>Muốn xem lại ảnh trang, đưa tệp về đúng đường dẫn này rồi bấm Thử lại: <code>{{ orig_path }}</code>. Nạp lại tệp từ chỗ mới không giúp được, vì app nhận ra tệp trùng nội dung và bỏ qua.</p>
+      <button type="button" class="btn" data-retry>Thử lại</button>
+    </div>
+    {% if has_img %}{% for n in page_nos %}
+    <figure class="pg" id="p{{ n }}"><img loading="lazy" src="/page/{{ d.id }}/{{ n }}?v={{ d.sha256[:8] }}" alt="Trang {{ n }} của {{ name }}"><figcaption>Trang {{ n }}</figcaption></figure>
+    {% endfor %}{% endif %}
+  </div>
+</div>
+{% endif %}

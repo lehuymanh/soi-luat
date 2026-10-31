@@ -1,19 +1,19 @@
 # Chọn cơ sở dữ liệu cho phần truy hồi (RAG) bản 1.0 (29/10/2026)
 
-**Cách làm:** đọc tại nguồn ngày 29/10/2026: tài liệu chính thức, README/LICENSE/mã nguồn trên GitHub, trang PyPI (phiên bản, ngày phát hành, wheel Windows). Số do hãng tự công bố ghi *(hãng)*. Tìm không thấy thì ghi "không thấy trong tài liệu (29/10/2026)", không suy ra "không hỗ trợ". Phần vector đo trong sandbox trên dữ liệu tổng hợp (mục 5). **Sandbox không phải máy chuẩn**, số đo chỉ dùng để so tương đối. Thời gian dựng đồ thị tri thức bằng LLM (mục 4.5) là **ước tính** từ tốc độ ước tính trong `CHON-MO-HINH.md`, chưa đo.
+**Cách làm:** đọc tại nguồn ngày 29/10/2026: tài liệu chính thức, README/LICENSE/mã nguồn trên GitHub, trang PyPI (phiên bản, ngày phát hành, wheel Windows). Số do hãng tự công bố ghi *(hãng)*. Tìm không thấy thì ghi "không thấy trong tài liệu (29/10/2026)", không suy ra "không hỗ trợ". Phần vector đo trong sandbox trên dữ liệu tổng hợp (mục 5). **Sandbox không phải máy chuẩn**, số đo chỉ dùng để so tương đối. Thời gian dựng đồ thị tri thức bằng LLM (mục 4.5) là **ước tính** từ tốc độ ước tính trong `chon-mo-hinh.md`, chưa đo.
 **Ký hiệu:** 61K = 61.425 vector (một vector cho mỗi Điều, như hiện nay); 250K = 250.000 vector (nếu nhúng theo khoản); MB = 2^20 byte; p50 = trung vị.
 **Kiểm lại độc lập (29/10/2026):** Kùzu archived 10/10/2025; GraphRAG "largely in maintenance mode"; LightRAG ghi Qwen3-30B-A3B là mức tối thiểu khi chạy cục bộ; Graphiti cần Neo4j 5.26/FalkorDB/Neptune ("Kuzu is deprecated"); ngày phát hành sqlite-vec 0.1.6–0.1.10a4; USearch 2.26.6 (Apache-2.0, wheel cp311 `win_amd64` 344.881 byte); charabia bỏ dấu (nonspacing marks) với chữ Latin; Search API của Chroma chỉ có trên Cloud. Đã đọc lại tại nguồn và khớp.
 **Kết luận (lộ trình mục 4b ghi lại):** giữ **SQLite (WAL) + FTS5** làm kho duy nhất. Vector giữ cách tìm vét cạn (brute-force) trong RAM như hiện nay. Khi ma trận float32 vượt ~500 MB (≈ 125K vector) hoặc RAM chạm ngưỡng ở mục 6.2, thêm **USearch** (Apache-2.0, wheel Windows 0,8 MB) để tìm chính xác trên float16, rồi int8 + chấm lại khi vượt ~250K. Chỉ mục HNSW chỉ cần khi độ trễ vượt ngưỡng; ngoại suy từ số sandbox, i8 với 4 luồng vẫn dưới ~150 ms tới khoảng 1 triệu vector. Quan hệ văn bản (P4) để trong bảng SQLite, đi đồ thị bằng CTE đệ quy, mượn mô hình thời gian hai trục của Graphiti. **Không dùng** framework đồ thị tri thức dựng bằng LLM (Cognee, Graphiti, LightRAG, GraphRAG…). Ước tính dựng cho 61K Điều trên máy chuẩn mất 10–33 ngày CPU chạy liên tục; riêng Graphiti mất 6–12 tháng. Đổi CSDL không làm câu trả lời đúng hơn: độ chính xác nằm ở thuật toán (mục 2.3), còn phần phụ thuộc CSDL chỉ chiếm ≤ ~1 s trong ~9 s của Advance.
 
 ## 1. Câu hỏi và ràng buộc
 
-Bản 1.0 cần đưa 3–5 đoạn luật đúng nhất cho Qwen3-VL-4B (llama.cpp, prompt ~1.000 token; `CHON-MO-HINH.md` mục 5). Câu hỏi: dùng CSDL hay bộ máy truy hồi mã nguồn mở nào cho phần đó, và có nên thêm kho vector, kho đồ thị, hay một framework "bộ nhớ AI" kiểu Cognee/Graphiti không.
+Bản 1.0 cần đưa 3–5 đoạn luật đúng nhất cho Qwen3-VL-4B (llama.cpp, prompt ~1.000 token; `chon-mo-hinh.md` mục 5). Câu hỏi: dùng CSDL hay bộ máy truy hồi mã nguồn mở nào cho phần đó, và có nên thêm kho vector, kho đồ thị, hay một framework "bộ nhớ AI" kiểu Cognee/Graphiti không.
 
 | Ràng buộc | Giá trị (nguồn) |
 |---|---|
 | Giấy phép | OSI. Đánh dấu copyleft (GPL/AGPL) và giấy phép không phải OSI (SSPL, BSL) |
 | Nền | Windows 10/11 chạy thẳng: không Docker, không WSL, không quyền admin. PyInstaller onedir, một bộ cài, một người dùng, offline hoàn toàn |
-| Máy | 16 GB RAM, không card rời, dùng chung với Office và trình duyệt. App tối đa ~6 GB, trong đó LLM ~3,2–3,5 GB (`CHON-MO-HINH.md` mục 4), nên phần truy hồi ≤ ~2–2,5 GB. Hiện Advance đo được đỉnh ~2,2 GB (`TAI-LIEU-KY-THUAT.md` mục 5.1) |
+| Máy | 16 GB RAM, không card rời, dùng chung với Office và trình duyệt. App tối đa ~6 GB, trong đó LLM ~3,2–3,5 GB (`chon-mo-hinh.md` mục 4), nên phần truy hồi ≤ ~2–2,5 GB. Hiện Advance đo được đỉnh ~2,2 GB (`docs/nghien-cuu/so-thu-nghiem.md` TK-07) |
 | Độ trễ | ≤ 45 s từ Enter tới khi xong câu trả lời. Phần tìm ~5–9 s (lộ trình mục 2, điều 4); phần CSDL nên dưới 1 s |
 | Độ chính xác | Câu có dấu và không dấu, khớp cụm và khớp gần (phrase/NEAR), đồng nghĩa, hợp BM25 + vector + reranker, lọc theo văn bản/loại/cơ quan/hiệu lực/tag |
 | Ghi | Giao dịch trong khi luồng nền nạp file và nhúng vector (`jobs.py`) |
@@ -36,18 +36,18 @@ Bản 1.0 cần đưa 3–5 đoạn luật đúng nhất cho Qwen3-VL-4B (llama.
 
 | Bước | Thời gian (máy chuẩn, 2 luồng) | Nguồn | Phụ thuộc CSDL? |
 |---|---|---|---|
-| BM25 nhiều tầng + dựng thẻ (= cả chế độ Normal) | ~1 s; p50 975 ms trên kho 427K đơn vị | `TAI-LIEU-KY-THUAT.md` 5.2; `bench/zalo/KET-QUA.md` (22/10/2026) | Có: truy vấn FTS5 (riêng truy vấn BM25 OR p50 ~400–480 ms) và các SQL lấy chữ |
+| BM25 nhiều tầng + dựng thẻ (= cả chế độ Normal) | ~1 s; p50 975 ms trên kho 427K đơn vị | `docs/kien-truc.md` mục 5.2 của bản trước `6f39851` (`git show 6f39851^:docs/kien-truc.md`); `bench/zalo/KET-QUA.md` (22/10/2026) | Có: truy vấn FTS5 (riêng truy vấn BM25 OR p50 ~400–480 ms) và các SQL lấy chữ |
 | Nhúng câu hỏi (AITeamVN, int8) | chưa đo riêng; EmbeddingGemma 300M từng đo +213 ms | `bench/zalo/KET-QUA.md` | Không |
 | Tìm vector toàn kho | ~5 ms nhân ma trận + ~7 ms kiểm cache (61K × 256 chiều, đo 23/10/2026). Ở 1024 chiều: 19 ms (1 luồng) / 3,8 ms (4 luồng) trong sandbox (mục 5) | `bench/zalo/KET-QUA.md`; mục 5 | Không (RAM) |
-| Reranker top-5 | ~5 s | `TAI-LIEU-KY-THUAT.md` 5.2 | Không |
+| Reranker top-5 | ~5 s | `docs/kien-truc.md` mục 5.2 của bản trước `6f39851` (`git show 6f39851^:docs/kien-truc.md`) | Không |
 | Phần còn lại (dựng thẻ cho tới 50 Điều thêm từ vector, dựng chữ cho reranker…) | ~2–3 s, chưa tách được | suy từ tổng ~9 s | Một phần |
-| **Tổng Advance** | p50 8,6 s, p95 9,6 s | `TAI-LIEU-KY-THUAT.md` 5.1 | |
+| **Tổng Advance** | p50 8,6 s, p95 9,6 s | `docs/nghien-cuu/so-thu-nghiem.md` TK-07 | |
 
 Phần phụ thuộc CSDL tối đa khoảng 1 s trong ~9 s. Phần lớn là reranker (~5 s), và lộ trình đã có việc riêng cho nó (nhánh chính xác, mục 3: chạy 4–6 luồng). Đổi CSDL chỉ có thể bớt một phần của ~1 s đó.
 
 ### 2.3 Đổi CSDL có làm câu trả lời đúng hơn không?
 
-Không, nếu thuật toán giữ nguyên. Độ chính xác hiện tại (Advance Hit@1 79,3%, Hit@5 92,3%; `TAI-LIEU-KY-THUAT.md` 5.1) đến từ những phần không phụ thuộc CSDL: hai cột có dấu/không dấu, các tầng khớp và hệ số đã chỉnh trên `bm25()` của FTS5, từ điển đồng nghĩa, mô hình nhúng và `MAXLEN`, tham số RRF, reranker.
+Không, nếu thuật toán giữ nguyên. Độ chính xác hiện tại (Advance Hit@1 79,3%, Hit@5 92,3%; `docs/nghien-cuu/so-thu-nghiem.md` TK-07) đến từ những phần không phụ thuộc CSDL: hai cột có dấu/không dấu, các tầng khớp và hệ số đã chỉnh trên `bm25()` của FTS5, từ điển đồng nghĩa, mô hình nhúng và `MAXLEN`, tham số RRF, reranker.
 - FTS5 đã có mọi tính năng mà các tầng đó cần: BM25 có trọng số cột, phrase, `NEAR`, tokenizer tự viết qua C API, `remove_diacritics` 0/1/2 ([FTS5](https://sqlite.org/fts5.html)).
 - Chỉ mục ANN (HNSW, IVF…) chỉ có thể mất recall so với tìm vét cạn, vì hiện app đã tìm chính xác.
 - Bộ máy luôn bỏ dấu sẽ làm kết quả kém đi. Repo đã đo: BM25 trên cột không dấu đạt Hit@10 77,7%, trên cột có dấu 84,9% (`bench/zalo/KET-QUA.md`, 22/10/2026). Tokenizer của Meilisearch bỏ dấu với mọi chữ Latin (mục 4.1).
@@ -184,7 +184,7 @@ Mọi nguồn trong mục này đọc ngày 29/10/2026. "Bản mới nhất" là
 
 ### 4.5 Dựng đồ thị tri thức bằng LLM cho 61K Điều trên máy 16 GB: ước tính
 
-**Giả định:** đọc prompt 45 token/s, sinh 13 token/s (ước tính trung tâm cho Qwen3-VL-4B Q4_K_M, 6 luồng; `CHON-MO-HINH.md` mục 4; chưa đo). Kho có 61.425 Điều × trung bình 331 token (tokenizer Qwen3; `CHON-MO-HINH.md` mục 3.2), tức ≈ 20,3 triệu token. Phần chỉ dẫn cố định đứng đầu prompt được `llama-server` dùng lại, chỉ phần mới phải đọc ("có cache"). Cỡ chỉ dẫn đếm thô từ mã nguồn (số ký tự / 4). Cỡ đầu ra là giả định. Cách tính ghi trong script ước tính (mục 5, cuối).
+**Giả định:** đọc prompt 45 token/s, sinh 13 token/s (ước tính trung tâm cho Qwen3-VL-4B Q4_K_M, 6 luồng; `chon-mo-hinh.md` mục 4; chưa đo). Kho có 61.425 Điều × trung bình 331 token (tokenizer Qwen3; `chon-mo-hinh.md` mục 3.2), tức ≈ 20,3 triệu token. Phần chỉ dẫn cố định đứng đầu prompt được `llama-server` dùng lại, chỉ phần mới phải đọc ("có cache"). Cỡ chỉ dẫn đếm thô từ mã nguồn (số ký tự / 4). Cỡ đầu ra là giả định. Cách tính ghi trong script ước tính (mục 5, cuối).
 
 | Cách | Giả định chính | Thời gian CPU chạy liên tục (ước tính) |
 |---|---|---|
@@ -199,9 +199,9 @@ Mọi nguồn trong mục này đọc ngày 29/10/2026. "Bản mới nhất" là
 | Graphiti | 1 Điều = 1 episode, 5 cạnh; 4 lệnh chính + 2 lệnh mỗi cạnh; ngữ cảnh có 3 episode trước | **~175 ngày (có cache) tới ~360 ngày (không cache)** |
 
 Đọc kết quả:
-- **Không khả thi trên máy 16 GB không GPU.** Ngay mức sàn đã là 5 ngày CPU 100% (6 luồng). Các framework cần từ ~10 ngày (LlamaIndex) tới ~3,5 tuần (Cognee, LightRAG) và ~5 tuần (GraphRAG, HippoRAG 2); Graphiti cần nửa năm tới một năm. Máy văn phòng không chạy liên tục được như vậy, và Office bị chậm trong suốt thời gian đó. Để so sánh, nhúng vector cả kho hiện mất 5–7 giờ (`TAI-LIEU-KY-THUAT.md` 5.2). Mỗi văn bản mới nạp vào lại tốn thêm tương ứng.
+- **Không khả thi trên máy 16 GB không GPU.** Ngay mức sàn đã là 5 ngày CPU 100% (6 luồng). Các framework cần từ ~10 ngày (LlamaIndex) tới ~3,5 tuần (Cognee, LightRAG) và ~5 tuần (GraphRAG, HippoRAG 2); Graphiti cần nửa năm tới một năm. Máy văn phòng không chạy liên tục được như vậy, và Office bị chậm trong suốt thời gian đó. Để so sánh, nhúng vector cả kho hiện mất 5–7 giờ (`docs/kien-truc.md` mục 5.2 của bản trước `6f39851` (`git show 6f39851^:docs/kien-truc.md`)). Mỗi văn bản mới nạp vào lại tốn thêm tương ứng.
 - **Chất lượng chưa có bảo đảm.** Chính các framework khuyên dùng mô hình lớn hơn nhiều: LightRAG cho rằng Qwen3-30B-A3B là mức tối thiểu khi chạy cục bộ; Graphiti và GraphRAG cảnh báo mô hình nhỏ trả sai schema. Không tìm thấy benchmark trích thực thể–quan hệ tiếng Việt nào cho Qwen3-VL-4B (29/10/2026). Prompt và loại thực thể mặc định viết cho tiếng Anh (tổ chức, người, địa điểm, sự kiện), không có các loại "văn bản / Điều / cơ quan / chủ thể / hành vi / chế tài".
-- **Khi hỏi.** Mỗi lệnh LLM thêm tốn ~5–25 s trên CPU (ước tính), tuỳ có cache hay không và dài bao nhiêu token. Ngân sách 45 s đã gần chạm với một lệnh trả lời ~1.000 token (`CHON-MO-HINH.md` mục 4). Vì vậy luồng hỏi của LightRAG (từ khoá + trả lời, ngữ cảnh mặc định 30K token), GraphRAG global, HippoRAG 2 (lọc + trả lời) và LlamaIndex mặc định (từ khoá đồng nghĩa + trả lời) không vừa. Graphiti không gọi LLM khi hỏi, nhưng lại cần Neo4j.
+- **Khi hỏi.** Mỗi lệnh LLM thêm tốn ~5–25 s trên CPU (ước tính), tuỳ có cache hay không và dài bao nhiêu token. Ngân sách 45 s đã gần chạm với một lệnh trả lời ~1.000 token (`chon-mo-hinh.md` mục 4). Vì vậy luồng hỏi của LightRAG (từ khoá + trả lời, ngữ cảnh mặc định 30K token), GraphRAG global, HippoRAG 2 (lọc + trả lời) và LlamaIndex mặc định (từ khoá đồng nghĩa + trả lời) không vừa. Graphiti không gọi LLM khi hỏi, nhưng lại cần Neo4j.
 - **Trái nguyên tắc của lộ trình.** Mục "Không làm" (§10) có dòng "Dùng LLM để lập chỉ mục hay tóm tắt cả văn bản, chạy nền"; mục 5 điều 6 yêu cầu "Máy gợi ý, người quyết". Không ai duyệt nổi hàng trăm nghìn cạnh do LLM sinh.
 - **So với trích quan hệ bằng quy tắc (P4).** Quan hệ cần cho P4 (căn cứ, hướng dẫn, sửa đổi, thay thế, bãi bỏ, dẫn chiếu) có câu chữ gần như cố định ("Căn cứ Luật … số …", "sửa đổi, bổ sung Điều … như sau"). Quy tắc chạy vài mili giây mỗi văn bản, cho kết quả cố định, và cổng P4 đo được bằng nhãn tay (đúng ≥ 95%, đủ ≥ 85%).
 - **Nếu sau P4 đo thấy quy tắc bỏ sót nhiều:** có thể cho LLM đọc *riêng phần mở đầu* của từng văn bản (khoảng 1 lệnh, ~20 s mỗi văn bản). Với 3.271 văn bản, ước tính ~18 giờ CPU chạy nền; kết quả vào hàng chờ duyệt. Đây là tuỳ chọn sau P4, không phải framework.
@@ -278,7 +278,7 @@ Lọc theo 20 văn bản bằng mặt nạ NumPy (như `semantic.rerank`): 18,2 
 - **i8 với thang ±127** (cách mặc định của USearch cho vector đơn vị) mất 5–9% recall@50 khi tìm chính xác và 8–14% với HNSW trên dữ liệu này. Thang theo max|x| giữ được 0,98–0,99; chấm lại top-200 bằng f16 đưa về ~1. Với vector thật phải đo lại.
 - HNSW f16 cần `ef` ≥ 256 thì mới giữ recall@50 ≥ 0,999 ở 250K. Với `DENSE_K = 50`, nên đặt `ef` = 256.
 - `argsort` toàn bộ trong code hiện tại chỉ thêm ~1–3 ms, không cần sửa.
-- **Ước tính cho máy chuẩn:** quét ma trận bị giới hạn bởi băng thông DDR4, khoảng 34–42 GB/s hiệu dụng (`CHON-MO-HINH.md` mục 4). Sàn cho 240 MB là ~6–7 ms khi chạy nhiều luồng, cho 977 MB là ~25 ms. Cùng bậc với số sandbox, nên kết luận không đổi. Nhưng ma trận 61K gần như nằm trọn trong L3 260 MiB của sandbox (máy chuẩn chỉ có 16 MB), nên số 61K ở đây có thể lạc quan hơn.
+- **Ước tính cho máy chuẩn:** quét ma trận bị giới hạn bởi băng thông DDR4, khoảng 34–42 GB/s hiệu dụng (`chon-mo-hinh.md` mục 4). Sàn cho 240 MB là ~6–7 ms khi chạy nhiều luồng, cho 977 MB là ~25 ms. Cùng bậc với số sandbox, nên kết luận không đổi. Nhưng ma trận 61K gần như nằm trọn trong L3 260 MiB của sandbox (máy chuẩn chỉ có 16 MB), nên số 61K ở đây có thể lạc quan hơn.
 - Script đo nằm ngoài repo, trong scratchpad của phiên soạn: `csdl/bench_vec.py` (đo), `csdl/run_all.sh` (chạy tuần tự), `csdl/results.jsonl` (kết quả từng dòng), `csdl/uoc_tinh_kg.py` (ước tính ở mục 4.5).
 
 ## 6. Khuyến nghị (đề xuất cho chủ dự án)
@@ -349,7 +349,7 @@ sqlite-vec có cái lợi là vector nằm ngay trong SQL và giao dịch. Nhưn
 - **Chưa đo gì trên máy chuẩn.** Sandbox có AVX-512 và L3 260 MiB, nên tìm vét cạn ở đây có thể nhanh hơn tương đối so với 5600GT. Phải đo lại 5.1–5.3 trên máy 16 GB (Office đang mở), nhất là USearch bản Windows.
 - **Vector tổng hợp, không phải AITeamVN thật.** recall của HNSW và i8 trên vector thật chưa biết. Phải đo trên `unit_vectors` của kho Zalo bằng Hit@k, không chỉ recall.
 - **Chưa tách thời gian của một câu Advance.** Mới biết reranker ~5 s trong ~9 s; nhúng câu hỏi, SQL lấy chữ và dựng thẻ chưa đo riêng. Cần đặt timer từng bước trong `search._fts_cascade`.
-- **Mục 4.5 là ước tính.** Tốc độ LLM chưa đo (`CHON-MO-HINH.md` mục 6). Số token ra, số cạnh mỗi Điều và số cộng đồng của GraphRAG là giả định. Cỡ prompt đếm thô bằng số ký tự / 4.
+- **Mục 4.5 là ước tính.** Tốc độ LLM chưa đo (`chon-mo-hinh.md` mục 6). Số token ra, số cạnh mỗi Điều và số cộng đồng của GraphRAG là giả định. Cỡ prompt đếm thô bằng số ký tự / 4.
 - Chưa tìm thấy benchmark trích thực thể–quan hệ tiếng Việt nào cho Qwen3-VL-4B, hay cho mô hình ≤ 5B nói chung (29/10/2026).
 - Tài liệu Cognee không nói rõ bộ trích `gliner_demo` có trích quan hệ hay chỉ trích thực thể.
 - DuckPGQ: chưa xác nhận giấy phép và bản Windows (bảng tương thích trống). libSQL: tài liệu không nói chỉ mục vector có chạy trên file cục bộ không. zvec: không thấy tài liệu về phrase và tiếng Việt. Qdrant Edge: tài liệu không nêu hệ điều hành và các tính năng còn thiếu.

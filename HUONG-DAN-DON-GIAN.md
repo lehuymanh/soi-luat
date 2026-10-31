@@ -6,6 +6,16 @@ Phần mềm trả lại **nguyên văn** điều luật trong văn bản của 
 
 Cách dùng chỉ có 4 bước: **Cài → Mở → Cho phần mềm đọc văn bản của bạn → Gõ câu hỏi.**
 
+## Có gì mới ở bản 0.9
+
+- **Mở văn bản ngay tại đoạn cần đọc.** Bấm **Mở tại đoạn này** (trước đây là "Xem nguồn →"): văn bản mở bên cạnh, cuộn tới đúng khoản/điểm và tô sẵn. Tab **Bản gốc** cho cuộn ảnh trang PDF.
+- **Kết quả gọn.** Mỗi mục là một Điều, gom theo văn bản; hiện 5 mục đầu, bấm **Xem thêm** để xem tiếp. Điều giống hệt ở văn bản khác nằm trong "Cũng có ở".
+- **Lịch sử trò chuyện** ở thanh bên trái: **Cuộc trò chuyện mới** (Alt+N), tìm lại cuộc cũ, đổi tên, xoá.
+- Nút **Nạp file** nay ở thanh bên, tên là **Nạp văn bản**. **Cài đặt** cũng ở thanh bên.
+- Lần đầu mở bản 0.9, phần mềm tự sao lưu kho rồi đọc lại văn bản cũ cho đúng cấu trúc hơn (thanh bên ghi "Nâng cấp dữ liệu"). Trong lúc đó vẫn tìm được bình thường.
+
+Các mục dưới đây viết cho bản 0.8; chỗ nào nhắc "Nạp file góc trên bên trái" thì hiểu là **Nạp văn bản** ở thanh bên.
+
 ---
 
 ## Trước khi cài: máy bạn cần gì?
@@ -145,4 +155,4 @@ Ngay sau khi mở phần mềm, **câu hỏi đầu tiên ở Advance có thể 
 2. Phần mềm **không biết văn bản nào còn hiệu lực**. "Hiệu lực chưa rõ" là bình thường, bạn tự đánh dấu nếu cần.
 3. Kết quả đầu tiên **không phải lúc nào cũng đúng**. Ngay cả ở chế độ thông minh, cứ khoảng 4 câu thì có 1 câu kết quả đầu chưa đúng, nên hãy xem thêm vài kết quả bên dưới.
 
-Cần hướng dẫn chi tiết hơn: xem file **HUONG-DAN.md**. Cần hiểu phần mềm chạy ra sao bên trong: xem **TAI-LIEU-KY-THUAT.md**.
+Cần hướng dẫn chi tiết hơn: xem file **HUONG-DAN.md**. Cần hiểu phần mềm chạy ra sao bên trong: xem **docs/kien-truc.md**.

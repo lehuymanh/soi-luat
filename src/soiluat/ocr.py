@@ -212,13 +212,23 @@ def _page_images(path: Path, page_nos: list[int]):
         return
     import pypdfium2 as pdfium
 
-    pdf = pdfium.PdfDocument(str(path))
+    from soiluat.pageimg import PDFIUM
+
+    with PDFIUM:
+        pdf = pdfium.PdfDocument(str(path))
     try:
         for n in page_nos:
-            page = pdf[n - 1]
-            yield n, page.render(scale=render_dpi(page) / 72).to_pil()
+            with PDFIUM:  # khoá chỉ quanh từng trang, không giữ qua yield: Tesseract chậm không chặn /page
+                img = _render_page(pdf, n)
+            yield n, img
     finally:
-        pdf.close()
+        with PDFIUM:
+            pdf.close()
+
+
+def _render_page(pdf, n: int):
+    page = pdf[n - 1]
+    return page.render(scale=render_dpi(page) / 72).to_pil()
 
 
 def render_dpi(page) -> float:

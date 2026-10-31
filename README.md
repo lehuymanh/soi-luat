@@ -2,9 +2,9 @@
 
 Tra cứu nghị định/thông tư **trên máy văn phòng** (Windows, 8 GB, Office có thể đang mở): FTS5 + từ điển + parser + quy tắc + người duyệt; tuỳ chọn tìm theo nghĩa và xếp lại top-5 bằng hai mô hình AITeamVN chạy CPU (không LLM sinh văn bản, không gửi dữ liệu ra ngoài, chạy hoàn toàn offline).
 
-**Một app duy nhất**, giao diện kiểu chat: gõ câu hỏi ở ô dưới; nút **Nạp file** ở góc trên bên trái (chọn nhiều file/thư mục hoặc kéo thả; OCR và nhúng vector chạy nền ngay trong app); nút **Cài đặt** ở góc trên bên phải (chế độ Normal/Advance, kiểm tra OCR, sao lưu, các trang duyệt).
+**Một app duy nhất**, giao diện kiểu chat: gõ câu hỏi ở ô dưới; nút **Nạp văn bản** ở thanh bên (chọn nhiều file/thư mục hoặc kéo thả; OCR và nhúng vector chạy nền ngay trong app); **Cài đặt** cũng ở thanh bên (chế độ Normal/Advance, kiểm tra OCR, sao lưu, các trang duyệt). Từ 0.9: bấm trích dẫn mở văn bản ngay trong app tại đúng khoản/điểm, kết quả gọn theo văn bản, có lịch sử trò chuyện.
 
-Bản **0.8**. Lộ trình lên **1.0**: [soi-luat-lo-trinh-1.0.md](soi-luat-lo-trinh-1.0.md) · Tài liệu kỹ thuật: [TAI-LIEU-KY-THUAT.md](TAI-LIEU-KY-THUAT.md)
+Bản **0.9**. Lộ trình lên **1.0**: [docs/ke-hoach/lo-trinh-1.0.md](docs/ke-hoach/lo-trinh-1.0.md) · Tài liệu kỹ thuật: [docs/kien-truc.md](docs/kien-truc.md)
 
 ## Cài
 
@@ -15,6 +15,8 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev]"
 ```
+
+Linux: `python3 -m venv .venv && . .venv/bin/activate`, rồi cùng lệnh `pip install`; OCR cần thêm `sudo apt install tesseract-ocr tesseract-ocr-vie` (tên gói chưa thử trên máy trống) và `export SOILUAT_TESSDATA=/usr/share/tesseract-ocr/5/tessdata`.
 
 Tuỳ chọn:
 
@@ -58,7 +60,7 @@ python pack\export_models.py duong\toi\models     :: một lần, cần mạng +
 
 Hai mô hình (Apache-2.0, đã đổi sang ONNX int8; nguồn và mã băm trong `NOTICE.md` mỗi thư mục) đặt vào `<thư mục dữ liệu>\models\`
 (hoặc `SOILUAT_MODEL_DIR` / `SOILUAT_RERANK_DIR`): `aiteamvn-embedding` (vector 1024 chiều, ~586 MB) và `aiteamvn-reranker` (chấm cặp câu hỏi–Điều, ~587 MB).
-Ở chế độ Advance, app tự tính vector nền cho các Điều chưa có khi hàng đợi nạp file trống (nút Nạp file hiện tiến độ). Tính tay bằng dòng lệnh cũng được (cắt 128 token mỗi Điều: ~3 Điều/giây ở 2 luồng, file 100 Điều ≈ 35 giây, 10 nghìn Điều ≈ 1 giờ; dừng giữa chừng chạy lại sẽ tiếp tục). **Nâng cấp từ bản dùng EmbeddingGemma:** vector cũ không dùng lại được; app tự nhúng lại nền (kho 61 nghìn Điều mất cỡ 6 giờ, vẫn tìm được bằng BM25 trong lúc đó):
+Ở chế độ Advance, app tự tính vector nền cho các Điều chưa có khi hàng đợi nạp file trống (thanh bên hiện tiến độ ở mục Nạp văn bản). Tính tay bằng dòng lệnh cũng được (cắt 128 token mỗi Điều: ~3 Điều/giây ở 2 luồng, file 100 Điều ≈ 35 giây, 10 nghìn Điều ≈ 1 giờ; dừng giữa chừng chạy lại sẽ tiếp tục). **Nâng cấp từ bản dùng EmbeddingGemma:** vector cũ không dùng lại được; app tự nhúng lại nền (kho 61 nghìn Điều mất cỡ 6 giờ, vẫn tìm được bằng BM25 trong lúc đó):
 
 ```text
 python -m soiluat.importer --nhung
@@ -88,6 +90,12 @@ Mặc định `./data`. Đổi: `set SOILUAT_DATA=C:\Users\...\SoiLuat`
 
 ## Lệnh
 
+Mở app từ mã nguồn (cổng mặc định đổi bằng `--port`):
+
+```text
+python -m soiluat
+```
+
 Khám sức khoẻ kho (có cột Q2 “phạt tiền từ” và dòng `_TONG`):
 
 ```text
@@ -104,7 +112,7 @@ python -m soiluat.importer duong\toi\file --doan
 
 `--doan` ép chia theo đoạn (tầng 3). Muốn sửa ranh giới hoặc chữ OCR: sửa file nguồn rồi nạp lại — không có UI sửa trong app.
 
-Nạp từ giao diện: nút **Nạp file** (góc trên trái) → chọn file/thư mục hoặc kéo thả, có ô **OCR** và **chia đoạn**, hoặc nạp từ đường dẫn có sẵn trên máy. File được chép vào `data/files`, app đọc lần lượt từng file ở nền (không khoá ô tìm). File lỗi không dừng cả lượt; lỗi hiện ngay trên dòng của file.
+Nạp từ giao diện: **Nạp văn bản** (thanh bên) → chọn file/thư mục hoặc kéo thả, có ô **OCR** và **chia đoạn**, hoặc nạp từ đường dẫn có sẵn trên máy. File được chép vào `data/files`, app đọc lần lượt từng file ở nền (không khoá ô tìm). File lỗi không dừng cả lượt; lỗi hiện ngay trên dòng của file.
 
 Tra cứu (chỉ `127.0.0.1`):
 
@@ -127,14 +135,14 @@ Các trang duyệt mở từ Cài đặt → Quản lý kho.
 ## Kiểm thử
 
 ```text
-pytest
+python -m pytest -q
 ```
 
 ## Sao lưu
 
 Cài đặt → **Sao lưu SQLite**, hoặc `POST /backup` ghi `data/backup/soiluat.db`. Hoặc copy cả thư mục data khi app đã tắt.
 
-## Đóng gói (tuần 8)
+## Đóng gói
 
 Máy có Python (máy build):
 

@@ -45,3 +45,18 @@ Hệ hiện tại = đường tìm của app (`cascade_search` + dựng thẻ), 
 
 Chạy lại: xem [README.md](README.md). Số theo từng câu: `bench/zalo/ket_qua_gold_vle_{normal,advance}.json`
 (chỉ trên máy, không commit vì chứa câu hỏi ViLegalExperts).
+
+
+## P1 K3: đo theo mục hiển thị (31/10/2026)
+
+Quy ước (kế hoạch P1, mục 2b, chủ dự án duyệt 31/10/2026): "theo mục" là mục hiển thị sau `cards.compact` (một mục mỗi (văn bản, Điều), Điều cùng nội dung ở văn bản khác gộp vào "Cũng có ở"). Zalo và gold tính trúng khi khoá đáp án nằm ở bản đại diện hoặc một bản trùng (kho Zalo gần như không có ngày ban hành để chọn đại diện); văn bản thật tính theo bản đại diện. Mọi bộ báo cả hai cách.
+
+Gold `vle` 500 câu, cùng bản dựng và lệnh với Zalo (`--tag muc`, tệp kết quả bị `.gitignore` chặn):
+
+| Cách tính | Hit@1 | Hit@5 | Hit@10 | MRR@10 |
+|---|---|---|---|---|
+| theo thẻ (`hien_tai`, mốc 0.8) | 51,2 | 77,0 | 84,2 | 0,624 |
+| theo mục, kèm "Cũng có ở" (`hien_tai_muc`, cổng P1) | 52,6 | 77,4 | 84,4 | 0,632 |
+| theo mục, chỉ bản đại diện (`hien_tai_muc_dai_dien`) | 51,2 | 76,0 | 82,8 | 0,617 |
+
+Cổng P1: đạt (@1 +1,4 điểm, @5 +0,4).

@@ -3,11 +3,14 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import os
 import sqlite3
+import uuid
 from pathlib import Path
 
 SCHEMA_FILE = Path(__file__).with_name("schema.sql")
 SEED_FILE = Path(__file__).with_name("synonyms_seed.csv")
+BUSY_MS = 5000  # chờ khoá ghi của kết nối khác tối đa chừng này rồi báo "database is locked"
 
 
 class FtsUnavailable(RuntimeError):
@@ -16,10 +19,10 @@ class FtsUnavailable(RuntimeError):
 
 def connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path), timeout=5.0)
+    conn = sqlite3.connect(str(path), timeout=BUSY_MS / 1000)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute(f"PRAGMA busy_timeout={BUSY_MS}")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
@@ -94,13 +97,22 @@ def seed_synonyms(conn: sqlite3.Connection) -> None:
 
 
 def backup_db(src: Path, dest: Path) -> None:
+    """Sao lưu ra tệp .tmp rồi mới đổi tên: lỗi giữa chừng (đĩa đầy) không để tệp cụt mang tên đích, không đè bản cũ."""
     dest.parent.mkdir(parents=True, exist_ok=True)
+    # tên tạm theo tiến trình và theo lần gọi: hai bản app cùng kho, hay bấm "Sao lưu" hai lần, không ghi chung hay xoá tệp tạm của nhau
+    # shortcut: tệp tạm của tiến trình bị kill -9 không tự dọn, tối đa một tệp mỗi lần chết; dọn tay hoặc khi có báo cáo đĩa đầy
+    tmp = dest.with_name(f"{dest.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")
     src_conn = sqlite3.connect(str(src))
     try:
-        dest_conn = sqlite3.connect(str(dest))
+        dest_conn = sqlite3.connect(str(tmp))
         try:
             src_conn.backup(dest_conn)
         finally:
             dest_conn.close()
+        os.replace(tmp, dest)
+    except BaseException:
+        for p in (tmp, tmp.with_name(tmp.name + "-journal")):
+            p.unlink(missing_ok=True)
+        raise
     finally:
         src_conn.close()

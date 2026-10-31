@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import PurePath
 
+from soiluat import answer, semantic
 from soiluat.fold import display_addr, dieu_path
 from soiluat.labels import is_thi_hanh
+from soiluat.search import DIEU_CAP
+from soiluat.sohieu import citation_remainder
 
 KIND_RANK1 = "Rủi ro (liên kết đã duyệt)"
 KIND_RANK2 = "Rủi ro có chế tài (chưa có liên kết đã duyệt)"
@@ -50,6 +55,13 @@ class Card:
     match_tier: int = 0  # 1–6 tầng khớp tốt nhất của nhóm; 7 = chỉ theo nghĩa (vector); 0 = tra số hiệu / không rõ
     intent: str = ""  # "" hoặc "muc_phat"
     relevance: int = 0  # thứ tự độ liên quan (BM25 + khớp cụm) của nhóm trong kết quả tìm, 0 = tốt nhất
+    # P1 K1 (compact): một mục kết quả gọn
+    doc_id: int | None = None
+    path: str = ""  # đơn vị khớp nhất trong phần trích: địa chỉ của mục và chỗ "Mở tại đoạn này"
+    head: str = ""  # tên Điều, không kèm số (số lấy từ path)
+    snippet: str = ""
+    also_in: list = field(default_factory=list)  # thẻ cùng nội dung ở văn bản khác ("Cũng có ở")
+    more: list[str] = field(default_factory=list)  # path các đơn vị khác cùng Điều cũng khớp, tối đa 3
 
 
 def _labels(conn: sqlite3.Connection, unit_id: int) -> set[str]:
@@ -349,7 +361,14 @@ def _order_group_uids(
     return ordered
 
 
+_PHU_LUC = re.compile(r"^(PL\d+)\.")
+
+
 def _group_key(conn: sqlite3.Connection, u: sqlite3.Row) -> tuple[int, str]:
+    # Đoạn Phụ lục (PLk.paraN, N3 B2) gom một thẻ mỗi Phụ lục: mảnh bảng OCR không chen kín các mục đầu.
+    m = _PHU_LUC.match(u["path"] or "")
+    if m:
+        return (int(u["doc_id"]), m.group(1))
     # Ghi chú (H4, level ghi_chu) gom vào thẻ của đơn vị cha nếu có.
     if u["level"] == "ghi_chu" and u["parent_id"]:
         p = _unit(conn, u["parent_id"])
@@ -423,6 +442,7 @@ def assemble_cards(
         pages = [meta[i]["page_from"] for i in uids if meta[i]["page_from"] is not None]
         page_from = min(pages) if pages else primary["page_from"]
         page_to = primary["page_to"]
+        annex = bool(_PHU_LUC.match(primary["path"] or ""))  # thẻ Phụ lục gộp nhiều đoạn: trang là cả khoảng của chúng
         ocr = _ocr_unverified(conn, page_from, page_to, primary["doc_id"])
         kind_label = {1: KIND_RANK1, 2: KIND_RANK2, 3: KIND_RANK3, 4: KIND_RANK4}[rank]
         warns: list[str] = []
@@ -432,7 +452,7 @@ def assemble_cards(
             warns.append("Văn bản hết hiệu lực")
         if ocr:
             warns.append(OCR_LABEL)
-        if primary["level"] == "doan":
+        if primary["level"] == "doan" and not _PHU_LUC.match(primary["path"] or ""):
             warns.append("Không có cấu trúc Điều/Khoản")
         if primary["from_table"]:
             warns.append("Trang bảng — không lấy mức phạt tự động")
@@ -472,7 +492,7 @@ def assemble_cards(
                 ocr_unverified=ocr,
                 unit_ids=uids,
                 synonym_note=synonym_note,
-                page_from=primary["page_from"],
+                page_from=page_from if annex else primary["page_from"],
                 so_hieu=so,
                 file_path=(doc["file_path"] if doc else None) or "",
                 warnings=warns,
@@ -481,11 +501,12 @@ def assemble_cards(
                 q6_fold=q6,
                 grey=(hieu == "het"),
                 rank=rank,
-                page_to=primary["page_to"],
+                page_to=max(meta[i]["page_to"] or meta[i]["page_from"] or 0 for i in uids) or None if annex else primary["page_to"],
                 notes=_notes(conn, primary, dieu),
                 match_tier=tier,
                 intent=intent,
                 relevance=pos,
+                doc_id=int(primary["doc_id"]),
             )
         )
     # Tìm theo chữ (tiers có tầng > 0): độ liên quan trước; hạng liên kết / Q5 chỉ để phân thứ khi
@@ -522,3 +543,82 @@ def summarize(cards: list[Card]) -> dict[str, int]:
         else:
             n["n4"] += 1
     return n
+
+
+_EMPTY_SIG = hashlib.sha1(b"").hexdigest()
+
+
+def _in(conn: sqlite3.Connection, sql: str, ids: list) -> list[sqlite3.Row]:
+    return conn.execute(sql.format("SELECT value FROM json_each(?)"), (json.dumps(ids),)).fetchall()
+
+
+def compact(conn: sqlite3.Connection, items: list[Card], query: str, limit: int = 25, cap: int = DIEU_CAP) -> list[Card]:
+    """Kết quả gọn (P1 K1): mỗi mục là một (văn bản, Điều); Điều cùng nội dung ở văn bản khác gộp vào mục đầu
+    ("Cũng có ở"), đại diện là bản còn hiệu lực rồi bản ban hành mới hơn; `limit` mục đầu có phần trích và địa chỉ."""
+    items = items[:cap]
+    roots = semantic.root_ids(conn, [c.unit_ids[0] for c in items if c.unit_ids])
+    groups: list[list[Card]] = []
+    at: dict[tuple, int] = {}
+    root_of: dict[int, int | None] = {}
+    for c in items:
+        u0 = c.unit_ids[0] if c.unit_ids else None
+        rid = roots.get(u0)  # ghi chú có cha không có gốc: không băm, không trích
+        root_of[id(c)] = rid
+        if rid is None:
+            key = ("u", u0, id(c))
+        else:
+            sig = answer.content_sig(conn, rid)
+            key = ("r", rid) if sig == _EMPTY_SIG else ("s", sig)  # thân rỗng: mọi Điều rỗng cùng một khoá
+        g = at.get(key)
+        if g is not None and all(x.doc_id != c.doc_id for x in groups[g]):  # chỉ gộp giữa các văn bản
+            groups[g].append(c)
+            continue
+        at.setdefault(key, len(groups))
+        groups.append([c])
+    dates = {r[0]: r[1] or "" for r in _in(conn, "SELECT id, ngay_ban_hanh FROM documents WHERE id IN ({})",
+                                            list({c.doc_id for c in items}))}
+    out = []
+    for g in groups:
+        newest = sorted(g, key=lambda c: dates.get(c.doc_id, ""), reverse=True)  # sắp ổn định: cùng ngày giữ thứ tự
+        rep = min(newest, key=lambda c: c.hieu_luc != "con")
+        rep.also_in = [c for c in g if c is not rep]
+        out.append(rep)
+    shown = out[:limit]
+    units = {r[0]: r for r in _in(conn, "SELECT id, path, level FROM units WHERE id IN ({})",
+                                  [i for c in shown for i in c.unit_ids] + [root_of[id(c)] for c in shown if root_of[id(c)]])}
+    for c in shown:
+        rid = root_of[id(c)]
+        # tra Điều / số hiệu + Điều: mục là cả Điều. "Điều 12" không phải từ khoá, nên không chấm điểm dòng bằng nó
+        tra = c.synonym_note in ("dieu", "so_hieu") and c.match_tier == 0
+        if rid is None:
+            c.snippet = c.duty_text
+        else:
+            head, c.snippet, c.path = answer.snippet(conn, rid, citation_remainder(query) if tra else query)
+            c.head = re.sub(r"^Điều \w+\.\s*", "", head)
+            if tra and not c.path:
+                c.path = units[rid]["path"]
+        if not c.path and c.unit_ids and c.unit_ids[0] in units:
+            c.path = units[c.unit_ids[0]]["path"]
+        c.more = [] if tra else [units[i]["path"] for i in c.unit_ids
+                                 if i in units and units[i]["level"] != "dieu" and units[i]["path"] != c.path][:3]
+        # ô "Chọn để xuất" (unit_ids[0]) và nhãn trang phải là của đơn vị ở c.path, như địa chỉ mục hiện
+        pu = conn.execute("SELECT id, page_from, page_to FROM units WHERE doc_id = ? AND path = ? ORDER BY id LIMIT 1",
+                          (c.doc_id, c.path)).fetchone()
+        if pu:
+            c.unit_ids = [pu[0]] + [i for i in c.unit_ids if i != pu[0]]
+            c.page_from, c.page_to = pu[1], pu[2]
+    return out
+
+
+def doc_groups(items: list) -> list[list]:
+    """Mục theo văn bản, giữ thứ tự xuất hiện đầu (không dùng groupby của Jinja: nó sắp theo khoá, phá thứ hạng)."""
+    out: list[list] = []
+    at: dict = {}
+    for c in items:
+        k = getattr(c, "doc_id", None)
+        k = id(c) if k is None else k
+        if k not in at:
+            at[k] = len(out)
+            out.append([])
+        out[at[k]].append(c)
+    return out

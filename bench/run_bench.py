@@ -178,17 +178,19 @@ def worker_quality(q_json: str, out_json: str) -> None:
         t0 = time.perf_counter()
         ctx = _search_ctx(q["q"], "", "", "")
         ms = (time.perf_counter() - t0) * 1000
-        cards = ctx["cards"]
+        cards = ctx["cards"] or ctx["items"]  # số hiệu một mình: không dựng thẻ, chỉ có mục "Mở toàn văn" (full)
         top = cards[:10]
         rec = {**q, "ms": round(ms, 1), "n_cards": len(cards)}
         if q["group"] == "dirty":
             fq = fold_search(q["q"])
             # văn bản tách từ một file có file_path "<path>#vb<k>"
             hits = [c for c in top if fold_search(c.file_path.split("#vb")[0]).endswith(fold_search(Path(q["file"]).name))
-                    and (fq in fold_search(c.duty_text + " " + c.sanction_text) or q["expect"].startswith("so_hieu"))]
-            rec.update(found=bool(hits), addr=(hits[0].duty_addr or hits[0].sanction_addr) if hits else "",
-                       kind=hits[0].kind if hits else "", page=hits[0].page_from if hits else None,
-                       warnings=hits[0].warnings if hits else [],
+                    and (fq in fold_search(getattr(c, "duty_text", "") + " " + getattr(c, "sanction_text", ""))
+                         or q["expect"].startswith("so_hieu"))]
+            h0 = hits[0] if hits else None
+            rec.update(found=bool(hits), addr=(getattr(h0, "duty_addr", "") or getattr(h0, "sanction_addr", "")) if hits else "",
+                       kind=getattr(h0, "kind", ""), page=getattr(h0, "page_from", None),
+                       warnings=getattr(h0, "warnings", []),
                        top_files=[c.file_path for c in top[:3]])
         else:
             want = set(q["want"])
@@ -205,10 +207,12 @@ def worker_quality(q_json: str, out_json: str) -> None:
                     ks.add(f"{c.so_hieu}#{m.group(1)}")
                 return ks
 
-            rel = [bool(keys(c) & want) for c in top]
+            # mục "Mở toàn văn" không có địa chỉ Điều: trúng khi số hiệu của văn bản mở nằm trong số hiệu cần tìm
+            so_want = {w.split("#")[0] for w in want}
+            rel = [c.so_hieu in so_want if getattr(c, "full", False) else bool(keys(c) & want) for c in top]
             rec.update(hit10=any(rel), p10=round(sum(rel) / len(top), 3) if top else 0.0,
                        first_rel=(rel.index(True) + 1) if any(rel) else None,
-                       ranks=[c.rank for c in top], n_want=len(want))
+                       ranks=[getattr(c, "rank", 0) for c in top], n_want=len(want))
         rec.pop("want", None)
         out.append(rec)
     Path(out_json).write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -259,7 +263,7 @@ def bench_server(data: Path, res: Path, qs: list[dict], tag: str, cores: list[in
                     else:
                         lat.setdefault(q["group"], []).append(dt)
             t2 = time.perf_counter()
-            r = cli.get(f"/unit/1")
+            r = cli.get("/doc/1?u=1")
             open_unit_ms = (time.perf_counter() - t2) * 1000
             mi = p.memory_info()
             rss_after = mi.rss
@@ -292,12 +296,14 @@ def worker_extras(out_json: str) -> None:
     """Xuất Word 10 thẻ + sao lưu SQLite, đo thời gian."""
     from soiluat.app import _search_ctx
     from soiluat.config import data_dir, db_path
-    from soiluat.db import backup_db
-    from soiluat.export_word import export_cards
+    from soiluat.db import backup_db, connect
+    from soiluat.export_word import export_units
 
     cards = _search_ctx("phải báo cáo", "", "", "")["cards"][:10]
+    conn = connect(db_path())
     t0 = time.perf_counter()
-    export_cards(cards, data_dir() / "export.docx")
+    export_units(conn, [c.unit_ids[0] for c in cards if c.unit_ids], data_dir() / "export.docx")
+    conn.close()
     t_exp = time.perf_counter() - t0
     t0 = time.perf_counter()
     backup_db(db_path(), data_dir() / "backup" / "soiluat.db")
