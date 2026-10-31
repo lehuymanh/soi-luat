@@ -545,15 +545,15 @@ def set_so_hieu(
 
 
 @app.get("/unit/{unit_id}")
-def unit_view(unit_id: int):
-    """Liên kết cũ (0.8, thẻ Word đã xuất) mở trình đọc tại đúng đơn vị."""
+def unit_view(unit_id: int, q: str = ""):
+    """Liên kết cũ (0.8, thẻ Word đã xuất) và "Xem nguồn" mở trình đọc tại đúng đơn vị."""
     conn = get_conn()
     u = conn.execute("SELECT doc_id, path FROM units WHERE id = ?", (unit_id,)).fetchone()
     conn.close()
     if u is None:
         return HTMLResponse("Không tìm thấy đơn vị.", status_code=404)
-    q = urlencode({"path": u["path"], "u": unit_id})
-    return RedirectResponse(f"/doc/{u['doc_id']}?{q}#u{unit_id}", status_code=303)
+    qs = urlencode({"path": u["path"], "u": unit_id, **({"q": q} if q else {})})
+    return RedirectResponse(f"/doc/{u['doc_id']}?{qs}#u{unit_id}", status_code=303)
 
 
 HL_PILL = {"con": ("Còn hiệu lực", "pos"), "het": ("Hết hiệu lực", "neg")}

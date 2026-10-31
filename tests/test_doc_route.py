@@ -154,3 +154,17 @@ def test_ban_goc_pdf_cuon_lien_tuc(tmp_path, monkeypatch):
     assert 'id="p1"' in t and 'id="p2"' in t and 'data-start="2"' in t
     r = c.get(f"/page/{doc_id}/2")
     assert r.status_code == 200 and r.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+# --- R2b: mở trình đọc ngay trong trang hỏi đáp ---
+def test_unit_chuyen_tiep_q(tmp_path, monkeypatch):
+    c, doc_id, uid, path = _setup(tmp_path, monkeypatch)
+    loc = urlsplit(c.get(f"/unit/{uid}", params={"q": "báo cáo"}, follow_redirects=False).headers["location"])
+    assert parse_qs(loc.query) == {"path": [path], "u": [str(uid)], "q": ["báo cáo"]}
+
+
+def test_trang_hoi_dap_co_trinh_doc(tmp_path, monkeypatch):
+    c, *_ = _setup(tmp_path, monkeypatch)
+    t = c.get("/", params={"q": "báo cáo định kỳ"}).text
+    assert 'id="reader"' in t and "/static/reader.js" in t
+    assert "data-doc" in t and "/unit/" in t and "q=b%C3%A1o" in t

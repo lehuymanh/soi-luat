@@ -92,6 +92,8 @@
     <p class="note hint">Enter để gửi, Shift+Enter xuống dòng. Chế độ tìm: <b id="mode-chip">{{ 'Advance' if mode.mode == 'advance' else 'Normal' }}</b> (đổi ở Cài đặt).</p>
   </form>
   </main>
+  <aside class="reader" id="reader" aria-label="Trình đọc văn bản" hidden></aside>
+  <div class="rd-scrim" id="rd-scrim"></div>
   </div>
 
   <dialog class="panel left" id="dlg-import" aria-labelledby="t-import">
@@ -164,6 +166,7 @@
     </div>
   </dialog>
 
+  <script src="/static/reader.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

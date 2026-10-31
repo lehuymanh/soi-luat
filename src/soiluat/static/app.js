@@ -194,14 +194,54 @@
     return out;
   }
 
+  /* ---- trình đọc (R2b): cột thứ ba ở màn rộng; tấm phủ (≤ 1240px) và chế độ mở rộng là hộp thoại ---- */
+  const reader = $("#reader"), rdScrim = $("#rd-scrim"), mid = matchMedia("(max-width: 1240px)");
+  let opener = null;
+  function setModal() {  // nền ra khỏi thứ tự Tab khi trình đọc phủ lên, hoặc khi ngăn kéo mở
+    const open = !reader.hidden, wide = reader.classList.contains("wide"), on = open && (mid.matches || wide);
+    rdScrim.classList.toggle("on", open && mid.matches && !wide);
+    if (on) { reader.setAttribute("role", "dialog"); reader.setAttribute("aria-modal", "true"); }
+    else { reader.removeAttribute("role"); reader.removeAttribute("aria-modal"); }
+    $("#main").inert = on || (narrow.matches && side.classList.contains("open"));
+    side.inert = on || (narrow.matches && !side.classList.contains("open"));
+    $(".topbar").inert = on;
+  }
+  async function openDoc(a) {
+    let html;
+    try { const r = await fetch(a.href, { headers: { "HX-Request": "true" } }); if (!r.ok) throw r.status; html = await r.text(); }
+    catch (e) { location.href = a.href; return; }  // lỗi thì mở trang đầy đủ
+    opener = a;
+    reader.classList.remove("wide"); reader.innerHTML = html; reader.hidden = false;
+    $("#app").classList.add("reading"); setModal();
+    window.initReader(reader);
+    reader.querySelector("#rd-title").focus({ preventScroll: true });
+  }
+  function closeDoc() {
+    reader.hidden = true; reader.classList.remove("wide"); reader.innerHTML = "";
+    $("#app").classList.remove("reading"); setModal();
+    if (opener && document.contains(opener)) opener.focus();
+  }
+  document.addEventListener("click", e => {
+    const a = e.target.closest("a[data-doc]");
+    if (a && e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey) { e.preventDefault(); openDoc(a); return; }
+    if (e.target.closest("#rd-close")) { closeDoc(); return; }
+    const w = e.target.closest("#rd-wide");
+    if (w) {
+      const on = reader.classList.toggle("wide");
+      w.setAttribute("aria-pressed", String(on)); w.setAttribute("aria-label", on ? "Thu nhỏ trình đọc" : "Mở rộng trình đọc");
+      setModal();
+    }
+  });
+  rdScrim.addEventListener("click", closeDoc);
+  mid.addEventListener("change", setModal);
+
   /* ---- khung: thanh bên thành ngăn kéo ở màn hẹp; Alt+N mở cuộc mới ---- */
   const side = $("#side"), sideScrim = $("#side-scrim"), openSide = $("#open-side");
   const narrow = matchMedia("(max-width: 900px)");
   function setSide(open, focusBack) {
     side.classList.toggle("open", open); sideScrim.classList.toggle("open", open);
     openSide.setAttribute("aria-expanded", String(open));
-    side.inert = narrow.matches && !open;  // ngăn kéo đóng: ra khỏi thứ tự Tab
-    $("#main").inert = narrow.matches && open;
+    setModal();  // ngăn kéo đóng: ra khỏi thứ tự Tab
     if (open) side.querySelector("a, button")?.focus(); else if (focusBack) openSide.focus();
   }
   openSide.addEventListener("click", () => setSide(true));
@@ -210,6 +250,8 @@
   setSide(false);
   document.addEventListener("keydown", e => {
     if (e.altKey && (e.key === "n" || e.key === "N")) { e.preventDefault(); location.href = "/"; }
+    else if (e.key === "Escape" && document.querySelector("dialog[open]")) return;  // hộp thoại gốc tự đóng
+    else if (e.key === "Escape" && !reader.hidden) closeDoc();
     else if (e.key === "Escape" && side.classList.contains("open")) setSide(false, true);
   });
 

@@ -62,7 +62,7 @@
         {% if c.warnings %}<p class="warn">⚠ {{ c.warnings | join(" · ") }}</p>{% endif %}
         <div class="cfoot">
           {% if c.file_path %}<span class="file" title="{{ c.file_path }}">{{ c.file_path }}</span>{% endif %}
-          {% if c.unit_ids %}<a class="src" href="/unit/{{ c.unit_ids[0] }}" target="_blank" rel="noopener">Xem nguồn →</a>{% endif %}
+          {% if c.unit_ids %}<a class="src" href="/unit/{{ c.unit_ids[0] }}?q={{ q | urlencode }}" target="_blank" rel="noopener" data-doc>Xem nguồn →</a>{% endif %}
         </div>
       </article>
     {% endfor %}
