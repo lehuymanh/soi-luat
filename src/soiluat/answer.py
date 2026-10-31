@@ -25,6 +25,7 @@ MAX_PASSAGES = 5
 # 2.400 khi tách câu dòng dài: ngữ cảnh đầy hơn, độ dài sau khi dựng về lại mức cũ.
 CTX_CHARS = 2400
 LONG_LINE = 300  # dòng dài hơn thì tách theo câu: bản OCR hay dính nhiều khoản/điểm thành một dòng 1.500–10.000 ký tự
+SNIP_CHARS = 350  # phần trích một mục kết quả (P1 K1): câu dẫn khoản ~130 và thân điểm ~260 ký tự, như mẫu giao diện
 N_PREDICT = 200
 TEMPERATURE = 0.1  # thấp cho bám đoạn; chốt ở P0
 SEED = 2026
@@ -141,14 +142,15 @@ def _window(text: str, query: str, size: int) -> str:
     return ("…" if a else "") + text[a:e].strip() + ("…" if e < len(text) else "")
 
 
-def _pick(lines: list[tuple[str, str]], query: str, budget: int) -> str:
+def _pick_keep(lines: list[tuple[str, str]], query: str, budget: int):
     """Giữ dòng khớp câu hỏi nhất và dòng liền kề, theo thứ tự gốc, trong `budget` ký tự. Dòng nào được giữ thì giữ cả
     câu dẫn của nó (điểm 'b) Làm giả…' kéo theo khoản '2. Phạt tiền từ … đối với các hành vi sau'): mất câu dẫn là mất
     mức phạt. Câu khớp nhất không vừa thì bỏ bớt dòng khớp rất yếu rồi lấy một khúc quanh chỗ khớp; không ưu tiên nó
-    trước mọi dòng khác vì ở bản OCR câu khớp nhất đôi khi là khối rác (chữ ký dính phụ lục), đáp án nằm ở câu thứ hai."""
+    trước mọi dòng khác vì ở bản OCR câu khớp nhất đôi khi là khối rác (chữ ký dính phụ lục), đáp án nằm ở câu thứ hai.
+    Trả (dòng, chữ từng dòng, chỉ số dòng giữ, điểm từng dòng) để người gọi biết dòng nào thật sự nằm trong phần trích."""
     texts = [t for _, t in lines]
     if sum(len(t) + 1 for t in texts) <= budget:
-        return "\n".join(texts)
+        return lines, texts, set(range(len(texts))), _scores(texts, query)
     lines = _sentences(lines)
     texts = [t for _, t in lines]
     scores = _scores(texts, query)
@@ -192,13 +194,39 @@ def _pick(lines: list[tuple[str, str]], query: str, budget: int) -> str:
         if budget - used > 40 or not keep:
             texts[best] = _window(texts[best], query, max(budget - used - 1, 3))
             keep.add(best)
+    return lines, texts, keep, scores
+
+
+def _join(texts: list[str], keep: set[int], sep: str) -> str:
     out, prev = [], None
     for j in sorted(keep):
         if prev is not None and j > prev + 1:
             out.append("…")
         out.append(texts[j])
         prev = j
-    return "\n".join(out)
+    return sep.join(out)
+
+
+def _pick(lines: list[tuple[str, str]], query: str, budget: int) -> str:
+    _, texts, keep, _ = _pick_keep(lines, query, budget)
+    return _join(texts, keep, "\n")
+
+
+def snippet(conn: sqlite3.Connection, root_id: int, query: str, budget: int = SNIP_CHARS) -> tuple[str, str, str]:
+    """(tên Điều, phần trích một đoạn ≤ budget ký tự, path dòng khớp nhất trong phần trích) cho một mục kết quả (P1 K1).
+    path lấy trong số dòng được giữ, nên địa chỉ của mục khớp chữ người đọc; rỗng khi không dòng nào khớp câu hỏi."""
+    head, lines = semantic.root_lines(conn, root_id)
+    lines = [(p, t) for p, t in lines if t.strip()]
+    title = re.sub(r"^Điều \w+\.\s*", "", head)
+    if lines and title and lines[0][1].startswith(title):  # dòng đầu là thân Điều bắt đầu bằng tên: bỏ phần tên
+        lines[0] = (lines[0][0], lines[0][1][len(title):].strip())
+        lines = [x for x in lines if x[1]]
+    if not lines:
+        return head, "", ""
+    lines, texts, keep, scores = _pick_keep(lines, query, budget)
+    best = max(sorted(keep), key=lambda i: scores[i])
+    path = re.sub(r"\.~\d+$", "", lines[best][0]) if scores[best] > 0 else ""
+    return head, _join(texts, keep, " "), path
 
 
 def _shares(lengths: list[int], budget: int) -> list[int]:

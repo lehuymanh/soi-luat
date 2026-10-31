@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import mimetypes
 import os
 import re
@@ -19,6 +20,7 @@ import uuid
 import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
@@ -31,13 +33,14 @@ from starlette.middleware.base import BaseHTTPMiddleware
 import uvicorn
 
 from soiluat import crossrank, pageimg, reader, semantic
-from soiluat.cards import _ocr_unverified, assemble_cards, summarize
+from soiluat.cards import _ocr_unverified, assemble_cards, compact, summarize
 from soiluat.config import HOST, PORT, data_dir, db_path
 from soiluat.db import backup_db, connect, init_schema
 from soiluat.export_word import card_pages, export_cards, page_label
 from soiluat.fold import display_addr
 from soiluat.jobs import JOBS, SUFFIXES
-from soiluat.search import DIEU_CAP, apply_doc_filters, cascade_search
+from soiluat.search import DIEU_CAP, _so_hieu_docs, apply_doc_filters, cascade_search
+from soiluat.sohieu import find_dieu_so
 
 
 def _ngay(s):
@@ -50,6 +53,7 @@ TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 TEMPLATES.env.filters["ngay"] = _ngay
 TEMPLATES.env.globals.update(page_label=page_label, card_pages=card_pages, addr=reader.addr)
 CSRF_TOKEN = secrets.token_urlsafe(32)
+SHOW_CAP = 25  # mục hiện tối đa trên trang (5 đầu, "Xem thêm" từng 10); nhiều hơn thì dòng "còn nữa"
 _ocr_cache: dict | None = None
 
 app = FastAPI(title="Soi Luật")
@@ -136,85 +140,98 @@ def _card_dates(conn, cards) -> dict[int, dict]:
     return {r["id"]: dict(r) for r in rows}
 
 
-def _search_ctx(
-    q: str,
-    loai: str,
-    co_quan: str,
-    hieu_luc: str,
-) -> dict:
+def _search(conn: sqlite3.Connection, q: str, loai: str, co_quan: str, hieu_luc: str) -> dict:
+    """Tìm và lọc: `ids` đã lọc và cắt, `n_found` trước lọc, `n_ids` sau lọc trước cắt (P1 K1; H2, H3 dùng lại)."""
+    # BM25 OR tự hạ trọng số từ phổ biến ("như thế nào", "được quy định"): không bỏ khung hỏi bằng danh sách
+    result = cascade_search(conn, q)
+    ids = apply_doc_filters(conn, result.ids, loai=loai, co_quan=co_quan, hieu_luc=hieu_luc)
+    n_ids = len(ids)
+    if result.note == "dieu" and n_ids > DIEU_CAP:
+        ids = ids[:DIEU_CAP]
+    # nhãn tin cậy nói về kết quả đầu: bộ lọc/giới hạn đổi kết quả đầu thì bỏ nhãn
+    sure = result.sure if ids and result.ids and ids[0] == result.ids[0] else None
+    return {"result": result, "ids": ids, "n_found": len(result.ids), "n_ids": n_ids, "sure": sure}
+
+
+def _full_docs(conn: sqlite3.Connection, q: str, s: dict) -> list[SimpleNamespace] | None:
+    """Truy vấn chỉ có số hiệu (kể cả số hiệu một phần): mỗi văn bản khớp một mục "Mở toàn văn", không liệt kê
+    mọi đơn vị. "Số hiệu + Điều n" mà văn bản không có Điều n cũng ra "Mở toàn văn", kèm câu không có Điều n."""
+    r = s["result"]
+    dieu = find_dieu_so(q)
+    if r.note != "so_hieu" or r.intent or (dieu and s["ids"]):
+        return None
+    if dieu:
+        if r.ids:
+            return None
+        doc_ids = _so_hieu_docs(conn, q)
+    else:
+        doc_ids = list(dict.fromkeys(row[0] for row in conn.execute(
+            "SELECT u.doc_id FROM json_each(?) j JOIN units u ON u.id = j.value ORDER BY j.key", (json.dumps(s["ids"]),))))
+    out = []
+    for did in doc_ids:
+        d = conn.execute(
+            "SELECT d.*, (SELECT COUNT(*) FROM units u WHERE u.doc_id = d.id AND u.level = 'dieu') AS n_dieu, "
+            "(SELECT COUNT(*) FROM pages p WHERE p.doc_id = d.id) AS n_pages FROM documents d WHERE d.id = ?", (did,)
+        ).fetchone()
+        out.append(SimpleNamespace(full=True, doc_id=did, missing_dieu=dieu or "", **{k: d[k] for k in (
+            "so_hieu", "loai", "co_quan", "file_path", "hieu_luc", "ngay_ban_hanh", "ngay_hieu_luc", "n_dieu", "n_pages")}))
+    return out
+
+
+def _ctx(conn: sqlite3.Connection, q: str, s: dict) -> dict:
+    """Thẻ và mục gọn từ kết quả tìm (P1 K1)."""
+    r, ids = s["result"], s["ids"]
+    full = _full_docs(conn, q, s)
+    idset = set(ids)
+    cards = [] if full is not None else assemble_cards(
+        conn, ids, synonym_note=r.note,
+        fold_ids={i for i in r.fold_ids if i in idset}, f2_ids={i for i in r.f2_ids if i in idset},
+        tiers=r.tiers, intent=r.intent,
+    )
+    items = full if full is not None else compact(conn, cards, q, limit=SHOW_CAP, cap=DIEU_CAP)
+    cut_note = ""
+    if r.note == "dieu" and s["n_ids"] > DIEU_CAP:
+        cut_note = (f"Có {s['n_ids']} văn bản có Điều này, chỉ hiển thị {min(DIEU_CAP, SHOW_CAP, len(items))}. "
+                    "Thêm số hiệu văn bản để thu hẹp.")
+    return {"cards": cards, "items": items, "n_items": len(items), "cut_note": cut_note,
+            "n": summarize(cards), "dates": _card_dates(conn, cards)}
+
+
+def _log_query(conn: sqlite3.Connection, q: str, n: int) -> None:
+    try:
+        conn.execute("INSERT INTO query_log(query_raw, result_count, created_at) VALUES (?,?,?)", (q, n, _now()))
+        conn.commit()
+    except sqlite3.OperationalError:  # đang nạp file giữ khoá ghi: bỏ một dòng nhật ký, không làm hỏng kết quả
+        conn.rollback()
+
+
+def _search_ctx(q: str, loai: str, co_quan: str, hieu_luc: str) -> dict:
     conn = get_conn()
-    cards = []
-    dates: dict[int, dict] = {}
-    n = {"n1": 0, "n2": 0, "n3": 0, "n4": 0}
+    ctx = {"cards": [], "items": [], "n_items": 0, "cut_note": "", "dates": {}, "n": {"n1": 0, "n2": 0, "n3": 0, "n4": 0}}
     hints: list[str] = []
     q2_note = ""
-    empty_kho = False
     sure = None
-    n_docs = conn.execute("SELECT COUNT(*) AS n FROM documents").fetchone()["n"]
-    empty_kho = int(n_docs or 0) == 0
-    n_che = conn.execute(
-        "SELECT COUNT(*) AS n FROM unit_labels WHERE label = 'CHE_TAI'"
-    ).fetchone()["n"]
+    n_docs = int(conn.execute("SELECT COUNT(*) AS n FROM documents").fetchone()["n"] or 0)
+    empty_kho = n_docs == 0
+    n_che = conn.execute("SELECT COUNT(*) AS n FROM unit_labels WHERE label = 'CHE_TAI'").fetchone()["n"]
     if not empty_kho and int(n_che or 0) == 0:
-        q2_note = (
-            "Kho chưa có văn bản xử phạt — phần lớn thẻ là rủi ro chưa rõ chế tài (loại 3)."
-        )
+        q2_note = "Kho chưa có văn bản xử phạt — phần lớn thẻ là rủi ro chưa rõ chế tài (loại 3)."
     if q.strip():
-        # BM25 OR tự hạ trọng số từ phổ biến ("như thế nào", "được quy định"): không bỏ khung hỏi bằng danh sách
-        result = cascade_search(conn, q)
-        ids = apply_doc_filters(
-            conn, result.ids, loai=loai, co_quan=co_quan, hieu_luc=hieu_luc
-        )
-        if result.note == "dieu" and len(ids) > DIEU_CAP:
-            q2_note = (q2_note + " " if q2_note else "") + (
-                f"Có {len(ids)} văn bản có Điều này, chỉ hiển thị {DIEU_CAP} — "
-                "thêm số hiệu văn bản để thu hẹp."
-            )
-            ids = ids[:DIEU_CAP]
-        # nhãn tin cậy nói về kết quả đầu: bộ lọc/giới hạn đổi kết quả đầu thì bỏ nhãn
-        sure = result.sure if ids and result.ids and ids[0] == result.ids[0] else None
-        idset = set(ids)
-        cards = assemble_cards(
-            conn,
-            ids,
-            synonym_note=result.note,
-            fold_ids={i for i in result.fold_ids if i in idset},
-            f2_ids={i for i in result.f2_ids if i in idset},
-            tiers=result.tiers,
-            intent=result.intent,
-        )
-        n = summarize(cards)
-        try:
-            conn.execute(
-                "INSERT INTO query_log(query_raw, result_count, created_at) VALUES (?,?,?)",
-                (q, len(cards), _now()),
-            )
-            conn.commit()
-        except sqlite3.OperationalError:  # đang nạp file giữ khoá ghi: bỏ một dòng nhật ký, không làm hỏng kết quả
-            conn.rollback()
-        if not cards:
-            rows = conn.execute(
-                "SELECT term FROM synonyms WHERE approved = 1 LIMIT 8"
-            ).fetchall()
-            hints = [r["term"] for r in rows]
-        dates = _card_dates(conn, cards)
+        s = _search(conn, q, loai, co_quan, hieu_luc)
+        sure = s["sure"]
+        ctx = _ctx(conn, q, s)
+        if ctx["cut_note"]:
+            q2_note = (q2_note + " " if q2_note else "") + ctx["cut_note"]
+        # "Mở toàn văn": số văn bản, để gõ số hiệu không lọt vào trang "Truy vấn bỏ sót" (lọc result_count = 0)
+        _log_query(conn, q, len(ctx["items"]) if not ctx["cards"] else len(ctx["cards"]))
+        if not ctx["items"]:
+            hints = [r["term"] for r in conn.execute("SELECT term FROM synonyms WHERE approved = 1 LIMIT 8")]
     # số trên thanh bên "Liên kết chờ duyệt": cùng hàng chờ với trang /review
     n_queue = conn.execute("SELECT COUNT(*) FROM links WHERE confirmed = 0").fetchone()[0]
     conn.close()
     return {
-        "q": q,
-        "loai": loai,
-        "co_quan": co_quan,
-        "hieu_luc": hieu_luc,
-        "cards": cards,
-        "dates": dates,
-        "n": n,
-        "hints": hints,
-        "q2_note": q2_note,
-        "sure": sure,
-        "empty_kho": empty_kho,
-        "n_docs": int(n_docs or 0),
-        "n_queue": n_queue,
+        **ctx, "q": q, "loai": loai, "co_quan": co_quan, "hieu_luc": hieu_luc, "hints": hints,
+        "q2_note": q2_note, "sure": sure, "empty_kho": empty_kho, "n_docs": n_docs, "n_queue": n_queue,
     }
 
 
