@@ -117,6 +117,9 @@ def pretty_path(path: str) -> str:
     m = re.match(r"^p(\d+)\.para(\d+)$", p, re.I)
     if m:
         return f"trang {m.group(1)} đoạn {m.group(2)}"
+    m = re.match(r"^PL(\d+)\.para(\d+)$", p, re.I)
+    if m:
+        return f"phụ lục {m.group(1)} đoạn {m.group(2)}"
     return p
 
 

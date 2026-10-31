@@ -361,7 +361,14 @@ def _order_group_uids(
     return ordered
 
 
+_PHU_LUC = re.compile(r"^(PL\d+)\.")
+
+
 def _group_key(conn: sqlite3.Connection, u: sqlite3.Row) -> tuple[int, str]:
+    # Đoạn Phụ lục (PLk.paraN, N3 B2) gom một thẻ mỗi Phụ lục: mảnh bảng OCR không chen kín các mục đầu.
+    m = _PHU_LUC.match(u["path"] or "")
+    if m:
+        return (int(u["doc_id"]), m.group(1))
     # Ghi chú (H4, level ghi_chu) gom vào thẻ của đơn vị cha nếu có.
     if u["level"] == "ghi_chu" and u["parent_id"]:
         p = _unit(conn, u["parent_id"])
@@ -435,6 +442,7 @@ def assemble_cards(
         pages = [meta[i]["page_from"] for i in uids if meta[i]["page_from"] is not None]
         page_from = min(pages) if pages else primary["page_from"]
         page_to = primary["page_to"]
+        annex = bool(_PHU_LUC.match(primary["path"] or ""))  # thẻ Phụ lục gộp nhiều đoạn: trang là cả khoảng của chúng
         ocr = _ocr_unverified(conn, page_from, page_to, primary["doc_id"])
         kind_label = {1: KIND_RANK1, 2: KIND_RANK2, 3: KIND_RANK3, 4: KIND_RANK4}[rank]
         warns: list[str] = []
@@ -444,7 +452,7 @@ def assemble_cards(
             warns.append("Văn bản hết hiệu lực")
         if ocr:
             warns.append(OCR_LABEL)
-        if primary["level"] == "doan":
+        if primary["level"] == "doan" and not _PHU_LUC.match(primary["path"] or ""):
             warns.append("Không có cấu trúc Điều/Khoản")
         if primary["from_table"]:
             warns.append("Trang bảng — không lấy mức phạt tự động")
@@ -484,7 +492,7 @@ def assemble_cards(
                 ocr_unverified=ocr,
                 unit_ids=uids,
                 synonym_note=synonym_note,
-                page_from=primary["page_from"],
+                page_from=page_from if annex else primary["page_from"],
                 so_hieu=so,
                 file_path=(doc["file_path"] if doc else None) or "",
                 warnings=warns,
@@ -493,7 +501,7 @@ def assemble_cards(
                 q6_fold=q6,
                 grey=(hieu == "het"),
                 rank=rank,
-                page_to=primary["page_to"],
+                page_to=max(meta[i]["page_to"] or meta[i]["page_from"] or 0 for i in uids) or None if annex else primary["page_to"],
                 notes=_notes(conn, primary, dieu),
                 match_tier=tier,
                 intent=intent,

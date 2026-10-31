@@ -123,7 +123,7 @@
             <div class="item-h"><a class="addr" href="{{ href }}" data-doc>{{ lab or c.title }}</a>{% if lab %}<span class="dieu-t">{{ c.head or c.title }}</span>{% endif %}</div>
             <p class="snip">{{ highlight(c.snippet or c.duty_text, q) }}</p>
             {% if warns %}<p class="warn-line">{{ warns | join(" · ") }}</p>{% endif %}
-            {% if c.more %}<p class="also-in">Cùng Điều còn khớp: {% for m in c.more %}{% if not loop.first %} · {% endif %}<a class="link" href="/doc/{{ c.doc_id }}?path={{ m | urlencode }}&amp;q={{ q | urlencode }}" data-doc>{{ addr(m).split(" Điều")[0] }}</a>{% endfor %}</p>{% endif %}
+            {% if c.more %}<p class="also-in">{{ "Cùng phụ lục còn khớp" if c.path.startswith("PL") else "Cùng Điều còn khớp" }}: {% for m in c.more %}{% if not loop.first %} · {% endif %}<a class="link" href="/doc/{{ c.doc_id }}?path={{ m | urlencode }}&amp;q={{ q | urlencode }}" data-doc>{{ addr(m).split(" Điều")[0] }}</a>{% endfor %}</p>{% endif %}
             <div class="item-f">
               <a class="go" href="{{ href }}" data-doc>Mở tại đoạn này</a>
               <button type="button" class="quiet" data-copy="{{ cit(c, dt) }}" aria-label="Sao chép trích dẫn: {{ cit(c, dt) }}">Sao chép trích dẫn</button>

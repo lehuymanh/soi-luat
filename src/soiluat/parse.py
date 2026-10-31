@@ -22,8 +22,10 @@ DIEU_LOOSE = re.compile(
 DIEU_OCR = re.compile(
     r"^[ĐDđd][1iIl!íìỉĩị]?[eêềéèẽẻếểệgqo]{1,2}\s*[uưgờ]\s*(\d+[a-z]?)\s*[.:]\s*(\S.*)$",
 )
-# số Điều bị OCR đọc thành chữ cái: "Điều M Thẩm quyền…" (suy từ số Điều trước)
-DIEU_NUM_LETTER = re.compile(r"^Điều\s+[A-Z]{1,2}\s*[.:]?\s+([A-ZĐ][^\n]{3,})$")
+# số Điều bị OCR đọc thành chữ cái/ký hiệu rác: "Điều M Thẩm quyền…", "Điều §. Quy định…", "Điều 1ã. Bổ sung…" (suy từ số
+# Điều trước), hoặc dấu sau số đọc thành phẩy: "Điều 3, Mức thu phí" (chỉ nhận khi 3 = số Điều trước + 1)
+DIEU_NUM_LETTER = re.compile(
+    r"^Điều\s+(?P<n>[A-Z]{1,2}|[^\w\s.…]{1,2}|\d{1,2}(?=,)|\d[^\W\d_])\s*[.,:]?\s+(?P<t>[A-ZĐ][^\n]{3,})$")
 # "Điều thứ hai." / "Điều thứ 2:"
 DIEU_THU = re.compile(
     r"^[ĐDđd]i[eêềéèẽẻ]u\s+thứ\s+([^.:]{1,30}?)\s*[.:]\s*(.*)$",
@@ -41,6 +43,12 @@ CHUONG_MUC = re.compile(r"^(Chương|Mục|Phần)\s+([IVXLCDM]+|\d+)\b", re.IGN
 SO_LINE = re.compile(r"^(?:(?:Luật|Bộ luật|Pháp lệnh|Nghị quyết|Lệnh)\s+số\s*:|Số\s*[:.]?|SỐ\s*[:.]?)\s*\d+\s*/")
 SO_HIEU_SPACED = re.compile(r"(\d+)\s*/\s*(\d{4})\s*/\s*([A-ZĐ0-9][A-ZĐ0-9-]*)", re.IGNORECASE)
 TABLE_ROW = re.compile(r"^\|.*\|$")
+# "Nơi nhận: KT. BỘ TRƯỞNG" (OCR dính hai cột thành một dòng; chữ đã bỏ dấu, thường)
+NOI_NHAN_KT = re.compile(r"noi nhan\s*[:.]?\s*(?:kt|tm|q|t)[. ]")
+# phụ lục/mẫu đứng sau khối nơi nhận–chữ ký; "PHỤ LỤC II" riêng một dòng là phụ lục kế tiếp
+ANNEX_HEAD = re.compile(r"^(?:PHỤ\s+LỤC|Phụ\s+lục|DANH\s+MỤC|BIỂU\s+MẪU|MẪU\s+SỐ|Mẫu\s+số)\b")
+ANNEX_NEXT = re.compile(r"^(?:PHỤ\s+LỤC|Phụ\s+lục)\s+[IVXLC\d]+[A-Z]?\s*(?:\(.*\))?\W*$")
+ANNEX_CHUNK = 1500  # ký tự tối đa mỗi đơn vị phụ lục (cắt ở đầu dòng viết hoa/khoản/hàng bảng, không cắt giữa dòng)
 # tên văn bản ở trích dẫn: "Điều 6 Nghị định này"
 DOC_WORDS = ("nghi dinh", "thong tu", "luat", "bo luat", "quyet dinh", "nghi quyet", "phap lenh")
 
@@ -203,6 +211,26 @@ def _quoted_dieu_no(line: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
+_AMEND_TITLE = re.compile(r"sua doi|bo sung|bai bo|thay the")
+
+
+def _stray_open_quote(line: str, before: str, current_dieu: ParsedUnit | None) -> bool:
+    """Dấu “ mở nhầm (OCR: vết mực, mộc) ở đầu dòng: khối trích dẫn thật mở sau dòng kết thúc bằng ":".
+
+    Chỉ nhận khi dòng chỉ có dấu ngoặc, hoặc là "Điều n+1." nối đúng Điều hiện tại (không phải điều sửa đổi, nơi hay
+    trích Điều kế tiếp) — Điều đó là Điều của chính văn bản, không phải Điều được trích. Nếu không bỏ, khối không bao
+    giờ đóng và nuốt mọi Điều sau (NĐ 391/2026: Điều 50–65 nằm trong một điểm 24.428 ký tự).
+    """
+    if before.rstrip(" -–—'\"‘’·|_~`^*").endswith(":"):
+        return False
+    if line in ('“', '"'):
+        return True
+    qn = _quoted_dieu_no(line)
+    return (line[:1] in '“"' and qn is not None and current_dieu is not None
+            and qn == _dieu_num_key(current_dieu.addr_part)[0] + 1
+            and not _AMEND_TITLE.search(fold_search(current_dieu.title or "")))
+
+
 def _next_own_dieu(line: str, current_dieu: ParsedUnit | None) -> bool:
     """Dòng là "Điều n. Tên" với n = số Điều hiện tại + 1 (hoặc 1 khi chưa có Điều)."""
     m = DIEU_STD.match(line.strip())
@@ -270,6 +298,10 @@ def _parse_lines(lines: list[str], body: str) -> ParseResult | None:
     orphan: ParsedUnit | None = None
     n_orphan = 0
     seen_pre = False
+    in_annex = False
+    annex_k = annex_n = 0
+    annex_u: ParsedUnit | None = None
+    last_sig = ""  # dòng trước gần nhất đủ dài (bỏ qua rác OCR ngắn) để xét ":" mở khối trích dẫn
 
     def uniq(addr: str) -> str:
         # trùng số → hậu tố ~n (H4), không bao giờ trùng path
@@ -302,8 +334,32 @@ def _parse_lines(lines: list[str], body: str) -> ParseResult | None:
         if not line:
             continue
         last, prev = prev, line
+        if in_sign and ANNEX_HEAD.match(line):
+            # shortcut: chỉ nhận phụ lục sau khối nơi nhận (in_sign); phụ lục không có khối đó vẫn dồn vào đơn vị cuối
+            in_sign = in_quotes = False
+            in_annex = True
+        if in_annex:
+            if annex_k == 0 or (annex_n and ANNEX_NEXT.match(line)):  # phụ lục đầu, hoặc dòng "PHỤ LỤC II" kế tiếp
+                annex_k, annex_n, annex_u = annex_k + 1, 0, None
+            if annex_u is None or (len(annex_u.text) > ANNEX_CHUNK
+                                   and (line[:1].isupper() or KHOAN.match(line) or TABLE_ROW.match(line))):
+                annex_n += 1
+                annex_u = new_unit("doan", f"PL{annex_k}.para{annex_n}", "", line, None, 0.8, i)
+            else:
+                annex_u.text += "\n" + line
+                annex_u.line_to = i
+                annex_u.from_table = annex_u.from_table or bool(TABLE_ROW.match(line))
+            continue
+        before = last_sig
+        if len(line) >= 8:
+            last_sig = line
         was_quoted = in_quotes
         in_quotes = _quote_state(line, in_quotes)
+        if in_quotes and not was_quoted and _stray_open_quote(line, before, current_dieu):
+            in_quotes = False
+            line = line.lstrip('“" ')
+            if not line:
+                continue
         qn = _quoted_dieu_no(line)
         if was_quoted and _next_own_dieu(line, current_dieu) and not (q_dieu is not None and qn == q_dieu + 1):
             # shortcut: OCR làm mất ngoặc đóng thì khối trích dẫn không bao giờ đóng, nên "Điều n+1." đúng thứ tự
@@ -324,9 +380,10 @@ def _parse_lines(lines: list[str], body: str) -> ParseResult | None:
         dm = None if cont else _dieu_match(line)
         if dm is None and not cont and not mid and not in_quotes:
             lm = DIEU_NUM_LETTER.match(_JUNK_HEAD.sub("", line))
-            if lm and not fold_search(lm.group(1)).startswith(DOC_WORDS):
-                nxt = (_dieu_num_key(current_dieu.addr_part)[0] if current_dieu else 0) + 1
-                dm = (str(nxt), lm.group(1).strip(), 0.5)
+            nxt = (_dieu_num_key(current_dieu.addr_part)[0] if current_dieu else 0) + 1
+            if lm and not fold_search(lm.group("t")).startswith(DOC_WORDS + ("dieu ", "khoan ", "diem ")) \
+                    and (not lm.group("n").isdigit() or int(lm.group("n")) == nxt):
+                dm = (str(nxt), lm.group("t").strip(), 0.5)
         if dm and mid and (not dm[1] or dm[1][0].islower() or dm[2] < 0.65):
             dm = None  # "…theo quy định tại\nĐiều 5." là trích dẫn, không phải Điều mới
         if dm and not in_quotes:
@@ -363,8 +420,9 @@ def _parse_lines(lines: list[str], body: str) -> ParseResult | None:
             current_dieu.title = current_dieu.text = f"{current_dieu.title} {line}".strip()
             current_dieu.line_to = i
             continue
-        if len(line) < 20 and fold_search(line).startswith("noi nhan"):
-            in_sign = True  # khối nơi nhận/chữ ký: bỏ tới Điều kế tiếp
+        if len(line) < 80 and fold_search(line).startswith("noi nhan") and (
+                len(line) < 20 or NOI_NHAN_KT.match(fold_search(line))):
+            in_sign = True  # khối nơi nhận/chữ ký: bỏ tới Điều kế tiếp (hoặc tới phụ lục)
             continue
         if CHUONG_MUC.match(line):
             skip_upper = True  # tên Chương/Mục ở dòng sau, viết hoa

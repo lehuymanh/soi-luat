@@ -379,8 +379,11 @@ for d in db.execute("SELECT * FROM documents ORDER BY id"):
         m["phu_luc_chars"] = sum(len(L[i]) for i in reg)
         m["phu_luc_dropped_lines"] = sum(1 for i in reg if i not in cov)
         m["phu_luc_dropped_chars"] = sum(len(L[i]) for i in reg if i not in cov)
-        m["phu_luc_absorbed_lines"] = m["phu_luc_lines"] - m["phu_luc_dropped_lines"]
-        m["phu_luc_absorbed_chars"] = m["phu_luc_chars"] - m["phu_luc_dropped_chars"]
+        # dòng Phụ lục nằm trong đơn vị Phụ lục riêng (PLk.paraN, N3 B2) là đúng; "nuốt" chỉ tính khi nằm trong Điều/khoản/điểm
+        own_pl = [i for i in reg if i in cov and str(owner_of(i) or "").startswith("PL")]
+        m["phu_luc_own_lines"] = len(own_pl)
+        m["phu_luc_absorbed_lines"] = m["phu_luc_lines"] - m["phu_luc_dropped_lines"] - len(own_pl)
+        m["phu_luc_absorbed_chars"] = m["phu_luc_chars"] - m["phu_luc_dropped_chars"] - sum(len(L[i]) for i in own_pl)
         ex(EXAMPLES["phu_luc"], f"{tag}: Phụ lục từ L{pl_start} «{clip(L[pl_start], 50)}»: {len(reg)} dòng/{m['phu_luc_chars']} ký tự, bỏ {m['phu_luc_dropped_lines']} dòng, nuốt vào {owner_of(reg[-1])} {m['phu_luc_absorbed_lines']} dòng", 30)
     after = [i for i in dropped if i >= first_dieu and (sign_start is None or i < sign_start) and (pl_start is None or i < pl_start)]
     m["dropped_in_body"] = len(after)       # dòng thân văn bản bị bỏ (không phải mở đầu/chữ ký/phụ lục): nội dung mất thật
@@ -591,7 +594,7 @@ cols = [
     ("dieu_true", "Điều thật"), ("dieu_parsed", "tách"), ("dieu_missing", "thiếu"), ("dieu_extra", "thừa"),
     ("mid_strict", "giữa câu"), ("tail_swallow", "câu kết"), ("table_rows", "dòng bảng"), ("table_rows_dropped", "bảng bỏ"),
     ("glue_inline_marker", "dính mốc"), ("sign_leak_lines", "ký lọt"), ("preamble_dropped", "mở đầu bỏ"),
-    ("phu_luc_dropped_lines", "PL bỏ"), ("phu_luc_absorbed_lines", "PL nuốt"), ("chuong_recognized", "Chương"),
+    ("phu_luc_dropped_lines", "PL bỏ"), ("phu_luc_absorbed_lines", "PL nuốt"), ("phu_luc_own_lines", "PL riêng"), ("chuong_recognized", "Chương"),
     ("units_gt_2000", ">2000"), ("page_no_in_unit", "số trang"),
 ]
 print("doc  so_hieu".ljust(26) + " ".join(h.rjust(9) for _, h in cols))
