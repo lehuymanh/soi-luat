@@ -21,7 +21,12 @@
     </div>
     <p class="scope">Kho văn phòng · <span id="kho-count">{{ n_docs }} văn bản</span></p>
     <a class="btn newchat" href="/">Cuộc trò chuyện mới <span class="kbd">Alt+N</span></a>
-    <nav class="hist" id="hist" aria-label="Các cuộc trò chuyện"></nav>
+    <label class="hsearch"><span class="sr">Tìm trong lịch sử</span>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+      <input id="hq" type="search" placeholder="Tìm trong lịch sử" autocomplete="off">
+    </label>
+    <p class="sr" id="hist-status" role="status"></p>
+    <nav class="hist" id="hist" aria-label="Các cuộc trò chuyện">{% include "_history.html" %}</nav>
     <div class="util">
       <button type="button" class="u-item" id="btn-import" data-open="import" aria-haspopup="dialog">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M4 15v5h16v-5"/></svg>Nạp văn bản
@@ -180,6 +185,7 @@
     </div>
   </dialog>
 
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="/static/reader.js"></script>
   <script src="/static/app.js"></script>
 </body>

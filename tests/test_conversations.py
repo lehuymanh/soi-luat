@@ -5,6 +5,7 @@ import json
 import re
 import sqlite3
 import unicodedata
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -509,3 +510,215 @@ def test_mo_lai_thoat_html_cau_hoi_va_ten_cuoc(db, tmp_path, monkeypatch):
     f = c.get(f"/c/{cid}/m/{first}")
     assert "không còn đúng nguồn" in f.text
     assert html.unescape(re.search(r'data-ask="([^"]*)"', f.text)[1]) == q  # nút "Hỏi lại" gửi đúng chữ đã hỏi
+
+
+# ---- P1 H4: thanh bên (lịch sử theo nhóm, tìm, đổi tên, xoá) ----
+
+UTC7 = timezone(timedelta(hours=7))
+
+
+def _cuoc(db, title, updated, hoi=()):
+    """Chèn thẳng một cuộc (updated_at tuỳ ý) kèm các câu hỏi của người dùng."""
+    cid = db.execute("INSERT INTO conversations(title, created_at, updated_at) VALUES (?, ?, ?)", (title, updated, updated)).lastrowid
+    db.executemany("INSERT INTO messages(conversation_id, role, text, created_at) VALUES (?, 'user', ?, ?)", [(cid, q, updated) for q in hoi])
+    db.commit()
+    return cid
+
+
+def _nav(page):
+    return re.search(r'<nav class="hist".*?</nav>', page, re.S)[0]
+
+
+def _ids_ls(client, **params):
+    return re.findall(r'<a href="/c/(\d+)"', client.get("/history", params=params).text)
+
+
+def test_nhom_theo_ngay_dia_phuong_khong_theo_utc():
+    nhom = conversations.nhom
+    now = "2026-10-31T10:00:00+00:00"  # 17:00 ngày 31/10 giờ Việt Nam
+    assert nhom("2026-10-30T17:30:00+00:00", now, UTC7) == "Hôm nay"  # 00:30 ngày 31/10 giờ VN, ngày UTC lại là 30/10
+    assert nhom("2026-10-30T16:59:00+00:00", now, UTC7) == "7 ngày qua"  # 23:59 ngày 30/10 giờ VN
+    # quanh nửa đêm: 00:10 ngày 31/10 giờ VN, tin 23:50 hôm trước (20 phút trước) đã sang nhóm "7 ngày qua"
+    gan = "2026-10-30T17:10:00+00:00"
+    assert nhom("2026-10-30T17:05:00+00:00", gan, UTC7) == "Hôm nay"
+    assert nhom("2026-10-30T16:50:00+00:00", gan, UTC7) == "7 ngày qua"
+    assert nhom("2026-10-24T05:00:00+00:00", now, UTC7) == "7 ngày qua"  # ngày 24/10 cách 7 ngày
+    assert nhom("2026-10-23T05:00:00+00:00", now, UTC7) == "Cũ hơn"  # cách 8 ngày
+    assert nhom("2026-11-05T00:00:00+00:00", now, UTC7) == "Hôm nay"  # đồng hồ máy lùi: không rơi khỏi các nhóm
+    assert nhom("2026-10-31T09:00:00+00:00", datetime(2026, 10, 31, 10, tzinfo=timezone.utc), UTC7) == "Hôm nay"  # now cũng nhận datetime
+    assert nhom(now, now) == "Hôm nay"  # mặc định giờ máy: cùng một lúc thì luôn cùng ngày
+
+
+def test_lich_su_nhom_theo_ngay_moi_nhat_truoc_va_bo_nhom_rong(db, tmp_path, monkeypatch):
+    now = datetime.now(timezone.utc)
+
+    def iso(**d):
+        return (now - timedelta(**d)).isoformat(timespec="seconds")
+
+    c = _client(tmp_path, monkeypatch)
+    assert "Chưa có cuộc trò chuyện nào." in _nav(c.get("/").text) and "<h2>" not in _nav(c.get("/").text)
+    cu = _cuoc(db, "Cũ nhất", iso(days=30))
+    assert re.findall(r"<h2>(.*?)</h2>", _nav(c.get("/").text)) == ["Cũ hơn"]  # nhóm rỗng không hiện tiêu đề
+    ba = _cuoc(db, "Ba ngày trước", iso(days=3))
+    mot = _cuoc(db, "Hôm nay một", iso())
+    hai = _cuoc(db, "Hôm nay hai", iso())  # cùng giây với "một": id lớn hơn lên trước
+    nav = _nav(c.get("/").text)
+    assert re.findall(r"<h2>(.*?)</h2>", nav) == ["Hôm nay", "7 ngày qua", "Cũ hơn"]
+    assert re.findall(r'<a href="/c/(\d+)"', nav) == [str(hai), str(mot), str(ba), str(cu)]
+
+
+def test_lich_su_tim_khong_dau_theo_ten_va_cau_hoi(db, tmp_path, monkeypatch):
+    a = _cuoc(db, "Mức phạt ma túy", T0, ["mức phạt ma túy", "tàng trữ trái phép"])
+    b = _cuoc(db, "Báo cáo định kỳ", T1, ["báo cáo định kỳ", "lưu trữ hồ sơ"])
+    c = _client(tmp_path, monkeypatch)
+    assert _ids_ls(c, q="ma tuy") == [str(a)]  # không dấu thấy có dấu
+    assert _ids_ls(c, q="  MA TÚY ") == [str(a)]
+    assert _ids_ls(c, q="phat tuy") == [str(a)]  # các từ không cần liền nhau
+    assert _ids_ls(c, q="luu tru ho so") == [str(b)]  # tìm cả câu hỏi bên trong cuộc, không chỉ tên
+    assert _ids_ls(c, q="") == [str(b), str(a)] == _ids_ls(c)
+    r = c.get("/history", params={"q": "<b>không</b>"})
+    assert 'class="hrow' not in r.text and "Không có cuộc nào khớp “&lt;b&gt;không&lt;/b&gt;”." in r.text
+    assert "<html" not in r.text  # mảnh cho nav, không phải cả trang
+
+
+def test_thanh_ben_danh_dau_cuoc_dang_mo_va_co_loi_vao_ban_phim(db, tmp_path, monkeypatch):
+    _nap(db, tmp_path, "15/2020")
+    c = _client(tmp_path, monkeypatch)
+    cid, _ = _hoi(c, "báo cáo <b>định</b> kỳ")
+    cid2, _ = _hoi(c, "lưu trữ")
+    page = c.get(f"/c/{cid}").text
+    nav = _nav(page)
+    assert f'<div class="hrow on" data-id="{cid}">' in nav and f'<div class="hrow" data-id="{cid2}">' in nav
+    assert nav.count('aria-current="page"') == 1 and f'<a href="/c/{cid}" aria-current="page">' in nav
+    assert "&lt;b&gt;định&lt;/b&gt;" in nav and "<b>định" not in nav
+    # nút ⋯: tên đọc ra có tên cuộc, báo có menu; ô tìm có nhãn; thông báo kết quả tìm và toast là vùng trạng thái
+    assert 'aria-label="Tác vụ cho “báo cáo &lt;b&gt;định&lt;/b&gt; kỳ”" aria-haspopup="menu" aria-expanded="false"' in nav
+    assert re.search(r'<label class="hsearch"><span class="sr">Tìm trong lịch sử</span>.*?<input id="hq" type="search"', page, re.S)
+    assert '<p class="sr" id="hist-status" role="status"' in page and 'class="toast" id="toast" role="status" aria-live="polite"' in page
+    assert "hrow on" not in c.get("/").text and "hrow on" not in c.get("/", params={"q": "báo cáo"}).text  # không cuộc nào đang mở
+    assert f'<div class="hrow on" data-id="{cid2}">' in c.get("/history", params={"cid": cid2}).text
+
+
+def test_doi_ten(db, tmp_path, monkeypatch):
+    cid = _cuoc(db, "Tên cũ", T0)
+    c = _client(tmp_path, monkeypatch)
+
+    def tieu_de():
+        return db.execute("SELECT title FROM conversations WHERE id = ?", (cid,)).fetchone()[0]
+
+    r = c.post(f"/c/{cid}/rename", data={"title": "  Mức   phạt\nma tuý "})
+    assert r.status_code == 200 and r.json()["title"] == "Mức phạt ma tuý" == tieu_de()
+    assert db.execute("SELECT updated_at FROM conversations WHERE id = ?", (cid,)).fetchone()[0] == T0  # đổi tên không đẩy cuộc lên đầu
+    c.post(f"/c/{cid}/rename", data={"title": unicodedata.normalize("NFD", "Điều kiện")})
+    assert tieu_de() == unicodedata.normalize("NFC", "Điều kiện")  # lưu dạng NFC như tiêu đề tự đặt
+    for xau in ("", "   ", "\n", "x" * 81):
+        assert c.post(f"/c/{cid}/rename", data={"title": xau}).status_code == 400, repr(xau)
+    assert c.post(f"/c/{cid}/rename").status_code == 400  # thiếu trường
+    assert tieu_de() == "Điều kiện"  # lần bị từ chối không đổi gì
+    assert c.post(f"/c/{cid}/rename", data={"title": "x" * 80}).status_code == 200 and tieu_de() == "x" * 80
+
+
+def test_xoa_cuoc_xoa_tin_giu_nhat_ky_truy_van(db, tmp_path, monkeypatch):
+    _nap(db, tmp_path, "15/2020")
+    c = _client(tmp_path, monkeypatch)
+    cid, _ = _hoi(c, "báo cáo định kỳ", "lưu trữ hồ sơ")
+    giu, _ = _hoi(c, "kiểm toán nội bộ")
+    n_log = db.execute("SELECT COUNT(*) FROM query_log").fetchone()[0]
+    assert n_log == 3 and db.execute("SELECT COUNT(*) FROM messages WHERE conversation_id = ?", (cid,)).fetchone()[0] == 4
+    r = c.post(f"/c/{cid}/delete")
+    assert r.status_code == 200 and r.json() == {"ok": True}
+    assert db.execute("SELECT COUNT(*) FROM conversations WHERE id = ?", (cid,)).fetchone()[0] == 0
+    assert db.execute("SELECT COUNT(*) FROM messages WHERE conversation_id = ?", (cid,)).fetchone()[0] == 0  # cascade
+    assert db.execute("SELECT COUNT(*) FROM query_log").fetchone()[0] == n_log  # câu hỏi còn trong nhật ký (trang "Truy vấn bỏ sót")
+    assert db.execute("SELECT COUNT(*) FROM messages WHERE conversation_id = ?", (giu,)).fetchone()[0] == 2  # cuộc khác nguyên
+    assert _ids_ls(c) == [str(giu)]
+    assert c.get(f"/c/{cid}", follow_redirects=False).status_code == 303
+    assert c.post(f"/c/{cid}/delete").status_code == 404  # tab khác đã xoá trước
+
+
+@pytest.mark.parametrize("hanh_dong", ["rename", "delete"])
+@pytest.mark.parametrize("cid", [9999, 99999999999999999999])  # số sau lớn hơn số nguyên SQLite
+def test_doi_ten_va_xoa_id_la_ra_404(db, tmp_path, monkeypatch, hanh_dong, cid):
+    ton_tai = _cuoc(db, "Còn", T0)
+    c = _client(tmp_path, monkeypatch)
+    assert c.post(f"/c/{cid}/{hanh_dong}", data={"title": "Mới"}).status_code == 404
+    assert _ids_ls(c) == [str(ton_tai)]
+
+
+class _Theo:
+    """Kết nối bọc: đếm close() (Connection của sqlite3 không cho gán đè close trên đối tượng)."""
+
+    def __init__(self, conn, log):
+        self.c, self.log = conn, log
+
+    def __getattr__(self, name):
+        return getattr(self.c, name)
+
+    def close(self):
+        self.log.append("close")
+        self.c.close()
+
+
+def test_route_moi_dong_ket_noi_ca_khi_loi(db, tmp_path, monkeypatch):
+    cid = _cuoc(db, "Tên", T0, ["hỏi"])
+    c = _client(tmp_path, monkeypatch)
+    goc, mo, dong = appmod.get_conn, [], []
+    monkeypatch.setattr(appmod, "get_conn", lambda: (mo.append(1), _Theo(goc(), dong))[1])
+    for method, url, data, status in (
+        ("get", "/history?q=hoi", None, 200), ("get", f"/c/{cid}", None, 200),
+        ("post", f"/c/{cid}/rename", {"title": "Mới"}, 200), ("post", "/c/9999/rename", {"title": "Mới"}, 404),
+        ("post", "/c/99999999999999999999/delete", None, 404),  # OverflowError từ SQLite
+        ("post", "/c/9999/delete", None, 404), ("post", f"/c/{cid}/delete", None, 200),
+    ):
+        before = len(mo)
+        assert getattr(c, method)(url, **({"data": data} if data else {})).status_code == status, url
+        assert len(mo) > before and len(dong) == len(mo), url  # mở bao nhiêu thì đóng bấy nhiêu
+
+
+def test_doi_ten_va_xoa_khoa_ghi_ra_503_khong_500(db, tmp_path, monkeypatch):
+    """Đang nạp file giữ khoá ghi: báo "thử lại sau" (503), không 500, không đổi gì; hết khoá thì làm được."""
+    cid = _cuoc(db, "Tên cũ", T0)
+    c = _client(tmp_path, monkeypatch)
+    goc = appmod.get_conn
+    dong = []
+
+    def nhanh():  # chờ khoá 0,3 s cho nhanh; đường mã giống hệt chờ 5 s thật
+        conn = goc()
+        conn.execute("PRAGMA busy_timeout=300")
+        return _Theo(conn, dong)
+
+    monkeypatch.setattr(appmod, "get_conn", nhanh)
+    giu = connect(tmp_path / "soiluat.db")
+    giu.execute("BEGIN IMMEDIATE")
+    try:
+        assert c.post(f"/c/{cid}/rename", data={"title": "Tên mới"}).status_code == 503
+        assert c.post(f"/c/{cid}/delete").status_code == 503
+    finally:
+        giu.rollback()
+        giu.close()
+    assert dong == ["close", "close"]
+    assert db.execute("SELECT title FROM conversations WHERE id = ?", (cid,)).fetchone()[0] == "Tên cũ"
+    assert c.post(f"/c/{cid}/rename", data={"title": "Tên mới"}).status_code == 200
+
+
+def test_doi_ten_va_xoa_giu_csrf_va_host(db, tmp_path, monkeypatch):
+    cid = _cuoc(db, "Tên cũ", T0)
+    c = _client(tmp_path, monkeypatch)
+    monkeypatch.delenv("SOILUAT_ALLOW_TEST_HOST")
+    h = {"Host": "127.0.0.1:8000"}
+    token = c.get("/", headers=h).cookies.get("soiluat_csrf")
+    for url, data in ((f"/c/{cid}/rename", {"title": "Mới"}), (f"/c/{cid}/delete", {})):
+        assert c.post(url, headers=h, data=data).status_code == 403  # không token
+        assert c.post(url, headers={**h, "X-CSRF-Token": "sai"}, data=data).status_code == 403
+        assert c.post(url, headers={"Host": "evil.example", "X-CSRF-Token": token}, data=data).status_code == 400
+    assert c.get("/history", headers={"Host": "evil.example"}).status_code == 400
+    assert db.execute("SELECT title FROM conversations WHERE id = ?", (cid,)).fetchone()[0] == "Tên cũ"
+    assert c.post(f"/c/{cid}/rename", headers={**h, "X-CSRF-Token": token}, data={"title": "Mới"}).status_code == 200
+    assert c.post(f"/c/{cid}/delete", headers=h, data={"csrf_token": token}).status_code == 200  # token trong form cũng được
+    assert c.get("/history", headers=h).status_code == 200
+
+
+def test_xoa_dung_hop_thoai_dung_chung_khong_confirm():
+    """Kế hoạch H4: hộp thoại xác nhận và toast tự dựng (như mẫu), không `confirm()` của trình duyệt."""
+    js = (Path(appmod.__file__).parent / "static" / "app.js").read_text(encoding="utf-8")
+    assert not re.search(r"(?<![\w.])confirm\(", js) and "function dialog(" in js and "function toast(" in js

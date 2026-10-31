@@ -73,8 +73,9 @@ mark.m { background: none; color: inherit; text-decoration: underline; text-deco
 .dialog { width: min(460px, 100%); background: var(--surface); border-radius: 12px; box-shadow: var(--shadow-float); padding: 20px; }
 .dialog h2 { margin: 0; font-size: 17px; font-weight: 600; }
 .dialog p { margin: 8px 0 0; color: var(--muted); }
-.dialog .row { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.dialog .row { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin: 18px 0 0; padding: 0; border: 0; background: none; box-shadow: none; }  /* _style.html (0.8) cũng đặt .row thành thẻ có viền */
 .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60; background: var(--primary); color: var(--on-primary); padding: 10px 16px; border-radius: 10px; box-shadow: var(--shadow-float); max-width: calc(100% - 32px); }
+.toast:empty { opacity: 0; pointer-events: none; }  /* vùng đọc màn hình có sẵn nhưng rỗng thì không thấy */
 
 /* Khung */
 .app { height: 100%; display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
@@ -85,7 +86,25 @@ mark.m { background: none; color: inherit; text-decoration: underline; text-deco
 .scope { padding: 0 8px; color: var(--muted); font-size: 12px; margin: -10px 0 0; }
 .newchat { justify-content: space-between; width: 100%; }
 .kbd { color: var(--muted); font-size: 12px; font-weight: 400; }
-.hist { flex: 1; min-height: 0; overflow-y: auto; }
+.hsearch { position: relative; display: block; }
+.hsearch svg { position: absolute; left: 10px; top: 9px; color: var(--muted); }
+.hsearch input { width: 100%; height: 34px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--surface); color: var(--text); font: 14px var(--font); padding: 0 10px 0 32px; }
+.hsearch input::placeholder { color: var(--faint); }
+.hist { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+.hgrp + .hgrp { margin-top: 18px; }
+.hgrp h2 { margin: 0 0 4px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.hrow { position: relative; display: flex; align-items: center; border-radius: var(--r-ctl); }
+.hrow a { flex: 1; min-width: 0; display: block; padding: 7px 8px; color: var(--text); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: var(--r-ctl); }
+.hrow:hover { background: var(--raised); }
+.hrow.on { background: var(--active); }
+.hrow .more { width: 28px; height: 28px; margin-right: 2px; opacity: 0; }
+.hrow:hover .more, .hrow.on .more, .hrow .more:focus-visible, .hrow .more[aria-expanded="true"] { opacity: 1; }
+.hrow input { flex: 1; min-width: 0; height: 32px; margin: 1px 0; border: 1px solid var(--pen); border-radius: var(--r-ctl); padding: 0 8px; background: var(--surface); color: var(--text); font: 14px var(--font); }
+.menu { position: absolute; right: 0; top: 34px; z-index: 30; min-width: 150px; padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); box-shadow: var(--shadow-float); }
+.menu button { display: block; width: 100%; text-align: left; border: 0; background: none; color: var(--text); font: 14px var(--font); padding: 7px 10px; border-radius: var(--r-chip); cursor: pointer; }
+.menu button:hover { background: var(--raised); }
+.menu .del { color: var(--neg); }
+.hempty { padding: 8px; color: var(--muted); margin: 0; }
 .util { border-top: 1px solid var(--border); padding-top: 10px; display: grid; gap: 2px; }
 .util a, .util .u-item { display: flex; align-items: center; gap: 10px; padding: 6px 8px; min-height: 0; border-radius: var(--r-ctl); color: var(--text); text-decoration: none; border: 0; background: none; text-align: left; width: 100%; font: 400 14px var(--font); cursor: pointer; }
 .util a:hover, .util .u-item:hover { background: var(--raised); }

@@ -16,6 +16,7 @@ import socket
 import sqlite3
 import sys
 import threading
+import unicodedata
 import uuid
 import webbrowser
 from datetime import datetime, timezone
@@ -290,12 +291,16 @@ def home(
 
 
 def _index(request: Request, ctx: dict):
-    """Trang chính (`index.html`): `ctx` của kết quả hoặc của cuộc trò chuyện, cộng chế độ tìm, đuôi file và cơ quan ban hành."""
+    """Trang chính (`index.html`): `ctx` của kết quả hoặc của cuộc trò chuyện, cộng chế độ tìm, đuôi file, cơ quan ban hành
+    và lịch sử cho thanh bên (`conversation_id` trong `ctx` là cuộc đang mở, được đánh dấu)."""
     conn = get_conn()
-    co_quans = [r[0] for r in conn.execute(
-        "SELECT DISTINCT co_quan FROM documents WHERE co_quan IS NOT NULL AND co_quan != '' ORDER BY co_quan")]
-    conn.close()
-    return _tpl(request, "index.html", {**ctx, "mode": _mode_status(), "suffixes": ",".join(sorted(SUFFIXES)), "co_quans": co_quans})
+    try:
+        co_quans = [r[0] for r in conn.execute(
+            "SELECT DISTINCT co_quan FROM documents WHERE co_quan IS NOT NULL AND co_quan != '' ORDER BY co_quan")]
+        groups = conversations.history(conn, "", _now())
+    finally:
+        conn.close()
+    return _tpl(request, "index.html", {**ctx, "mode": _mode_status(), "suffixes": ",".join(sorted(SUFFIXES)), "co_quans": co_quans, "groups": groups})
 
 
 PREBUILT = 3  # tin gần nhất dựng sẵn khi mở cuộc; tin cũ hơn hiện nút "Xem lại". Đo 31/10/2026: dựng một tin ~230 ms (compact ~200), cuộc 10 câu ~2,3-2,6 s
@@ -355,6 +360,50 @@ def ask(
     if ctx["conversation_id"]:
         resp.headers["X-Conversation-Id"] = str(ctx["conversation_id"])
     return resp
+
+
+@app.get("/history", response_class=HTMLResponse)
+def history_list(request: Request, q: str = Query(""), cid: int = Query(0)):
+    """Mảnh `<nav>` của thanh bên (P1 H4): lịch sử lọc theo `q`, đánh dấu cuộc `cid`. JS gọi khi tìm và sau mỗi câu hỏi."""
+    conn = get_conn()
+    try:
+        groups = conversations.history(conn, q, _now())
+    finally:
+        conn.close()
+    return _tpl(request, "_history.html", {"groups": groups, "hq": q.strip(), "conversation_id": cid})
+
+
+def _conv_write(sql: str, args: tuple) -> None:
+    """Một lệnh ghi vào `conversations`: 404 khi không có cuộc, 503 khi đang nạp file giữ khoá ghi (không 500)."""
+    conn = get_conn()
+    try:
+        n = conn.execute(sql, args).rowcount
+        conn.commit()
+    except sqlite3.OperationalError:
+        raise HTTPException(status_code=503, detail="Đang nạp file, thử lại sau")
+    finally:
+        conn.close()
+    if not n:
+        raise HTTPException(status_code=404, detail="Không có cuộc trò chuyện này")
+
+
+@app.post("/c/{cid}/rename")
+def rename_conversation(request: Request, cid: int, title: str = Form(""), csrf_token: str = Form("")):
+    """Đổi tên cuộc (P1 H4): không rỗng, tối đa 80 ký tự. Không đổi `updated_at`: đổi tên không đẩy cuộc lên đầu danh sách."""
+    _check_csrf(request, csrf_token)
+    title = " ".join(unicodedata.normalize("NFC", title).split())
+    if not title or len(title) > conversations.RENAME_MAX:
+        raise HTTPException(status_code=400, detail=f"Tên từ 1 đến {conversations.RENAME_MAX} ký tự")
+    _conv_write("UPDATE conversations SET title = ? WHERE id = ?", (title, cid))
+    return {"ok": True, "title": title}
+
+
+@app.post("/c/{cid}/delete")
+def delete_conversation(request: Request, cid: int, csrf_token: str = Form("")):
+    """Xoá cuộc và các tin của nó (cascade); `query_log` giữ nguyên (trang "Truy vấn bỏ sót")."""
+    _check_csrf(request, csrf_token)
+    _conv_write("DELETE FROM conversations WHERE id = ?", (cid,))
+    return {"ok": True}
 
 
 def _mode_status(count_pending: bool = True) -> dict:

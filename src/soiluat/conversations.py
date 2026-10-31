@@ -8,10 +8,14 @@ import hashlib
 import json
 import sqlite3
 import unicodedata
+from datetime import datetime
+
+from soiluat.fold import fold_search
 
 REFS_MAX = 150  # Advance trả tới ~150 id; số hiệu kèm ý định trả mọi đơn vị của văn bản (hàng nghìn): cắt để tin không phình
 DOC_MAX = 5  # "Mở toàn văn" hiện tối đa 5 văn bản (_results.html)
 TITLE_MAX = 60
+RENAME_MAX = 80  # tên người dùng tự đặt dài hơn tên tự cắt từ câu hỏi (60); như ô nhập trong mẫu
 
 
 def _h(text: str) -> str:
@@ -82,3 +86,28 @@ def save(conn: sqlite3.Connection, cid: int | None, q: str, result: dict, now: s
         conn.rollback()
         raise
     return cid
+
+
+def nhom(ts: str, now, tz=None) -> str:
+    """Nhóm trên thanh bên theo ngày địa phương, không theo UTC (`ts` lưu UTC: tin 00:30 giờ Việt Nam sẽ nằm nhầm nhóm
+    tới 07:00). `now` là chuỗi ISO hay datetime có múi giờ; `tz` None = giờ máy."""
+    now = datetime.fromisoformat(now) if isinstance(now, str) else now
+    tuoi = (now.astimezone(tz).date() - datetime.fromisoformat(ts).astimezone(tz).date()).days
+    return "Hôm nay" if tuoi <= 0 else "7 ngày qua" if tuoi <= 7 else "Cũ hơn"  # tuổi âm (đồng hồ lùi): vẫn trong nhóm
+
+
+def history(conn: sqlite3.Connection, q: str, now, tz=None) -> list[tuple[str, list[sqlite3.Row]]]:
+    """Các cuộc theo nhóm [(tên nhóm, [hàng id, title])], mới cập nhật trước, nhóm rỗng bỏ. `q` không rỗng thì chỉ giữ cuộc
+    có đủ mọi từ (không dấu, không phân biệt hoa thường) trong tên hoặc trong câu hỏi của người dùng.
+    shortcut: lọc bằng Python trên mọi cuộc; quá ~10 nghìn tin thì chuyển sang FTS."""
+    words = fold_search(q).split()
+    rows = conn.execute(
+        "SELECT c.id, c.title, c.updated_at, (SELECT COALESCE(group_concat(m.text, ' '), '') FROM messages m "
+        "WHERE m.conversation_id = c.id AND m.role = 'user') AS hoi FROM conversations c ORDER BY c.updated_at DESC, c.id DESC"
+        if words else "SELECT id, title, updated_at FROM conversations ORDER BY updated_at DESC, id DESC").fetchall()
+    out: dict[str, list] = {}
+    for r in rows:
+        hay = fold_search(f"{r['title']} {r['hoi']}") if words else ""
+        if all(w in hay for w in words):
+            out.setdefault(nhom(r["updated_at"], now, tz), []).append(r)
+    return list(out.items())

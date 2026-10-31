@@ -1,0 +1,13 @@
+{#- Lịch sử trò chuyện của thanh bên (P1 H4): ruột của <nav id="hist">, cũng là mảnh GET /history. `groups` = [(nhóm, [cuộc])], `hq` = chữ đang tìm, `conversation_id` = cuộc đang mở. -#}
+{% for g, rows in groups %}
+<section class="hgrp"><h2>{{ g }}</h2>
+  {%- for c in rows %}
+  <div class="hrow{% if c.id == conversation_id %} on{% endif %}" data-id="{{ c.id }}">
+    <a href="/c/{{ c.id }}"{% if c.id == conversation_id %} aria-current="page"{% endif %}>{{ c.title }}</a>
+    <button type="button" class="icon-btn more" aria-label="Tác vụ cho “{{ c.title }}”" aria-haspopup="menu" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+  </div>
+  {%- endfor %}
+</section>
+{% else %}
+<p class="hempty">{% if hq %}Không có cuộc nào khớp “{{ hq }}”.{% else %}Chưa có cuộc trò chuyện nào.{% endif %}</p>
+{% endfor %}

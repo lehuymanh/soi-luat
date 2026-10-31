@@ -14,6 +14,28 @@
   }
   let last = null, ocrInfo = null, timer = null;
 
+  /* ---- toast và hộp thoại xác nhận dùng chung (như mẫu; không dùng hộp thoại có sẵn của trình duyệt) ---- */
+  let toastT = 0;
+  function toast(msg) {  // vùng role="status" luôn có trong trang (rỗng thì mờ hẳn): đổi chữ trong vùng có sẵn thì trình đọc màn hình mới đọc
+    $("#toast").textContent = msg;
+    clearTimeout(toastT); toastT = setTimeout(() => { $("#toast").textContent = ""; }, 3400);
+  }
+  /* Trả Promise<boolean>. Nền (#app) inert khi mở; Esc, "Huỷ" và bấm ra ngoài đóng và trả focus về nút đã mở; "đồng ý" thì nơi gọi đặt focus. */
+  function dialog(title, text, okLabel) {
+    const opener = document.activeElement, app = $("#app");
+    const scrim = document.createElement("div"); scrim.className = "scrim";
+    scrim.innerHTML = '<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-t" aria-describedby="dlg-d"><h2 id="dlg-t"></h2><p id="dlg-d"></p>' +
+      '<div class="row"><button type="button" class="btn" data-v="0">Huỷ</button><button type="button" class="btn danger" data-v="1"></button></div></div>';
+    $("h2", scrim).textContent = title; $("p", scrim).textContent = text; $('[data-v="1"]', scrim).textContent = okLabel;
+    return new Promise(done => {
+      const close = ok => { scrim.remove(); app.inert = false; if (!ok && document.contains(opener)) opener.focus(); done(ok); };
+      scrim.addEventListener("click", e => { const b = e.target.closest("[data-v]"); if (b) close(b.dataset.v === "1"); else if (e.target === scrim) close(false); });
+      scrim.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Escape") close(false); });  // chặn cả Alt+N: không rời trang khi đang hỏi xoá
+      document.body.append(scrim); app.inert = true;
+      $('[data-v="0"]', scrim).focus();  // nút an toàn lấy focus đầu tiên
+    });
+  }
+
   /* ---- hỏi đáp ---- */
   qbox.addEventListener("input", () => { qbox.style.height = "auto"; qbox.style.height = Math.min(qbox.scrollHeight, 140) + "px"; });
   qbox.addEventListener("keydown", e => {
@@ -50,7 +72,7 @@
         if (!r.ok) throw new Error("HTTP " + r.status);
         b.innerHTML = await r.text();
         const id = r.headers.get("X-Conversation-Id");  // không có khi chưa lưu được (đang nạp file): giữ id cũ
-        if (id) { cid = id; history.replaceState(null, "", "/c/" + id); }
+        if (id) { cid = id; history.replaceState(null, "", "/c/" + id); refreshHist(); }  // cuộc mới hiện trong danh sách, cuộc cũ lên đầu
       } catch (err) {
         b.innerHTML = '<p class="err"></p>'; b.firstChild.textContent = "Không tìm được: " + err.message;
       }
@@ -103,6 +125,109 @@
     const res = e.target.closest(".res"), k = res.querySelectorAll('input[name="uid"]:checked').length, btn = res.querySelector("[data-export]");
     btn.disabled = !k; btn.textContent = k ? `Xuất Word (${k} đoạn)` : "Xuất Word";
   });
+
+  /* ---- thanh bên: lịch sử (H4). Mỗi dòng là liên kết /c/{id} thật (tải lại cả trang); ô tìm, menu ⋯, đổi tên tại chỗ và xoá do JS làm ---- */
+  const hist = $("#hist"), hq = $("#hq");
+  let hseq = 0;  // lần gọi cuối thắng: gõ nhanh thì mảnh về không theo thứ tự bấm
+  async function refreshHist() {
+    if (hist.querySelector("input")) return;  // đang đổi tên: không vẽ đè ô nhập
+    const my = ++hseq, q = hq.value.trim();
+    try {
+      const r = await fetch(`/history?q=${encodeURIComponent(q)}&cid=${cid || 0}`);
+      if (!r.ok) return;
+      const html = await r.text();
+      if (my !== hseq || hist.querySelector("input")) return;
+      hist.innerHTML = html;
+      $("#hist-status").textContent = q ? `${hist.querySelectorAll(".hrow").length} cuộc trò chuyện khớp` : "";
+    } catch (_) { /* app đang tắt */ }
+  }
+  hq.addEventListener("input", refreshHist);
+
+  const menuOf = () => hist.querySelector(".menu");
+  function closeMenu(refocus) {
+    const m = menuOf(); if (!m) return;
+    const b = m.previousElementSibling;  // nút ⋯ của dòng
+    m.remove(); b.setAttribute("aria-expanded", "false");
+    if (refocus) b.focus();
+  }
+  function openMenu(b) {
+    const was = b.getAttribute("aria-expanded") === "true";
+    closeMenu(false);
+    if (was) return;  // bấm lại ⋯ thì đóng
+    const m = document.createElement("div"); m.className = "menu"; m.setAttribute("role", "menu");
+    m.innerHTML = '<button type="button" role="menuitem" data-act="rename">Đổi tên</button><button type="button" role="menuitem" class="del" data-act="delete">Xoá</button>';
+    b.after(m); b.setAttribute("aria-expanded", "true");
+    m.firstChild.focus(); m.scrollIntoView({ block: "nearest" });
+  }
+  hist.addEventListener("click", e => {
+    const more = e.target.closest(".more");
+    if (more) { openMenu(more); return; }
+    const act = e.target.closest("[data-act]");
+    if (!act) return;
+    const row = act.closest(".hrow"); closeMenu(false);
+    if (act.dataset.act === "rename") renameRow(row); else deleteRow(row);
+  });
+  hist.addEventListener("keydown", e => {  // menu: Esc đóng và trả focus về ⋯, mũi tên đổi mục
+    const m = e.target.closest(".menu");
+    if (!m) return;
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeMenu(true); }
+    else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const items = [...m.children], i = items.indexOf(e.target);
+      items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
+    }
+  });
+  hist.addEventListener("focusout", () => setTimeout(() => {  // Tab ra khỏi menu hoặc bấm ra ngoài: đóng (hoãn một nhịp: gỡ nút đang giữ focus cũng gây focusout)
+    const m = menuOf(), on = document.activeElement;
+    if (m && !m.contains(on) && on !== m.previousElementSibling) closeMenu(false);
+  }));
+
+  function renameRow(row) {
+    const a = $("a", row), old = a.textContent, id = row.dataset.id;
+    const inp = document.createElement("input"); inp.maxLength = 80; inp.value = old; inp.setAttribute("aria-label", "Tên mới cho cuộc trò chuyện");
+    a.replaceWith(inp); inp.focus(); inp.select();
+    let done = false;
+    const finish = async (save, refocus) => {  // Enter lưu, Esc huỷ, rời ô thì lưu (như mẫu)
+      if (done) return; done = true;
+      const t = inp.value.trim();
+      inp.replaceWith(a);
+      if (refocus) a.focus();
+      if (!save || t === old) return;
+      if (!t) { toast("Tên không được để trống. Giữ tên cũ."); return; }
+      try {
+        const fd = new FormData(); fd.set("title", t);
+        const r = await post(`/c/${id}/rename`, fd, {});
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        if (id === cid) $("#thread h1").textContent = (await r.json()).title;
+        await refreshHist();
+        if (refocus) hist.querySelector(`.hrow[data-id="${id}"] a`)?.focus();  // danh sách vừa vẽ lại: giữ focus ở dòng vừa đổi tên
+        toast("Đã đổi tên.");
+      } catch (err) { toast("Không đổi được tên (đang nạp file?). Thử lại sau ít phút."); }
+    };
+    inp.addEventListener("keydown", e => {
+      if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); finish(true, true); }  // Enter chốt dấu của bộ gõ Telex/VNI không lưu tên dở
+      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); finish(false, true); }
+    });
+    inp.addEventListener("blur", () => finish(true, false));
+  }
+
+  async function deleteRow(row) {
+    const id = row.dataset.id, name = $("a", row).textContent, opener = $(".more", row);
+    opener.focus();  // menu vừa đóng: hộp thoại trả focus về ⋯ khi huỷ
+    const ok = await dialog(`Xoá “${name}”?`, "Cuộc trò chuyện và các kết quả đã lưu sẽ mất. Câu hỏi vẫn còn trong nhật ký truy vấn (dùng cho trang Truy vấn bỏ sót).", "Xoá cuộc trò chuyện");
+    if (!ok) return;
+    try {
+      const r = await post(`/c/${id}/delete`, new FormData(), {});
+      if (!r.ok && r.status !== 404) throw new Error("HTTP " + r.status);  // 404: tab khác đã xoá trước, coi như xong
+    } catch (err) { toast("Không xoá được (đang nạp file?). Thử lại sau ít phút."); opener.focus(); return; }
+    if (id === cid) {  // đang xem cuộc này: về màn cuộc mới, toast hiện ở trang sau
+      try { sessionStorage.setItem("toast", `Đã xoá “${name}”.`); } catch (_) { /* không có sessionStorage: bỏ toast */ }
+      location.href = "/"; return;
+    }
+    await refreshHist();
+    $(".newchat").focus();
+    toast(`Đã xoá “${name}”.`);
+  }
 
   /* ---- cửa sổ Nạp file / Cài đặt ---- */
   function openPanel(name) { const d = $("#dlg-" + name); if (!d.open) d.showModal(); refresh(name === "settings" || !ocrInfo); }
@@ -315,5 +440,6 @@
     else if (e.key === "Escape" && side.classList.contains("open")) setSide(false, true);
   });
 
+  try { const t = sessionStorage.getItem("toast"); if (t) { sessionStorage.removeItem("toast"); toast(t); } } catch (_) { /* không có sessionStorage */ }
   refresh(false);
 })();
