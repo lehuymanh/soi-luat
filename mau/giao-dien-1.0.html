@@ -178,6 +178,10 @@ mark.m { background: none; color: inherit; text-decoration: underline; text-deco
 .dieu-t { color: var(--muted); font-size: 13px; min-width: 0; }
 .snip { margin: 6px 0 0; max-width: 68ch; }
 .warn-line { margin: 6px 0 0; color: var(--warn-ink); font-size: 13px; }
+.grp-h .warn-line { grid-column: 1 / -1; margin: 2px 0 0; }
+.also-in { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.also-in .link { font-size: 13px; }
+@media (hover: none) { .hrow .more { opacity: 1; } }
 .item-f { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 8px; min-height: 30px; }
 .go { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 4px 0; font-weight: 500; color: var(--text); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--control); }
 .go:hover { text-decoration-color: var(--text); }
@@ -491,8 +495,21 @@ DOCS.forEach(d => { d.hl = P1HL[d.hl] || 'chuaro'; });
 Object.assign(DOCS.find(d => d.id === 'D103'), { hl: 'het' });   // đã được Nghị định 03/2021/NĐ-CP thay thế
 Object.assign(DOCS.find(d => d.id === 'D38'), { hl: 'con' });
 Object.assign(DOCS.find(d => d.id === 'D142'), { ocr: true });   // bản quét, chữ OCR chưa đối chiếu
-Object.assign(DOCS.find(d => d.id === 'D22'), { gone: true });   // tệp gốc không còn ở thư mục đã nạp
-ANS.bh_fp.notes = [{ y: 'Nghị định 103/2008/NĐ-CP đã hết hiệu lực trong kho, nên chỉ dùng để giải thích mức 500.000 đồng. Văn bản này ghi mức 100.000 đồng cho xe máy, khác Nghị định 100/2019/NĐ-CP.', s: [4] }];
+Object.assign(DOCS.find(d => d.id === 'D22'), { gone: true });
+Object.assign(DOCS.find(d => d.id === 'D100'), { hlTu: '01/01/2020' });   // Điều 84 khoản 1
+Object.assign(DOCS.find(d => d.id === 'D214'), { hlTu: '10/02/2014' });   // Điều 2
+Object.assign(DOCS.find(d => d.id === 'D391'), { hlTu: '01/12/2026' });   // tệp gốc không còn ở thư mục đã nạp
+Object.assign(ANS.bh_fp, {
+  premise: 'Câu hỏi nêu 500.000 đồng, nhưng mức phạt xe máy trong Nghị định 100/2019/NĐ-CP là từ 100.000 đến 200.000 đồng.',
+  say: 'Chưa đúng. Xe máy không có hoặc không mang giấy bảo hiểm bị phạt từ 100.000 đến 200.000 đồng; ô tô bị phạt từ 400.000 đến 600.000 đồng.',
+  pts: [{ y: 'Xe máy, xe gắn máy: phạt từ 100.000 đến 200.000 đồng nếu không có hoặc không mang theo giấy chứng nhận bảo hiểm còn hiệu lực.', s: [1] },
+    { y: 'Ô tô, máy kéo: phạt từ 400.000 đến 600.000 đồng cho cùng lỗi.', s: [2] }],
+  src: [{ n: 1, d: 'D100', u: ['21.2', '21.2.a'] }, { n: 2, d: 'D100', u: ['21.4', '21.4.b'] }],
+  notes: []
+});
+/* Trần độ dài của khuôn JSON thật (answer.CAPS): bản xem trước không được dài hơn thứ mô hình sinh được. */
+console.assert(ANS.bh_fp.premise.length <= 150 && ANS.bh_fp.say.length <= 240 && ANS.bh_fp.pts.length <= 2
+  && ANS.bh_fp.pts.every(p => p.y.length <= 160) && ANS.bh_fp.notes.every(p => p.y.length <= 140), 'P3 vượt trần');
 const DUP = [{ f: 'nghi-dinh-100-ban-scan.pdf' }, { f: 'nd100-2019-ban-word.docx' }];   // cùng nội dung, khác tệp
 
 /* Bốn hạng thẻ của cards.KIND_RANK1-4, viết bằng lời thường. */
@@ -505,29 +522,27 @@ const KIND = {
 /* Kết quả gọn P1 (không AI). mode: 'advance' khi tìm theo nghĩa; chỉ khi đó mới có nhãn chắc chắn (sure). */
 const RES = {
   bh: { items: [
-    { d: 'D100', u: ['21.2', '21.2.a'], k: 'r1' }, { d: 'D100', u: ['21.4', '21.4.b'], k: 'r2' },
-    { d: 'D103', u: ['29.1'], k: 'r2' }, { d: 'D103', u: ['29.2'], k: 'r2' },
-    { d: 'D100', u: ['21.3', '21.3.b'], k: 'r2' }, { d: 'D100', u: ['21.2', '21.2.b'], k: 'r2' },
-    { d: 'D103', u: ['21.6'], k: 'r3' }, { d: 'D22', u: ['1'], k: 'r4' }] },
+    { d: 'D100', u: ['21.2', '21.2.a'], k: 'r1', more: ['21.4.b', '21.3.b', '21.2.b'] },
+    { d: 'D103', u: ['29.1'], k: 'r2', more: ['29.2'] },
+    { d: 'D103', u: ['21.6'], k: 'r3' },
+    { d: 'D22', u: ['1'], k: 'r4' }] },
   oto: { items: [
-    { d: 'D100', u: ['21.4', '21.4.b'], k: 'r2' }, { d: 'D103', u: ['29.2'], k: 'r2' }, { d: 'D100', u: ['21.3', '21.3.b'], k: 'r2' }] },
+    { d: 'D100', u: ['21.4', '21.4.b'], k: 'r2', more: ['21.3.b'] },
+    { d: 'D103', u: ['29.2'], k: 'r2', more: ['29.1'] }] },
   td: { mode: 'advance', sure: false, items: [
-    { d: 'D100', u: ['6.4', '6.4.a'], k: 'r2', dup: true },
-    { d: 'D100', u: ['6.2', '6.2.c'], k: 'r2' }, { d: 'D100', u: ['6.7', '6.7.a'], k: 'r2' },
-    { d: 'D100', u: ['5.3', '5.3.a'], k: 'r2' }, { d: 'D142', u: ['17.1'], k: 'r2' },
-    { d: 'D100', u: ['5.5', '5.5.i'], k: 'r2' }, { d: 'D100', u: ['5.6', '5.6.a'], k: 'r2' },
-    { d: 'D142', u: ['17.2', '17.2.b'], k: 'r2' }] },
+    { d: 'D100', u: ['6.4', '6.4.a'], k: 'r2', dup: true, more: ['6.2.c', '6.7.a'] },
+    { d: 'D100', u: ['5.3', '5.3.a'], k: 'r2', more: ['5.5.i', '5.6.a'] },
+    { d: 'D142', u: ['17.1'], k: 'r2', more: ['17.2.b'] }] },
   qc: { items: [{ d: 'D38', u: ['34.1'], k: 'r2' }] },
   gplx: { items: [
-    { d: 'D100', u: ['21.2', '21.2.c'], k: 'r2' }, { d: 'D100', u: ['21.3', '21.3.a'], k: 'r2' },
-    { d: 'D100', u: ['21.5', '21.5.a'], k: 'r2' }, { d: 'D100', u: ['21.8', '21.8.b'], k: 'r2' },
-    { d: 'D100', u: ['21.7', '21.7.b'], k: 'r2' }] }
+    { d: 'D100', u: ['21.2', '21.2.c'], k: 'r2', more: ['21.3.a', '21.5.a', '21.7.b', '21.8.b'] },
+    { d: 'D100', u: ['3.1', '3.1.c'], k: 'r4' }] }
 };
 /* Tuổi tính bằng ngày trước TODAY; giờ là giờ địa phương. */
 const CONVS = [
   { id: 'c1', age: 0, at: '09:14', title: 'Xe máy không mang giấy bảo hiểm bị phạt bao nhiêu?', msgs: [
     { r: 'u', t: 'Xe máy không mang giấy bảo hiểm bị phạt bao nhiêu?', at: '09:14' }, { r: 'b', k: 'res', a: 'bh' },
-    { r: 'u', t: 'còn ô tô thì sao?', at: '09:16' }, { r: 'b', k: 'res', a: 'oto' }] },
+    { r: 'u', t: 'Ô tô không mang giấy bảo hiểm bị phạt bao nhiêu?', at: '09:16' }, { r: 'b', k: 'res', a: 'oto' }] },
   { id: 'c2', age: 0, at: '08:40', title: 'Chạy xe máy quá tốc độ', msgs: [
     { r: 'u', t: 'Chạy xe máy quá tốc độ', at: '08:40' }, { r: 'b', k: 'res', a: 'td' }] },
   { id: 'c3', age: 2, at: '15:02', title: '100/2019/NĐ-CP', msgs: [
@@ -535,7 +550,7 @@ const CONVS = [
   { id: 'c4', age: 4, at: '10:21', title: 'Bitcoin', msgs: [
     { r: 'u', t: 'Bitcoin', at: '10:21' }, { r: 'b', k: 'none', q: 'Bitcoin' }] },
   { id: 'c7', age: 9, at: '11:05', title: 'Không mang giấy phép lái xe bị phạt bao nhiêu?', msgs: [
-    { r: 'u', t: 'Không mang giấy phép lái xe bị phạt bao nhiêu?', at: '11:05' }, { r: 'b', k: 'res', a: 'gplx', broken: 2 },
+    { r: 'u', t: 'Không mang giấy phép lái xe bị phạt bao nhiêu?', at: '11:05' }, { r: 'b', k: 'res', a: 'gplx', broken: 1 },
     { r: 'u', t: 'xe máy không mang giấy phép lái xe', at: '11:07' }, { r: 'b', k: 'res', a: 'gplx', unsaved: true }] },
   { id: 'c5', age: 12, at: '14:30', title: 'Quảng cáo trên cột điện bị phạt bao nhiêu?', msgs: [
     { r: 'u', t: 'Quảng cáo trên cột điện bị phạt bao nhiêu?', at: '14:30' }, { r: 'b', k: 'res', a: 'qc' }] },
@@ -572,9 +587,10 @@ const docName = d => d.so ? d.loai + ' ' + d.so : d.file;
 const citeOf = (id, uid) => addr(uid) + ' ' + docName(doc(id));
 const dieuTitle = (id, uid) => { const d = dieuOf(id, +String(uid).split('.')[0]); return d ? d.title.replace(/^Điều\s+\d+\.\s*/, '') : ''; };
 const itemCite = x => x.whole ? 'Điều ' + x.whole + ' ' + docName(doc(x.d)) : citeOf(x.d, x.u[x.u.length - 1]);
-const docMeta = d => [d.cq, d.ngay && 'ban hành ' + d.ngay, d.file].filter(Boolean).join(' · ');
+const docMeta = d => [d.cq, d.ngay && 'ban hành ' + d.ngay, d.hlTu && 'hiệu lực từ ' + d.hlTu, d.file].filter(Boolean).join(' · ');
 /* Từ để tô lấy từ câu hỏi như answer._words: tách từ, bỏ STOP. Có dấu thì so có dấu, không dấu thì so bỏ dấu. */
-function words(q) { return [...new Set((String(q).toLowerCase().match(/[\p{L}\p{N}]+/gu) || []).filter(w => !STOP.has(fold(w))))]; }
+const HL_STOP = new Set([...STOP].filter(w => w !== 'bao' && w !== 'nhieu'));
+function words(q) { return [...new Set((String(q).toLowerCase().replace(/bao\s+nhiêu/gu, ' ').match(/[\p{L}\p{N}]+/gu) || []).filter(w => !HL_STOP.has(fold(w))))]; }
 function marked(text, ws) {
   if (!ws || !ws.length) return esc(text);
   const acc = new Set(ws.filter(w => w !== fold(w))), bare = new Set(ws.filter(w => w === fold(w)));
@@ -610,7 +626,7 @@ function copy(text) {
 
 /* ---------- Kiểm số (đếm tính từ dòng) ---------- */
 for (const [key, r] of Object.entries(RES)) {
-  for (const it of r.items) for (const u of it.u) console.assert(unitOf(it.d, u), 'thiếu đơn vị', key, it.d, u);
+  for (const it of r.items) for (const u of [...it.u, ...(it.more || [])]) console.assert(unitOf(it.d, u), 'thiếu đơn vị', key, it.d, u);
   console.assert(r.items.length <= CAP, 'quá trần', key);
 }
 ANS.bh_fp.src.forEach(s => s.u.forEach(u => console.assert(unitOf(s.d, u), 'nguồn P3 thiếu đơn vị', s.d, u)));
@@ -662,7 +678,7 @@ function render(focusSel) {
   const day = c.age === 0 ? 'Hôm nay' : c.age === 1 ? 'Hôm qua' : `${c.age} ngày trước`;
   const adv = c.msgs.some(m => m.k === 'res' && RES[m.a].mode === 'advance');
   let lastQ = '';
-  v.innerHTML = `<header class="title-row"><div><h1 id="conv-title">${esc(c.title)}</h1><p class="sub">${day}, ${c.at} · ${nq} câu hỏi${adv ? ' · tìm theo nghĩa (Advance)' : ''}${c.preview ? ' · bản thử giao diện của P3, không có trong 0.9' : ''}</p></div>
+  v.innerHTML = `<header class="title-row"><div><h1 id="conv-title">${esc(c.title)}</h1><p class="sub">${day}, ${c.at} · ${nq} câu hỏi${adv ? ' · tìm theo nghĩa' : ''}${c.preview ? ' · bản thử giao diện của P3, không có trong 0.9' : ''}</p></div>
     <div class="acts"><button type="button" class="btn text" data-rename="${c.id}">Đổi tên</button><button type="button" class="btn text" data-del="${c.id}">Xoá</button></div></header>
     <div class="thread">${c.msgs.map((m, i) => {
       if (m.r === 'u') { lastQ = m.t; return `<div class="q"><p>${esc(m.t)}</p><time>${m.at}</time></div>`; }
@@ -725,7 +741,7 @@ function resHTML(c, m, i, q) {
       : sureTxt ? `Đoạn đầu khớp hơn hẳn các đoạn sau: <b>${esc(topCite)}</b>.`
       : `Đoạn đầu: <b>${esc(topCite)}</b>.`}</p>
     ${ft ? `<p class="filters">Đang lọc: ${esc(ft)}.</p>` : ''}
-    <p class="risk"><span>Trong ${n} đoạn đang hiện: ${risk}.</span><button type="button" class="link" data-legend="${key}" aria-expanded="${lg}">Các loại đoạn là gì?</button></p>
+    <p class="risk"><span>Trong ${n} mục đang hiện: ${risk}.</span><button type="button" class="link" data-legend="${key}" aria-expanded="${lg}">Các loại đoạn là gì?</button></p>
     ${lg ? `<dl class="legend">${Object.values(KIND).map(k => `<dt>${k[0]}</dt><dd>${k[1]}</dd>`).join('')}</dl>` : ''}
     ${body}
     <footer class="res-f"><span class="meta">Đang hiện ${n} trên ${total}</span>
@@ -737,8 +753,8 @@ function resHTML(c, m, i, q) {
 function groupHTML(d, rows, ws, key, cont) {
   const D = doc(d);
   return `<section class="grp${D.hl === 'het' ? ' faded' : ''}"><header class="grp-h">${cont
-    ? `<h3>${esc(docName(D))} <span>· tiếp, thêm ${rows.length} đoạn</span></h3>`
-    : `<h3>${esc(docName(D))} <span>· ${rows.length} đoạn</span></h3>${hlPill(d)}<p class="mt">${esc(docMeta(D))}</p>`}</header>
+    ? `<h3>${esc(docName(D))} <span>· tiếp, thêm ${rows.length} Điều</span></h3>`
+    : `<h3>${esc(docName(D))} <span>· ${rows.length} Điều</span></h3>${hlPill(d)}<p class="mt">${esc(docMeta(D))}</p>${D.ocr ? '<p class="warn-line">Chữ lấy từ bản quét (OCR), chưa đối chiếu với bản gốc.</p>' : ''}`}</header>
     <ul class="items">${rows.map(([x, idx]) => itemHTML(x, idx, ws, key)).join('')}</ul></section>`;
 }
 function itemHTML(x, idx, ws, key) {
@@ -747,8 +763,8 @@ function itemHTML(x, idx, ws, key) {
   const label = x.whole ? 'Điều ' + x.whole : addr(tu);
   return `<li class="item" id="it-${key.replace(':', '-')}-${idx}">
     <div class="item-h"><a class="addr" href="#" data-open="${spec}" data-w="${esc(ws.join('|'))}">${esc(label)}</a><span class="dieu-t">${esc(dieuTitle(x.d, tu))}</span></div>
-    <p class="snip">${lead ? marked(cut(lead, 130), ws) + ' ' : ''}${marked(cut(body, 260), ws)}</p>
-    ${D.ocr ? '<p class="warn-line">Chữ lấy từ bản quét (OCR), chưa đối chiếu với bản gốc.</p>' : ''}
+    <p class="snip">${lead ? marked(cut(lead, 130), ws) + ' ' : ''}${marked(cut(body, 220), ws)}</p>
+    ${x.more ? `<p class="also-in">Cùng Điều còn khớp: ${x.more.map(m => { const par = m.split('.').slice(0, 2).join('.'); return `<button type="button" class="link" data-open="${x.d}|${m.split('.').length > 2 ? par + ',' : ''}${m}" data-w="${esc(ws.join('|'))}">${esc(addr(m).replace(/ Điều \d+$/, ''))}</button>`; }).join(' · ')}</p>` : ''}
     <div class="item-f">
       <button type="button" class="go" data-open="${spec}" data-w="${esc(ws.join('|'))}">Mở tại đoạn này</button>
       <button type="button" class="quiet" data-copy="${esc(itemCite(x))}">Sao chép trích dẫn</button>
@@ -819,7 +835,7 @@ function renderReader(scroll) {
   const cite = whole ? 'Điều ' + whole + ' ' + docName(D) : tu ? citeOf(r.d, tu) : docName(D);
   const curN = whole || (tu ? +tu.split('.')[0] : (dieus[0] && dieus[0].n));
   const wide = R.classList.contains('wide');
-  const meta = `<div class="rd-meta"><p class="mt"><span>${esc(D.cq || 'Chưa có cơ quan')}</span><span>${D.ngay ? 'ban hành ' + D.ngay : 'chưa có ngày ban hành'}</span><span>tệp ${esc(D.file)}</span><span>Số hiệu sai? <a href="#" data-old="Văn bản trong kho">Sửa ở trang Văn bản</a></span></p>
+  const meta = `<div class="rd-meta"><p class="mt"><span>${esc(D.cq || 'Chưa có cơ quan')}</span><span>${D.ngay ? 'ban hành ' + D.ngay : 'chưa có ngày ban hành'}</span>${D.hlTu ? `<span>hiệu lực từ ${D.hlTu}</span>` : ''}<span>tệp ${esc(D.file)}</span><span>Số hiệu sai? <a href="#" data-old="Văn bản trong kho">Sửa ở trang Văn bản</a></span></p>
       <div class="cite"><output aria-label="Trích dẫn">${esc(cite)}</output><small>Chọn dòng này hoặc bấm “Sao chép” để dán vào Word.</small></div>
       ${D.ocr ? '<div class="band" role="note"><span>Chữ của văn bản này lấy từ bản quét (OCR) và chưa được đối chiếu với bản gốc. Kiểm lại số liệu trên tab Bản gốc trước khi dùng.</span></div>' : ''}</div>`;
   const text = dieus.length ? `<div class="rd-grid">
@@ -1009,7 +1025,7 @@ document.addEventListener('keydown', e => {
     if (S.rd) { closeReader(); return; }
     if ($('#side').classList.contains('open')) { closeSide(true); return; }
   }
-  if (e.target.id && e.target.id.startsWith('rn-') && e.key === 'Enter') { e.preventDefault(); saveRename(e.target); }
+  if (e.target.id && e.target.id.startsWith('rn-') && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); saveRename(e.target); }
 });
 function saveRename(inp) {
   const v = inp.value.trim(), id = S.renaming, c = CONVS.find(x => x.id === id);
