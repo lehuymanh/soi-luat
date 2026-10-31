@@ -13,12 +13,14 @@ export const meta = {
 // python, pytest, scratch, reviewScriptPath. Ý nghĩa từng tham số: docs/quy-trinh.md.
 const A = typeof args === 'string' ? JSON.parse(args) : (args || {})
 const need = (ok, msg) => { if (!ok) throw new Error('plan-step-tdd: ' + msg) }
+const waiting = t => /chờ\s+đo:?/i.test(String(t || '').normalize('NFC')) // dấu "CHỜ ĐO" ở dạng NFD, hoa thường, thiếu hai chấm vẫn nhận
 
+const LENS_NAMES = ['bugs', 'tests', 'security', 'data', 'ui', 'lean'] // tên trong LIB của review-lenses.js; thêm góc mới ở đó thì thêm cả ở đây
 const MAX_AGENTS = 10 // bước + 2 mỗi góc soát + 1 sửa; quá thì chia làm hai lần chạy
 need(A.plan, 'cần args.plan: đường dẫn tệp kế hoạch, vd "docs/ke-hoach/ke-hoach-p1.md"')
 need(Array.isArray(A.steps) && A.steps.length, 'cần args.steps: mảng chuỗi (tên mục) hoặc {key, section, task?}')
 need(A.trailer, 'cần args.trailer: hai dòng Co-Authored-By và Claude-Session chép NGUYÊN VĂN từ lời nhắc ghi công của phiên điều phối (agent con không thấy lời nhắc đó)')
-const steps = A.steps.map(s => typeof s === 'string' ? { key: s, section: s } : { key: s.key, section: s.section || s.key, task: s.task || '' })
+const steps = A.steps.map(s => typeof s === 'string' ? { key: s, section: s, task: '' } : { key: s.key, section: s.section || s.key, task: s.task || '' })
 need(steps.every(s => s.key && s.section), 'mỗi bước cần key và section')
 need(new Set(steps.map(s => s.key)).size === steps.length, 'key bước bị trùng')
 
@@ -26,7 +28,11 @@ const py = A.python || 'python'
 const pytest = A.pytest || `${py} -m pytest -q`
 const sp = A.scratch || 'thư mục scratchpad của phiên'
 const recordInPlan = A.recordInPlan !== false
+need(A.lenses == null || Array.isArray(A.lenses), `args.lenses phải là mảng, vd ["bugs","tests"]; nhận ${JSON.stringify(A.lenses)}`)
 const reviewLenses = A.lenses && A.lenses.length ? A.lenses : ['bugs', 'tests']
+const badLens = reviewLenses.findIndex(l => typeof l === 'string' ? !LENS_NAMES.includes(l) : !(l && l.key && l.prompt))
+need(badLens < 0, `góc nhìn soát thứ ${badLens + 1} (${JSON.stringify(reviewLenses[badLens])}) không hợp lệ; tên có sẵn: ${LENS_NAMES.join(', ')}, hoặc {key, prompt} tự viết`)
+need(new Set(reviewLenses.map(l => l.key || l)).size === reviewLenses.length, 'góc nhìn soát bị trùng')
 need(reviewLenses.length <= 3, 'tối đa 3 góc nhìn soát')
 need(steps.length + reviewLenses.length * 2 + 1 <= MAX_AGENTS, `${steps.length} bước và ${reviewLenses.length} góc soát cần ${steps.length + reviewLenses.length * 2 + 1} agent, quá ${MAX_AGENTS}; chia làm hai lần chạy`)
 
@@ -72,7 +78,7 @@ Trả: step, status, commit, tests (tên: kiểm gì), measurements, not_done.`,
   log(`${s.key} xong: ${r.commit}`)
 }
 const commits = built.filter(b => b.report && b.report.status === 'done' && b.report.commit).map(b => b.report.commit)
-const pending = built.filter(b => b.report && /CHỜ ĐO:/.test(b.report.measurements || '')).map(b => b.step)
+const pending = built.filter(b => b.report && waiting(b.report.measurements)).map(b => b.step)
 if (pending.length) log(`Bước còn lệnh đo dài cho người điều phối chạy nền (CHỜ ĐO): ${pending.join(', ')}`)
 if (!commits.length) return { built, review: null, fixed: null, note: 'không có commit nào để soát' }
 
@@ -80,22 +86,34 @@ phase('Soát')
 const reviewArgs = { commits, lenses: reviewLenses, context: A.context, python: py, pytest, scratch: A.scratch,
   rejected: 'những việc kế hoạch ghi rõ là không làm hay dời sang phase sau (mục "Không làm", "Dời")', paths: A.paths }
 let review
-try { review = await workflow('review-lenses', reviewArgs) }
-catch (e) { log(`workflow('review-lenses') lỗi (${e && e.message}); thử theo scriptPath`); review = await workflow({ scriptPath: A.reviewScriptPath || '.claude/workflows/review-lenses.js' }, reviewArgs) }
+try {
+  try { review = await workflow('review-lenses', reviewArgs) }
+  catch (e) { log(`workflow('review-lenses') lỗi (${e && e.message}); thử theo scriptPath`); review = await workflow({ scriptPath: A.reviewScriptPath || '.claude/workflows/review-lenses.js' }, reviewArgs) }
+  need(review, 'review-lenses không trả kết quả')
+} catch (e) {
+  const error = String((e && e.message) || e)
+  log(`soát lỗi (${error}): các commit đã làm vẫn còn (${commits.join(', ')}), trả kết quả các bước, bỏ qua bước sửa`)
+  return { built, review: null, error, pending }
+}
 const todo = (review.confirmed || []).filter(f => f.group !== 'nice' || A.fixNice === true)
 log(`soát: ${(review.confirmed || []).length} xác nhận, cần sửa ${todo.length}`)
 
 phase('Sửa')
 let fixed = null
+const failed = [] // khác "không có gì để sửa": fixed=null mà failed rỗng là không có phát hiện cần sửa
 if (todo.length) {
   fixed = await agent(`${COMMON}
 
 Áp các phát hiện đã qua bác bỏ dưới đây lên HEAD (các commit của lượt này: ${commits.join(', ')}). Với MỖI mục: kiểm lại là có thật ở mã hiện tại; thật thì viết test hồi quy (hoặc kiểm Playwright cho lỗi thuần giao diện) HỎNG trước, chạy thấy hỏng, sửa nhỏ nhất ở mã dùng chung (grep nơi gọi), chạy thấy qua; không thật thì outcome=refuted một dòng lý do, không đổi mã. Mục cần chủ dự án quyết thì outcome=deferred kèm lý do. Chạy TOÀN BỘ \`${pytest}\`, phải xanh. Bản sửa làm đổi số đã ghi trong ${A.plan} thì sửa số đó tại chỗ trong cùng commit, không thêm dòng.
+Cổng đo (docs/quy-trinh.md mục "Cổng đo") mà bản sửa chạm tới: cổng nào chạy quá 10 phút (Zalo test, gold, bench/llm): KHÔNG chạy rồi ngồi chờ trong agent (agent bị báo Stalled; lượt điều phối bị ngắt là mất việc chưa commit). Chạy các cổng nhanh, commit, và ghi nguyên lệnh đo dài vào note của mục, mở đầu bằng "CHỜ ĐO:", để người điều phối chạy nền. ${A.gates || ''}
 ${COMMIT_RULES} Thông điệp liệt kê từng id và cách sửa.
 Trả bảng: id, fixed/refuted/deferred, tên test hay lý do; và hash commit.
 
 PHÁT HIỆN:
 ${JSON.stringify(todo, null, 1)}`, { label: 'sua', phase: 'Sửa', schema: FIXED })
+  if (!fixed) { log('sửa: mất kết quả, agent sửa có thể đã commit dở; xem `git status` và `git log` trước khi chạy lại'); failed.push('sua: mất kết quả') }
 } else log('không có phát hiện cần sửa')
 
-return { built, review, fixed, pending }
+const fixPending = ((fixed && fixed.items) || []).filter(it => waiting(it.note)).map(it => it.id)
+if (fixPending.length) { pending.push(...fixPending); log(`Mục sửa còn lệnh đo dài cho người điều phối chạy nền (CHỜ ĐO): ${fixPending.join(', ')}`) }
+return { built, review, fixed, pending, failed }

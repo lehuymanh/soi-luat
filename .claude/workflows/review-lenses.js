@@ -24,6 +24,7 @@ const LIB = {
 }
 
 function pickLenses(spec, fallback) {
+  need(spec == null || Array.isArray(spec), `args.lenses phải là mảng, vd ["bugs","tests"]; nhận ${JSON.stringify(spec)}`)
   const list = (spec && spec.length ? spec : fallback).map(x => {
     if (typeof x === 'string') { need(LIB[x], `không có góc nhìn "${x}"; có sẵn: ${Object.keys(LIB).join(', ')}`); return { key: x, prompt: LIB[x] } }
     need(x && x.key && x.prompt, 'góc nhìn tự định nghĩa cần {key, prompt}')

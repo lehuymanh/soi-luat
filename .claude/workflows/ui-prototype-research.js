@@ -24,6 +24,10 @@ need(Array.isArray(A.researchLenses) && A.researchLenses.length && A.researchLen
   `cần args.researchLenses: 1 đến ${MAX_RESEARCH} phần tử {key, q} (q là câu hỏi tra cứu của góc nhìn)`)
 need(A.researchLenses.every(l => l && l.key && l.q), 'mỗi góc nghiên cứu cần key và q')
 need(new Set(A.researchLenses.map(l => l.key)).size === A.researchLenses.length, 'key góc nghiên cứu bị trùng')
+// reviewLenses bỏ trống thì dùng taste và needs; đã truyền mà sai thì dừng, không âm thầm dùng mặc định
+need(A.reviewLenses == null || (Array.isArray(A.reviewLenses) && A.reviewLenses.length >= 2 && A.reviewLenses.every(l => l && l.key && l.prompt)),
+  `args.reviewLenses (nếu có) cần mảng từ 2 phần tử {key, prompt}, mỗi phần tử đủ key và prompt; nhận ${JSON.stringify(A.reviewLenses)}. Bỏ trống để dùng taste và needs`)
+need(!A.reviewLenses || new Set(A.reviewLenses.map(l => l.key)).size === A.reviewLenses.length, 'key góc soát bị trùng')
 
 const SP = A.scratch
 const OUT = A.out
@@ -52,7 +56,7 @@ const ISSUES = { type: 'object', properties: { issues: { type: 'array', items: {
   problem: { type: 'string' }, evidence: { type: 'string', description: 'tên ảnh, selector, số đo, hoặc dòng mã' }, fix: { type: 'string' } },
   required: ['id', 'severity', 'where', 'problem', 'evidence', 'fix'] } } }, required: ['issues'] }
 
-log(`ui-prototype-research: ${A.researchLenses.length} góc nghiên cứu, khoảng ${A.researchLenses.length + 5} agent`)
+log(`ui-prototype-research: ${A.researchLenses.length} góc nghiên cứu, khoảng ${A.researchLenses.length + (A.reviewLenses ? A.reviewLenses.length : 2) + 3} agent`)
 
 phase('Nghiên cứu')
 const research = (await parallel(A.researchLenses.map(l => () => agent(
@@ -62,7 +66,7 @@ log(`nghiên cứu: ${research.length}/${A.researchLenses.length} góc trả v�
 need(research.length, 'không góc nghiên cứu nào trả về; kiểm kết nối web rồi chạy lại')
 
 phase('Brief')
-await agent(`${CONTEXT}\n\nBạn là nhà thiết kế sản phẩm cấp cao. Dưới đây là kết quả nghiên cứu web (JSON) của ${research.length} góc nhìn. Đọc thêm các tệp đầu vào đã nêu và quy tắc thiết kế: ${rules}.
+const brief = await agent(`${CONTEXT}\n\nBạn là nhà thiết kế sản phẩm cấp cao. Dưới đây là kết quả nghiên cứu web (JSON) của ${research.length} góc nhìn. Đọc thêm các tệp đầu vào đã nêu và quy tắc thiết kế: ${rules}.
 Viết BẢN BRIEF (Markdown, tiếng Việt) vào ${BRIEF} (mkdir -p ${SP}) cho một mẫu KHÁI NIỆM bấm thử được. Bắt buộc có:
 - Cấu trúc thông tin: cái gì nằm ở đâu, dữ liệu dùng chung hay riêng theo ngữ cảnh.
 - Các màn hình và trạng thái (chỉ giữ cái xứng đáng có mặt), kèm câu hỏi mỗi màn hình trả lời.
@@ -73,6 +77,8 @@ Viết BẢN BRIEF (Markdown, tiếng Việt) vào ${BRIEF} (mkdir -p ${SP}) cho
 ${A.briefAsks || ''}
 Dẫn các mẫu từ nghiên cứu kèm URL của chúng khi dùng làm lý do.\n\nNGHIÊN CỨU:\n${JSON.stringify(research)}`,
   { label: 'brief', phase: 'Brief' })
+if (!brief) log(`agent brief mất kết quả: dừng, chưa dựng mẫu. Xem ${BRIEF} (có thể đã ghi dở) rồi chạy lại`)
+need(brief, `agent brief mất kết quả nên không dựng mẫu; xem ${BRIEF} rồi chạy lại`)
 
 phase('Dựng')
 const build = await agent(`${CONTEXT}\n\nDựng mẫu bấm thử được theo bản brief ${BRIEF} (đọc hết). Luật:
@@ -87,9 +93,11 @@ ${states}
 - Không sửa tệp nào khác của repo, không commit.
 Trả: đã dựng gì (màn hình, tương tác), số liệu dữ liệu (số văn bản, quan hệ, mục ví dụ), đường dẫn ảnh, chỗ còn thiếu.`,
   { label: 'dung', phase: 'Dựng' })
+if (!build) log(`agent dựng mất kết quả: dừng, chưa soát. Xem ${OUT} và ${SP}/shots (có thể đã dựng dở) rồi chạy lại`)
+need(build, `agent dựng mất kết quả nên không soát; xem ${OUT} rồi chạy lại`)
 
 phase('Soát')
-const LENS_REVIEW = A.reviewLenses && A.reviewLenses.length === 2 ? A.reviewLenses : [
+const LENS_REVIEW = A.reviewLenses || [
   { key: 'taste', prompt: `Soát mẫu như một người chấm nghiêm theo ${rules}. Đọc references/critique.md, tells.md, app-screens.md của nó. Dựng mẫu bằng Playwright cho Node (NODE_PATH=$(npm root -g)) ở 1440, 1100, 768, 390, sáng và tối, ở các trạng thái chính; lưu PNG vào ${SP}/soat-taste/ và mở từng ảnh bằng Read. Báo tối đa 12 vấn đề, mỗi vấn đề nêu một quy tắc trong tài liệu đó hay một lỗi đo được (tràn ngang, tương phản, nhãn chồng nhau, đồ thị không đọc được, lệch token của mẫu đã duyệt).` },
   { key: 'needs', prompt: `Soát mẫu và bản brief ${BRIEF} về độ khớp nhu cầu người dùng thật và tính khả thi. Một nhân viên văn phòng không rành kỹ thuật có hiểu mỗi màn hình, tìm được thứ cần tìm, mở đúng đoạn nguyên văn, dùng không cần học không? Mỗi phần tử có làm được offline trên CPU trong lộ trình không (ánh xạ P1, P2, P3, P4, hay mới), có hứa điều app không làm được (vd chữ do AI viết hiện như trích dẫn, kết luận hiệu lực mà không có người xác nhận)? Nhãn tiếng Việt có đơn giản và đúng? Đường đi bằng bàn phím và đọc màn hình? Điều khiển thử bằng Playwright cho Node để kiểm tương tác chạy thật. Báo tối đa 12 vấn đề kèm bằng chứng.` },
 ]

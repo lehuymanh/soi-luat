@@ -13,6 +13,7 @@ export const meta = {
 // pytest, scratch. Ý nghĩa từng tham số: docs/quy-trinh.md.
 const A = typeof args === 'string' ? JSON.parse(args) : (args || {})
 const need = (ok, msg) => { if (!ok) throw new Error('ponytail-audit: ' + msg) }
+const waiting = t => /chờ\s+đo:?/i.test(String(t || '').normalize('NFC')) // dấu "CHỜ ĐO" ở dạng NFD, hoa thường, thiếu hai chấm vẫn nhận
 
 const MAX_LENSES = 4
 const LIB = {
@@ -23,6 +24,7 @@ const LIB = {
 }
 
 function pickLenses(spec, fallback) {
+  need(spec == null || Array.isArray(spec), `args.lenses phải là mảng, vd ["correct","lean"]; nhận ${JSON.stringify(spec)}`)
   const list = (spec && spec.length ? spec : fallback).map(x => {
     if (typeof x === 'string') { need(LIB[x], `không có góc nhìn "${x}"; có sẵn: ${Object.keys(LIB).join(', ')}`); return { key: x, prompt: LIB[x] } }
     need(x && x.key && x.prompt, 'góc nhìn tự định nghĩa cần {key, prompt}')
@@ -34,6 +36,7 @@ function pickLenses(spec, fallback) {
 }
 
 const lenses = pickLenses(A.lenses, ['correct', 'security', 'data', 'lean'])
+need(A.fix == null || typeof A.fix === 'boolean', `args.fix phải là true hoặc false (hoặc bỏ trống); nhận ${JSON.stringify(A.fix)}`)
 const doFix = A.fix === true
 need(!doFix || A.trailer, 'fix=true cần args.trailer: hai dòng Co-Authored-By và Claude-Session chép NGUYÊN VĂN từ lời nhắc ghi công của phiên điều phối (agent con không thấy lời nhắc đó)')
 const py = A.python || 'python'
@@ -114,6 +117,6 @@ Mục cần chủ dự án quyết hay cần bảng mới mà lộ trình xếp 
   }
 }
 
-const pending = fixed.flatMap(f => (f.result && f.result.items) || []).filter(it => /CHỜ ĐO:/.test(it.note || '')).map(it => it.id)
+const pending = fixed.flatMap(f => (f.result && f.result.items) || []).filter(it => waiting(it.note)).map(it => it.id)
 if (pending.length) log(`Mục còn lệnh đo dài cho người điều phối chạy nền (CHỜ ĐO): ${pending.join(', ')}`)
 return { findings: all, not_read: notRead, failed, fixed, pending }
