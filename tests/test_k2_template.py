@@ -202,7 +202,7 @@ def test_rong_khong_khop_va_bo_loc_loai_het(db, tmp_path, monkeypatch):
     assert "Không tìm thấy đoạn nào khớp «zzzxyz»" in html and "Đã tìm trong 1 văn bản của kho" in html
     assert "nạp văn bản" in html.lower() and "<article" not in html
     loc = _hx(cl, "báo cáo định kỳ", loai="thong_tu")
-    assert "Không còn kết quả sau khi lọc" in loc and re.search(r"Tìm được \d+ đoạn, nhưng không đoạn nào thuộc bộ lọc", loc)
+    assert "Không còn kết quả sau khi lọc" in loc and "Không đoạn nào thuộc bộ lọc khớp «báo cáo định kỳ»" in loc
     assert "data-unfilter" in loc and "Bỏ lọc" in loc
 
 

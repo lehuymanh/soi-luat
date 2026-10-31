@@ -44,6 +44,7 @@ CHUONG_MUC = re.compile(r"^(Chương|Mục|Phần)\s+([IVXLCDM]+|\d+)\b", re.IGN
 # "Số: 15/2020/NĐ-CP", "Luật số: 17/2026/QH16", "Số: 388 /2026/NĐ-CP" (số điền tay, cách trước "/");
 # phân biệt hoa thường: dòng căn cứ bị ngắt "số 40/2019/QH14." không phải dòng số hiệu
 SO_LINE = re.compile(r"^(?:(?:Luật|Bộ luật|Pháp lệnh|Nghị quyết|Lệnh)\s+số\s*:|Số\s*[:.]?|SỐ\s*[:.]?)\s*\d+\s*/")
+SO_LINE_HONG = re.compile(r"(?i)số\s*[:.]?.{0,12}/\s*\d{4}\s*/")  # "Số: | /2026/TT-BNV"
 SO_HIEU_SPACED = re.compile(r"(\d+)\s*/\s*(\d{4})\s*/\s*([A-ZĐ0-9][A-ZĐ0-9-]*)", re.IGNORECASE)
 TABLE_ROW = re.compile(r"^\|.*\|$")
 # "Nơi nhận: KT. BỘ TRƯỞNG" (OCR dính hai cột thành một dòng; chữ đã bỏ dấu, thường)
@@ -252,12 +253,16 @@ def _mid_sentence(prev: str) -> bool:
 def parse_so_hieu_from_text(text: str) -> str | None:
     from soiluat.sohieu import find_so_hieu
 
-    # ưu tiên dòng "Số: …" ở phần đầu
-    for ln in (text or "").split("\n", 40)[:40]:
-        if SO_LINE.match(ln.strip()):
+    # ưu tiên dòng "Số: …" ở phần đầu (kể cả dạng bảng "| Số: … | Hà Nội |")
+    head = [ln.strip().lstrip("| ") for ln in (text or "").split("\n", 40)[:40]]
+    for ln in head:
+        if SO_LINE.match(ln):
             m = SO_HIEU_SPACED.search(ln)
             if m:
                 return "/".join(m.groups())
+    # có dòng "Số:" nhưng số bị trống/OCR hỏng: để trống cho người duyệt, đừng lấy số văn bản được dẫn
+    if any(SO_LINE_HONG.match(ln) for ln in head):
+        return None
     return find_so_hieu(text or "")
 
 

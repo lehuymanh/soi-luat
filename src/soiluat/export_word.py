@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 from docx import Document
 
-from soiluat.cards import OCR_LABEL, Card
+from soiluat import semantic
+from soiluat.cards import OCR_LABEL, Card, _ocr_unverified
+from soiluat.reader import cite
 
 HIEU_LUC = {"con": "Còn hiệu lực", "het": "Hết hiệu lực", "chua_ro": "Hiệu lực chưa rõ"}  # như _results.html
 
@@ -23,32 +26,30 @@ def card_pages(c: Card) -> str:
     return page_label(getattr(c, "page_from", None), getattr(c, "page_to", None))
 
 
-def card_notes(c: Card) -> list[str]:
-    return [n for n in (getattr(c, "notes", None) or []) if n][:3]
-
-
-def export_cards(cards: list[Card], dest: Path) -> None:
+def export_units(conn: sqlite3.Connection, uids: list[int], dest: Path) -> None:
+    """Báo cáo Word đúng các đơn vị đã chọn, nguyên văn (Điều kèm mọi khoản, điểm); không sinh câu nào."""
     doc = Document()
     doc.add_heading("Báo cáo Soi Luật", level=0)
-    for c in cards:
-        doc.add_heading(c.kind + " — " + (c.title or ""), level=1)
-        addr = c.duty_addr or c.sanction_addr or c.so_hieu
-        meta = [f"Hạng {c.rank}", addr, card_pages(c), c.file_path, HIEU_LUC.get(c.hieu_luc, c.hieu_luc)]
+    for uid in dict.fromkeys(uids):
+        u = conn.execute(
+            "SELECT u.doc_id, u.path, u.page_from, u.page_to, d.so_hieu, d.loai, d.file_path, d.hieu_luc "
+            "FROM units u JOIN documents d ON d.id = u.doc_id WHERE u.id = ?", (uid,)
+        ).fetchone()
+        if u is None:  # đơn vị đã bị xoá sau khi kết quả hiện ra
+            continue
+        doc.add_heading(cite(u["so_hieu"], u["loai"], u["path"]), level=1)
+        meta = [page_label(u["page_from"], u["page_to"]), u["file_path"], HIEU_LUC.get(u["hieu_luc"] or "chua_ro")]
         doc.add_paragraph(" · ".join(x for x in meta if x))
-        if c.sample:
-            doc.add_paragraph(c.sample)
-        if c.duty_text:
-            p = doc.add_paragraph(c.duty_text)
-            p.add_run(f"\nNguồn: {c.duty_addr}")
-        if c.sanction_text:
-            p = doc.add_paragraph(c.sanction_text)
-            p.add_run(f"\nNguồn: {c.sanction_addr}")
-        for n in card_notes(c):
+        head, lines = semantic.root_lines(conn, uid)
+        for t in [head, *(t for _, t in lines)]:
+            if t:
+                doc.add_paragraph(t)
+        for (n,) in conn.execute(
+            "SELECT COALESCE(reviewed_text, raw_text) FROM units WHERE parent_id = ? AND level = 'ghi_chu' "
+            "ORDER BY id LIMIT 3", (uid,)
+        ):
             doc.add_paragraph(f"Ghi chú: {n}")
-        warns = list(c.warnings)
-        if c.ocr_unverified and OCR_LABEL not in warns:
-            warns.append(OCR_LABEL)
-        for w in warns:
-            doc.add_paragraph(f"Cảnh báo: {w}")
+        if _ocr_unverified(conn, u["page_from"], u["page_to"], u["doc_id"]):
+            doc.add_paragraph(f"Cảnh báo: {OCR_LABEL}")
     dest.parent.mkdir(parents=True, exist_ok=True)
     doc.save(str(dest))

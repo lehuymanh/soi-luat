@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -105,3 +106,63 @@ def test_backup_http(tmp_path, monkeypatch):
     assert r.status_code == 200
     assert r.json()["ok"] is True
     assert (tmp_path / "backup" / "soiluat.db").exists()
+
+
+def _nhieu(tmp_path, monkeypatch, n=300):
+    """Kho có n+1 văn bản và n liên kết chờ duyệt (đơn vị chèn thẳng, đủ cột bắt buộc)."""
+    client, doc_id, _, _ = _client(tmp_path, monkeypatch)
+    from soiluat.config import db_path
+    from soiluat.db import connect
+
+    conn = connect(db_path())
+    conn.executemany(
+        "INSERT INTO documents(file_path, sha256, source_status, extraction_method) VALUES (?, ?, 'ok', 'docx')",
+        [(f"v{i}.docx", f"h{i}") for i in range(n)],
+    )
+    conn.executemany(
+        "INSERT INTO units(doc_id, path, level, raw_text, normalized_text, search_text, extraction_method, verification_status) "
+        "VALUES (?, ?, 'khoan', 'x', 'x', 'x', 'docx', 'chua')",
+        [(doc_id, f"X{i}") for i in range(n + 1)],
+    )
+    ids = [r[0] for r in conn.execute("SELECT id FROM units WHERE path LIKE 'X%' ORDER BY id")]
+    conn.executemany("INSERT INTO links(sanction_unit, duty_unit, method) VALUES (?, ?, 'goi_y')", list(zip(ids, ids[1:])))
+    conn.commit()
+    conn.close()
+    return client, doc_id
+
+
+def test_f2_duyet_lien_ket_chi_hien_mot_trang_va_noi_con_bao_nhieu(tmp_path, monkeypatch):
+    """F2: hàng chờ hơn 300 liên kết thì /review chỉ dựng 50 dòng, kèm số còn lại; không dựng cả hàng chờ."""
+    client, _ = _nhieu(tmp_path, monkeypatch)
+    from soiluat.config import db_path
+    from soiluat.db import connect
+
+    conn = connect(db_path())
+    total = conn.execute("SELECT COUNT(*) FROM links WHERE confirmed = 0").fetchone()[0]
+    conn.close()
+    assert total > 300
+    html = client.get("/review").text
+    assert html.count('class="row"') == 50
+    assert f"Còn {total - 50} liên kết nữa" in html
+
+
+def test_f2_van_ban_trong_kho_phan_trang_va_cat_danh_sach_dieu(tmp_path, monkeypatch):
+    """F2: 301 văn bản thì /review/docs dựng 50 văn bản mỗi trang (?trang=), mỗi văn bản tối đa 5 đơn vị."""
+    client, doc_id = _nhieu(tmp_path, monkeypatch)
+    first = client.get("/review/docs").text
+    assert first.count('class="doc"') == 50
+    assert first.count('class="unit"') <= 5 * 50
+    seen = set(re.findall(r'class="doc" id="d(\d+)"', first))
+    second = client.get("/review/docs", params={"trang": 2}).text
+    assert second.count('class="doc"') == 50 and not seen & set(re.findall(r'class="doc" id="d(\d+)"', second))
+    assert client.get("/review/docs", params={"trang": 7}).text.count('class="doc"') == 1
+    assert client.get("/review/docs", params={"trang": 999}).text.count('class="doc"') == 1  # quá cuối thì về trang cuối
+    assert f'id="d{doc_id}"' in client.get("/review/docs", params={"id": doc_id}).text
+
+
+def test_f2_luu_hieu_luc_va_so_hieu_quay_ve_dung_van_ban(tmp_path, monkeypatch):
+    """F2: lưu xong thì về /review/docs?id=N (một văn bản), không tải lại cả kho."""
+    client, doc_id, _, _ = _client(tmp_path, monkeypatch)
+    for path, data in ((f"/docs/{doc_id}/hieu-luc", {"hieu_luc": "con"}), (f"/docs/{doc_id}/so-hieu", {"so_hieu": "15/2020/NĐ-CP"})):
+        r = client.post(path, data=data, follow_redirects=False)
+        assert r.status_code == 303 and r.headers["location"] == f"/review/docs?id={doc_id}"

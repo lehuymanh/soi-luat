@@ -601,6 +601,8 @@ def _fts_cascade(
     doc_ids: list[int] | None = None,
     full_query: str | None = None,
 ) -> CascadeResult:
+    if doc_ids is not None and not doc_ids:  # [] = không văn bản nào qua bộ lọc; scored_units/rerank hiểu [] là "không giới hạn"
+        return CascadeResult([], 6, "")
     accented = query_has_accent(raw_query)
     dense_q = full_query or raw_query  # embedding cần nguyên câu hỏi: BM25 bỏ cụm "mức phạt", nghĩa của câu thì không
     tok_f = tokenize(fold_search(raw_query), indexes=vocab_indexes(conn, accent=False))
@@ -640,14 +642,17 @@ def _tier0(ids: list[int], note: str) -> CascadeResult:
     return CascadeResult(ids, 0, note, tiers={i: 0 for i in ids})
 
 
-def cascade_search(conn: sqlite3.Connection, raw_query: str) -> CascadeResult:
+def cascade_search(conn: sqlite3.Connection, raw_query: str, doc_ids: list[int] | None = None) -> CascadeResult:
+    """`doc_ids`: chỉ tìm trong các văn bản này (bộ lọc áp trong truy vấn, không sau khi cắt top); None = cả kho.
+    Hai nhánh tra thẳng (chỉ số hiệu, chỉ Điều) không đi qua đây: nơi gọi vẫn lọc bằng apply_doc_filters."""
     intent, q = split_intent(raw_query)
-    result = _cascade(conn, q, full_query=raw_query)
+    result = _cascade(conn, q, full_query=raw_query, doc_ids=doc_ids)
     result.intent = intent
     return result
 
 
-def _cascade(conn: sqlite3.Connection, raw_query: str, full_query: str | None = None) -> CascadeResult:
+def _cascade(conn: sqlite3.Connection, raw_query: str, full_query: str | None = None,
+             doc_ids: list[int] | None = None) -> CascadeResult:
     docs = _so_hieu_docs(conn, raw_query)
     dieu = find_dieu_so(raw_query)
     rest = citation_remainder(raw_query)
@@ -656,7 +661,8 @@ def _cascade(conn: sqlite3.Connection, raw_query: str, full_query: str | None = 
         return _tier0(lookup_so_hieu(conn, raw_query), "so_hieu")
 
     if docs and rest:
-        result = _fts_cascade(conn, rest, doc_ids=docs, full_query=full_query)
+        scope = docs if doc_ids is None else [d for d in docs if d in set(doc_ids)]
+        result = _fts_cascade(conn, rest, doc_ids=scope, full_query=full_query)
         if dieu:
             narrowed = _ids_on_dieu(conn, result.ids, dieu)
             if narrowed:
@@ -670,7 +676,7 @@ def _cascade(conn: sqlite3.Connection, raw_query: str, full_query: str | None = 
     if dieu and not rest:
         return _tier0(lookup_dieu_all_docs(conn, dieu), "dieu")
 
-    return _fts_cascade(conn, raw_query, full_query=full_query)
+    return _fts_cascade(conn, raw_query, doc_ids=doc_ids, full_query=full_query)
 
 
 def _filter_sql(loai: str, co_quan: str, hieu_luc: str) -> tuple[str, list]:
@@ -700,6 +706,14 @@ def apply_doc_filters(
     rows = conn.execute(f"SELECT u.id FROM units u JOIN documents d ON d.id = u.doc_id WHERE u.id IN ({q}){where}", [*ids, *params])
     keep = {int(r["id"]) for r in rows}
     return [i for i in ids if i in keep]
+
+
+def filtered_doc_ids(conn: sqlite3.Connection, *, loai: str = "", co_quan: str = "", hieu_luc: str = "") -> list[int] | None:
+    """Mọi văn bản qua bộ lọc; None khi không đặt bộ lọc nào (khác danh sách rỗng: lọc mà không văn bản nào khớp)."""
+    where, params = _filter_sql(loai, co_quan, hieu_luc)
+    if not where:
+        return None
+    return [int(r[0]) for r in conn.execute(f"SELECT d.id FROM documents d WHERE 1{where}", params)]
 
 
 def filter_docs(conn: sqlite3.Connection, doc_ids: list[int], *, loai: str = "", co_quan: str = "", hieu_luc: str = "") -> list[int]:

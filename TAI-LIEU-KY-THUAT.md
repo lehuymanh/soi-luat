@@ -116,7 +116,7 @@ Dựng lại một văn bản (`rebuild_document`) giữ khoá ghi từ lúc đ�
    - Lấy tối đa `CANDIDATES = 300` ứng viên, chấm lại theo mức khớp: tầng 1 cụm liền, 2 gần nhau, 3 đủ từ, 4 đồng nghĩa, 6 một phần (hệ số `BOOST = {1: 2.0, 2: 1.5, 3: 1.3, 4: 1.3, 6: 1.0}`), cộng thêm điểm theo tỉ lệ cặp từ liền nhau trùng với câu hỏi (`BIGRAM_ALPHA = 2.0`).
    - Câu gõ có dấu thì tìm nhánh có dấu; nếu không đơn vị nào khớp đủ từ thì thêm nhánh không dấu. Trang OCR chưa đối chiếu luôn được thử thêm nhánh không dấu (OCR hay sai dấu).
 4. Trả tối đa `RETURN_TOP = 100` đơn vị; `cards.assemble_cards` dựng thẻ (gom theo Điều, gắn chế tài, nhãn rủi ro). "Điều n" không kèm số hiệu giới hạn `DIEU_CAP = 100` thẻ.
-5. Bộ lọc loại văn bản / cơ quan / hiệu lực áp sau cùng (`apply_doc_filters`).
+5. Bộ lọc loại văn bản / cơ quan / hiệu lực áp **ngay trong truy vấn** (`filtered_doc_ids` → `cascade_search(..., doc_ids)`), không sau khi cắt top-100, để không ẩn kết quả có thật. Hai nhánh tra thẳng (bước 2) vẫn lọc sau bằng `apply_doc_filters`. Danh sách văn bản rỗng nghĩa là không văn bản nào qua bộ lọc, không phải "không giới hạn".
 
 ### 4.2 Advance (thêm hai bước sau bước 3)
 

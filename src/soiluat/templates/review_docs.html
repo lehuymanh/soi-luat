@@ -11,6 +11,10 @@
   <h1>Văn bản trong kho</h1>
   <p>Sửa hiệu lực tại đây. Muốn sửa ranh giới hoặc chữ OCR: sửa file nguồn rồi nạp lại.</p>
   {% if only %}<p><a href="/review/docs">Xem mọi văn bản trong kho</a></p>{% endif %}
+  {% set nav %}{% if pages > 1 %}<p>{{ total }} văn bản · trang {{ trang }}/{{ pages }}
+    {% if trang > 1 %}<a href="/review/docs?trang={{ trang - 1 }}">Trang trước</a>{% endif %}
+    {% if trang < pages %}<a href="/review/docs?trang={{ trang + 1 }}">Trang sau</a>{% endif %}</p>{% endif %}{% endset %}
+  {{ nav }}
   {% for item in items %}
     <div class="doc" id="d{{ item.doc.id }}">
       <p>
@@ -49,6 +53,7 @@
   {% else %}
     <p>Chưa có văn bản trong kho.</p>
   {% endfor %}
+  {{ nav }}
   </main>
 </body>
 </html>

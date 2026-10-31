@@ -329,15 +329,29 @@ def test_unit_page_lists_notes_and_dates(tmp_path, monkeypatch, db, sample_doc):
 # --- xuất Word ---
 
 
-def test_export_has_page_file_notes_warnings(tmp_path):
-    from soiluat.export_word import export_cards
+def test_export_has_page_file_notes_warnings(db, sample_doc, tmp_path):
+    from soiluat.export_word import export_units
 
+    dieu = db.execute("SELECT id, doc_id FROM units WHERE path = 'D5'").fetchone()
+    db.execute("UPDATE units SET page_from = 3, page_to = 5 WHERE id = ?", (dieu["id"],))
+    db.execute(
+        "INSERT INTO units(doc_id, parent_id, path, level, raw_text, normalized_text, search_text, "
+        "extraction_method, verification_status, page_from, page_to) "
+        "VALUES (?, ?, 'GC1', 'ghi_chu', 'Ghi chú cuối trang', '', '', 'docx', 'auto', 5, 5)",
+        (dieu["doc_id"], dieu["id"]),
+    )
+    db.execute(
+        "INSERT INTO pages(doc_id, page_no, kind, extraction_method, ocr_status, verification_status) "
+        "VALUES (?, 4, 'scan', 'ocr', 'chua_doi_chieu', 'auto')", (dieu["doc_id"],)
+    )
+    db.commit()
     dest = tmp_path / "out.docx"
-    export_cards([_card(page_to=5, notes=["Ghi chú cuối trang"])], dest)
+    export_units(db, [dieu["id"]], dest)
     text = "\n".join(p.text for p in Document(str(dest)).paragraphs)
     assert "Trang 3–5" in text
-    assert "nd15.docx" in text
-    assert "Hạng" in text and "Điều 5 khoản 1" in text
+    assert "nd15.txt" in text
+    assert "Điều 5 Nghị định 15/2020/NĐ-CP" in text
+    assert "Tổ chức tín dụng phải báo cáo định kỳ" in text
     assert "Ghi chú cuối trang" in text
     assert "OCR chưa xác minh" in text
     assert "Hiệu lực chưa rõ" in text and "chua_ro" not in text

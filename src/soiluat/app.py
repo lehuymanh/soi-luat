@@ -37,10 +37,10 @@ from soiluat import conversations, crossrank, pageimg, reader, semantic
 from soiluat.cards import OCR_LABEL, _ocr_unverified, assemble_cards, compact, doc_groups, summarize
 from soiluat.config import HOST, PORT, data_dir, db_path
 from soiluat.db import backup_db, connect, init_schema
-from soiluat.export_word import card_pages, export_cards, page_label
+from soiluat.export_word import card_pages, export_units, page_label
 from soiluat.fold import display_addr
 from soiluat.jobs import JOBS, SUFFIXES
-from soiluat.search import DIEU_CAP, _so_hieu_docs, apply_doc_filters, cascade_search, filter_docs, lookup_so_hieu
+from soiluat.search import DIEU_CAP, _so_hieu_docs, apply_doc_filters, cascade_search, filter_docs, filtered_doc_ids, lookup_so_hieu
 from soiluat.sohieu import find_dieu_so
 
 
@@ -152,9 +152,9 @@ def _card_dates(conn, cards) -> dict[int, dict]:
 
 
 def _search(conn: sqlite3.Connection, q: str, loai: str, co_quan: str, hieu_luc: str) -> dict:
-    """Tìm và lọc: `ids` đã lọc và cắt, `n_found` trước lọc, `n_ids` sau lọc trước cắt (P1 K1; H2, H3 dùng lại)."""
+    """Tìm và lọc: `ids` đã lọc và cắt, `n_found` đoạn tìm được (lọc trong truy vấn; hai nhánh tra thẳng thì trước lọc), `n_ids` sau lọc trước cắt (P1 K1; H2, H3 dùng lại)."""
     # BM25 OR tự hạ trọng số từ phổ biến ("như thế nào", "được quy định"): không bỏ khung hỏi bằng danh sách
-    result = cascade_search(conn, q)
+    result = cascade_search(conn, q, filtered_doc_ids(conn, loai=loai, co_quan=co_quan, hieu_luc=hieu_luc))
     ids = apply_doc_filters(conn, result.ids, loai=loai, co_quan=co_quan, hieu_luc=hieu_luc)
     n_ids = len(ids)
     if result.note == "dieu" and n_ids > DIEU_CAP:
@@ -437,8 +437,12 @@ def set_search_mode(request: Request, mode: str = Form(...), q: str = Form(""), 
     return RedirectResponse("/?" + urlencode({"q": q}) if q else "/", status_code=303)
 
 
+REVIEW_PAGE = 50  # số dòng mỗi trang duyệt: hàng chờ và danh sách văn bản của kho 3,3 nghìn văn bản không dựng một lần
+
+
 @app.get("/review", response_class=HTMLResponse)
 def review(request: Request):
+    """Chỉ REVIEW_PAGE liên kết đầu hàng chờ; hàng chờ co lại khi duyệt nên không cần số trang."""
     conn = get_conn()
     rows = conn.execute(
         """
@@ -451,8 +455,12 @@ def review(request: Request):
         JOIN documents ds ON ds.id = su.doc_id
         JOIN documents dd ON dd.id = du.doc_id
         WHERE l.confirmed = 0
-        """
+        ORDER BY l.id
+        LIMIT ?
+        """,
+        (REVIEW_PAGE,),
     ).fetchall()
+    n_queue = conn.execute("SELECT COUNT(*) FROM links WHERE confirmed = 0").fetchone()[0]
     conn.close()
     items = []
     for r in rows:
@@ -460,7 +468,7 @@ def review(request: Request):
         d["saddr"] = display_addr(d.get("s_so"), d["spath"])
         d["daddr"] = display_addr(d.get("d_so"), d["dpath"])
         items.append(d)
-    return _tpl(request, "review.html", {"rows": items})
+    return _tpl(request, "review.html", {"rows": items, "more": n_queue - len(items)})
 
 
 @app.post("/links/{link_id}/confirm")
@@ -664,29 +672,33 @@ def delete_synonym(request: Request, syn_id: int, csrf_token: str = Form("")):
 
 
 @app.get("/review/docs", response_class=HTMLResponse)
-def review_docs(request: Request, doc_id: int | None = Query(None, alias="id")):
-    """?id=N chỉ một văn bản (liên kết "Sửa số hiệu" từ trình đọc); không có thì cả kho, không phân trang."""
+def review_docs(request: Request, doc_id: int | None = Query(None, alias="id"), trang: int = Query(1)):
+    """?id=N chỉ một văn bản (liên kết "Sửa số hiệu" từ trình đọc); không có thì cả kho, REVIEW_PAGE văn bản mỗi ?trang=."""
     conn = get_conn()
+    total = conn.execute("SELECT COUNT(*) FROM documents WHERE ? IS NULL OR id = ?", (doc_id, doc_id)).fetchone()[0]
+    pages = max(1, -(-total // REVIEW_PAGE))
+    trang = min(max(trang, 1), pages)
     docs = conn.execute(
         """
         SELECT id, file_path, so_hieu, loai, co_quan, hieu_luc, struct_score,
                extraction_method, ngay_ban_hanh, ngay_hieu_luc
         FROM documents
         WHERE ? IS NULL OR id = ?
-        ORDER BY IFNULL(struct_score, 1) ASC
+        ORDER BY IFNULL(struct_score, 1) ASC, id
+        LIMIT ? OFFSET ?
         """,
-        (doc_id, doc_id),
+        (doc_id, doc_id, REVIEW_PAGE, (trang - 1) * REVIEW_PAGE),
     ).fetchall()
     items = []
     for d in docs:
         units = conn.execute(
             "SELECT id, path, level, title, boundary_confidence, raw_text "
-            "FROM units WHERE doc_id = ? ORDER BY id LIMIT 40",
-            (d["id"],),
+            "FROM units WHERE doc_id = ? ORDER BY id LIMIT ?",
+            (d["id"], 40 if doc_id is not None else 5),
         ).fetchall()
         items.append({"doc": dict(d), "units": [dict(u) for u in units]})
     conn.close()
-    return _tpl(request, "review_docs.html", {"items": items, "only": doc_id is not None})
+    return _tpl(request, "review_docs.html", {"items": items, "only": doc_id is not None, "trang": trang, "pages": pages, "total": total})
 
 
 @app.post("/docs/{doc_id}/hieu-luc")
@@ -706,7 +718,7 @@ def set_hieu_luc(
     )
     conn.commit()
     conn.close()
-    return RedirectResponse("/review/docs", status_code=303)
+    return RedirectResponse(f"/review/docs?id={doc_id}", status_code=303)
 
 
 @app.post("/docs/{doc_id}/so-hieu")
@@ -727,7 +739,7 @@ def set_so_hieu(
     )
     conn.commit()
     conn.close()
-    return RedirectResponse("/review/docs", status_code=303)
+    return RedirectResponse(f"/review/docs?id={doc_id}", status_code=303)
 
 
 @app.get("/unit/{unit_id}")
@@ -935,9 +947,10 @@ def export(
     _check_csrf(request, csrf_token)
     conn = get_conn()
     dest = data_dir() / "export.docx"
-    cards = assemble_cards(conn, uid)
-    export_cards(cards, dest)
-    conn.close()
+    try:
+        export_units(conn, uid, dest)
+    finally:
+        conn.close()
     return FileResponse(
         dest,
         filename="soiluat-baocao.docx",

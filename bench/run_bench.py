@@ -296,12 +296,14 @@ def worker_extras(out_json: str) -> None:
     """Xuất Word 10 thẻ + sao lưu SQLite, đo thời gian."""
     from soiluat.app import _search_ctx
     from soiluat.config import data_dir, db_path
-    from soiluat.db import backup_db
-    from soiluat.export_word import export_cards
+    from soiluat.db import backup_db, connect
+    from soiluat.export_word import export_units
 
     cards = _search_ctx("phải báo cáo", "", "", "")["cards"][:10]
+    conn = connect(db_path())
     t0 = time.perf_counter()
-    export_cards(cards, data_dir() / "export.docx")
+    export_units(conn, [c.unit_ids[0] for c in cards if c.unit_ids], data_dir() / "export.docx")
+    conn.close()
     t_exp = time.perf_counter() - t0
     t0 = time.perf_counter()
     backup_db(db_path(), data_dir() / "backup" / "soiluat.db")

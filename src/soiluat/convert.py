@@ -26,6 +26,7 @@ def word_to_docx(src: Path, dst: Path) -> None:
         word = win32com.client.DispatchEx("Word.Application")
         word.Visible = False
         word.DisplayAlerts = 0
+        word.AutomationSecurity = 3  # msoAutomationSecurityForceDisable; mặc định Low = chạy mọi macro của file .doc/.rtf lạ
         # mật khẩu giả: file có mật khẩu thì báo lỗi ngay thay vì hiện hộp thoại chờ mãi
         doc = word.Documents.Open(
             str(src.resolve()),

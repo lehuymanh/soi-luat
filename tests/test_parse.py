@@ -83,3 +83,18 @@ def test_diem_nhieu_dong():
     assert "không mang theo Giấy chứng nhận bảo hiểm" in u["D1.K1.Đa"].text
     assert "Giấy đăng ký xe" in u["D1.K1.Đb"].text and "bảo hiểm" not in u["D1.K1.Đb"].text
     assert "không mang theo Giấy phép lái xe" in u["D1.K2"].text  # khoản không có điểm: không đổi
+
+
+def test_c1_dong_so_hong_khong_lay_so_hieu_van_ban_duoc_dan():
+    """C1: dòng "Số:" của chính văn bản bị OCR hỏng thì để trống, không lấy số của văn bản căn cứ."""
+    from soiluat.parse import parse_so_hieu_from_text
+
+    can_cu = "Căn cứ Luật số 84/2015/QH13 ngày 25 tháng 6 năm 2015;"
+    for so in ("Số: | /2026/TT-BNV", "Số: |9 /2026/TT-BTC", "Số: — /2026/TT-BGDĐT"):
+        text = f"BỘ NỘI VỤ\n{so}\nTHÔNG TƯ\n{can_cu}\nĐiều 1. Phạm vi"
+        assert parse_so_hieu_from_text(text) is None, so
+    # dòng Số đủ số (kể cả dạng bảng) vẫn đọc đúng
+    for ln in ("Số: 26/2026/TT-BNV", "| Số: 26/2026/TT-BNV | Hà Nội, ngày 19 tháng 10 năm 2026 |"):
+        assert parse_so_hieu_from_text(f"BỘ NỘI VỤ\n{ln}\n{can_cu}") == "26/2026/TT-BNV", ln
+    # không có dòng Số nào: vẫn lấy số hiệu đầu tiên trong văn bản như cũ
+    assert parse_so_hieu_from_text(f"THÔNG TƯ\n{can_cu}") == "84/2015/QH13"

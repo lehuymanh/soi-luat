@@ -36,10 +36,10 @@
     <p>Nạp văn bản vào kho rồi hỏi lại.</p>
     <button type="button" class="btn" data-open="import">Nạp văn bản</button>
   </div>
-  {% elif n_found and (loai or co_quan or hieu_luc) %}
+  {% elif loai or co_quan or hieu_luc %}
   <div class="none">
     <h2>Không còn kết quả sau khi lọc</h2>
-    <p>Tìm được {{ n_found }} đoạn, nhưng không đoạn nào thuộc bộ lọc.</p>
+    <p>{% if n_found %}Tìm được {{ n_found }} đoạn, nhưng không đoạn nào thuộc bộ lọc.{% else %}Không đoạn nào thuộc bộ lọc khớp «{{ q }}».{% endif %}</p>
     <button type="button" class="btn" data-unfilter="{{ q }}">Bỏ lọc</button>
   </div>
   {% else %}
