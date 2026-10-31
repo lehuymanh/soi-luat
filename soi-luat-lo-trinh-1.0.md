@@ -12,14 +12,14 @@
 | Phase | Nội dung | Phản hồi được giải quyết (mục 1) | Ước tính (1 người) | Xong khi |
 |---|---|---|---|---|
 | **P0** | Đo và chốt | nền cho mọi phase | 1 tuần | Mô hình chọn theo benchmark công khai được xác nhận trên máy 16 GB (xong ≤ 45 giây); có bộ đo câu trả lời chấm bằng máy; người dùng duyệt mẫu giao diện |
-| **P1** | Mở đúng đoạn, kết quả gọn, lịch sử chat | ① ③ ④ ⑦ | 4 tuần (kế hoạch chi tiết) | Bấm trích dẫn là văn bản mở ngay trong app, cuộn tới và tô đúng đoạn; mỗi câu hỏi hiện sẵn tối đa 5 mục, không trùng; có "Cuộc trò chuyện mới" và lịch sử |
+| **P1** | Mở đúng đoạn, kết quả gọn, lịch sử chat | ① ③ ④ ⑦ | 4,5 tuần (22 ngày, kế hoạch chi tiết) | Bấm trích dẫn là văn bản mở ngay trong app, cuộn tới và tô đúng đoạn; mỗi câu hỏi hiện sẵn tối đa 5 mục, không trùng; có "Cuộc trò chuyện mới" và lịch sử |
 | **P2** | Kho văn bản: tag, ghi chú, @, hiệu lực | ⑤ ⑥ ⑨ ⑩ | 3 tuần | Gõ @văn bản hoặc #tag để giới hạn phạm vi hỏi; gắn tag, viết ghi chú được; hiệu lực hiện ở mọi trích dẫn, kèm lý do |
 | **P3** | Trợ lý trả lời: LLM chạy CPU, có kiểm chứng | ② ⑥ ⑪ | 3 tuần (lõi đã có từ P0) | Câu trả lời 2–3 câu bằng lời thường, xong trong ≤ 45 giây, mỗi ý có nguồn bấm được; không có số liệu nào lệch nguồn; kho không có căn cứ thì nói không có |
 | **P4** | Liên kết văn bản kiểu Obsidian, hiệu lực theo Điều | ⑧ ⑨ | 3 tuần | Mỗi văn bản có bảng "Liên quan" (căn cứ, hướng dẫn, sửa đổi, thay thế, dẫn chiếu) và đồ thị cục bộ; Điều đã bị sửa đổi được đánh dấu |
 | **P5** | Chuyên nghiệp, chỉn chu, phát hành | tất cả | 2 tuần | Không còn cửa sổ đen; bộ cài và gói AI; người dùng thật dùng một tuần đạt cổng |
 | **Song song** | Độ chính xác tìm kiếm | nền cho P3 | xen kẽ P1–P3 | Thay đổi chỉ được giữ khi tốt hơn trên cả Zalo, gold và văn bản thật |
 
-Làm tuần tự một người: khoảng 16 tuần. P4 và nhánh độ chính xác chạy song song được với P2–P3 nếu có người thứ hai.
+Làm tuần tự một người: khoảng 16,5 tuần. P4 và nhánh độ chính xác chạy song song được với P2–P3 nếu có người thứ hai.
 
 **Mô hình (chọn theo benchmark công khai, mục 4):** **Qwen3-VL-4B-Instruct** (Apache-2.0), GGUF Q4_K_M chính hãng, chạy bằng llama.cpp trên CPU; dự phòng **Gemma 4 E4B** (QAT Q4_0). Lý do chính: điểm tiếng Việt cao nhất nhóm 4B ở chế độ trả lời kịp 45 giây (bảng SEA-HELM), nhất là phần hỏi đáp trích từ đoạn văn. P0 (vòng 2, máy ảo, `bench/llm/KET-QUA.md`): Qwen giữ vị trí chính; Gemma 4 E4B và ứng viên mới Nemotron-3.5-Bolt-E4B không hơn trên cùng bộ đo. Tốc độ chưa đo trên máy 16 GB.
 
@@ -200,7 +200,7 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 
 1. Chọn mô hình theo benchmark công khai (`bench/llm/CHON-MO-HINH.md`), rồi xác nhận trên máy 16 GB theo mục 4, ghi `bench/llm/KET-QUA.md`; chốt mô hình, mức lượng tử, số luồng.
 2. Dựng bộ đo câu trả lời `bench/llm/`, chấm hoàn toàn bằng máy (mục 4): kịch bản chạy qua `llama-server`; đáp án là Điều đúng có sẵn trong các bộ đo; câu bẫy sinh từ mức phạt. Câu lấy từ ViLegalExperts chỉ giữ trên máy, như `bench/gold` (bộ này chưa ghi giấy phép).
-3. **Đo lại mốc tìm kiếm trên văn bản thật** (21 văn bản, 84 câu) với Advance hiện tại (AITeamVN): Hit@k và số thẻ trung bình mỗi câu. Chưa có lần đo nào của bản Advance này trên văn bản thật (`bench/gold/KET-QUA.md` chỉ ghi Normal); cổng P1 cần mốc này.
+3. **Đo lại mốc tìm kiếm trên văn bản thật** (21 văn bản, 84 câu) với Advance hiện tại (AITeamVN): Hit@k và số thẻ trung bình mỗi câu. Chưa có lần đo nào của bản Advance này trên văn bản thật (`bench/gold/KET-QUA.md` chỉ ghi Normal); đây là mốc tham khảo, vì cổng P1 trên văn bản thật đo ở Normal (kế hoạch P1, mục 2).
 4. Gom ≥ 100 câu hỏi thật của văn phòng kèm Điều đúng (`bench/gold/README.md`, phần `van-phong`). Việc này của người dùng; phải có trước cổng P3.
 5. Làm mẫu giao diện bấm thử được (HTML tĩnh): màn chat có thanh lịch sử, câu trả lời gọn, trình đọc văn bản, @mention, trang Kho, bảng Liên quan. Người dùng góp ý trước khi code.
 
@@ -216,24 +216,24 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 | 4. ≥ 100 câu hỏi thật của văn phòng | Chưa (người dùng) |
 | 5. Mẫu giao diện | **Xong**, chờ người dùng duyệt: `mau/giao-dien-1.0.html`. Dựng lại 31/10/2026 theo taste-skill sau khi chủ dự án báo mẫu cũ không dùng được (mục 9, điều 9) |
 
-### P1 — Mở đúng đoạn, kết quả gọn, lịch sử chat (4 tuần)
+### P1 — Mở đúng đoạn, kết quả gọn, lịch sử chat (4,5 tuần)
 
 **Giải quyết:** ① ③ ④ ⑦.
 
-**Kế hoạch triển khai:** `soi-luat-ke-hoach-p1.md` (từng việc, file, test viết trước, lịch theo ngày, quyết định cần chốt). Ước tính 15,75 ngày mã + 2,25 đệm + 2 ngày thử = 20 ngày; cắt hết phần cắt được vẫn chưa về 3 tuần (kế hoạch mục 7). Khảo sát mã khi lập kế hoạch thêm các việc sau vào P1:
+**Kế hoạch triển khai:** `soi-luat-ke-hoach-p1.md` (từng việc, file, test viết trước, lịch theo ngày, quyết định cần chốt). Ước tính 17,5 ngày mã + 2,5 đệm + 2 ngày thử = 22 ngày (4 tuần xây dựng, 2 ngày thử ở tuần 5); cắt hết phần cắt được vẫn chưa về 3 tuần (kế hoạch mục 7). Khảo sát mã khi lập kế hoạch thêm các việc sau vào P1:
 
 - **Bốn chỉ mục khoá ngoại**, làm đầu tiên. Thiếu chúng thì xoá một văn bản phải quét cả bảng: trên kho Zalo, xoá văn bản 89 đơn vị mất 41,5 s, có chỉ mục còn 0,01 s. Đây cũng là lỗi chậm của bản 0.8 mỗi khi nạp lại file.
 - **Sửa parser điểm nhiều dòng** (dòng thứ hai trở đi của điểm đang bị nối vào khoản cha) và **nâng cấp dữ liệu một lần** trong luồng nền: sao lưu trước, chỉ dựng lại văn bản có chữ đổi, giữ gợi ý hiệu lực đã duyệt, đánh dấu bằng `app_meta.parse_rev`. Trên văn bản thật, Hit@3 rộng tụt 2 câu (94,0 → 91,7%, chưa vượt nhiễu), nên giữ bản sửa cần chủ dự án duyệt ngoại lệ quy tắc 7 (mục 9, điều 11).
 - **Tham chiếu kết quả lưu `(doc_id, path)` kèm băm chữ**, vì `documents.id` cũng bị tái dùng sau khi xoá.
-- **Bảng `citation_opens`** cho lượt mở trích dẫn (`gap` chỉ có ở Advance).
+- **Bảng `citation_opens`** cho lượt mở trích dẫn (`gap` chỉ có ở Advance). **Hệ thiết kế và khung theo mẫu mới** (G0): token màu sáng và tối, phông Be Vietnam Pro nhúng trong `static/fonts/` (không dẫn Google Fonts, nguyên tắc 8), khung thanh bên | luồng | trình đọc, hộp thoại xác nhận và thông báo dùng chung.
 - **Chạy lại `bench/llm`** hai nhánh trước/sau sửa parser trên cùng mã, chạy nền. Kết quả là mốc cho cổng P3 thay số P0.
 
 **1a. Trình đọc văn bản** (thay trang `/unit/{id}`)
 
-- Route `/doc/{doc_id}` hiển thị toàn văn. Thân văn bản dựng từ `units` theo thứ tự (Điều, khoản, điểm, đoạn), mục lục Điều ở bên trái, mỗi đơn vị có neo `#u{id}`. Mở `/doc/{id}#u{unit}` thì cuộn tới, tô nền đoạn và tô đậm từ khớp câu hỏi.
+- Route `/doc/{doc_id}` hiển thị toàn văn. Thân văn bản dựng từ `units` theo thứ tự (Điều, khoản, điểm, đoạn), mục lục Điều (mặc định là ô chọn; thành cột bên trái khi mở rộng trình đọc), mỗi đơn vị có neo `#u{id}`. Mở `/doc/{id}#u{unit}` thì cuộn tới, tô nền đoạn kèm vạch lề, và gạch dưới từ khớp câu hỏi bằng một màu duy nhất.
 - Phần parser bỏ khỏi `units` lấy từ `pages.raw_text`: phần mở đầu (căn cứ, trích yếu), khối nơi nhận/chữ ký và mọi thứ sau nó cho tới Điều kế tiếp (`parse.py`: `_preamble_line`; cờ `in_sign` chỉ tắt khi gặp Điều mới). Tên Chương/Mục cũng bị bỏ (`parse.CHUONG_MUC`), nên mục lục 1.0 chỉ theo Điều; muốn có Chương thì phải lưu thêm khi nạp (builder quyết). P1 chỉ hiện các phần này ở mục "Nguyên văn trang N" (cho văn bản không có ảnh trang). Chèn đúng chỗ trong thân văn bản cần sửa parser lần hai, nên dời sang P2.
 - Mở dạng ngăn kéo bên phải màn chat, để không mất cuộc trò chuyện; có nút mở toàn màn hình.
-- Đầu trang: số hiệu, trích yếu (P2), loại, cơ quan, ngày, huy hiệu hiệu lực; nút "Sao chép trích dẫn" theo dạng "Khoản 1 Điều 5 Nghị định 15/2020/NĐ-CP".
+- Đầu trang: loại và số hiệu, huy hiệu hiệu lực, rồi cơ quan · ngày ban hành · tên tệp (trích yếu có từ P2); nút "Sao chép trích dẫn" theo dạng "Khoản 1 Điều 5 Nghị định 15/2020/NĐ-CP".
 - Tab "Bản gốc" cho PDF/ảnh: ảnh đúng trang của đơn vị (dùng `/page/{doc}/{n}` có sẵn), chuyển trang được. `/page` hiện chỉ phục vụ PDF, PNG, JPG (`pageimg.VIEWABLE`) dù app nhận cả TIFF, BMP: thêm hai loại này (đổi sang PNG bằng Pillow khi có; bản đóng gói đủ có Pillow vì OCR dùng). Khung tô trên ảnh làm ở nhánh chính xác.
 - Văn bản không có cấu trúc: hiện theo trang/đoạn, vẫn có neo.
 - Thông tin kỹ thuật (hash, cách trích, trạng thái OCR) chuyển vào mục "Chi tiết kỹ thuật" thu gọn.
@@ -241,11 +241,11 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 **1b. Kết quả gọn**
 
 - Mặc định hiện 5 mục đầu theo thứ tự xếp hạng hiện có; "Xem thêm" mở thêm từng 10 mục, tối đa 25. Truy vấn chỉ có số hiệu thì ra một mục "Mở toàn văn" cho mỗi văn bản. Gộp trùng gần như không giảm số mục; số 5 là do mức cắt.
-- Mỗi mục: tên Điều và số hiệu; 1–3 câu trích quanh chỗ khớp, cắt theo khoản/điểm khớp chứ không đổ cả Điều; từ khớp tô đậm; nút "Mở tại đoạn này".
+- Mỗi mục: địa chỉ khoản/điểm của dòng khớp nhất (ví dụ "Điểm a khoản 2 Điều 21") kèm tên Điều; 1–3 câu trích quanh chỗ khớp, có câu dẫn của khoản, không đổ cả Điều; từ khớp gạch dưới; "Mở tại đoạn này" và "Sao chép trích dẫn".
 - Gộp trùng: các Điều có nội dung chuẩn hoá giống nhau (băm chữ của Điều và các đơn vị con) ở nhiều file thành một mục, ghi "Cũng có ở: …"; mục đại diện ưu tiên văn bản còn hiệu lực, mới hơn.
 - Một văn bản có ≥ 2 mục trong nhóm đầu thì gom lại: "15/2020/NĐ-CP · 3 đoạn".
-- Bốn ô thống kê rủi ro thu thành một dòng nhỏ; nhãn kỹ thuật chuyển vào chú thích khi rê chuột. Giữ nguyên bốn hạng thẻ (`cards.KIND_RANK1`–`KIND_RANK4`) và thứ tự xếp hiện tại của `cards.assemble_cards`.
-- Nhãn "Độ tin cậy cao / Chưa chắc chắn" giữ, viết lại bằng lời thường. Xuất Word giữ nguyên.
+- Bốn ô thống kê rủi ro thu thành một dòng nhỏ bằng lời thường (mức phạt đã duyệt, mức phạt máy gợi ý, nghĩa vụ chưa rõ mức phạt, quy định liên quan), chú giải mở bằng nút. Giữ nguyên bốn hạng thẻ (`cards.KIND_RANK1`–`KIND_RANK4`) và thứ tự xếp hiện tại của `cards.assemble_cards`.
+- Nhãn "Khớp rõ / Chưa chắc chắn" chỉ có khi tìm theo nghĩa (Advance tính được độ chắc chắn, Normal thì không); ở Normal dòng đầu ghi "Đoạn đầu: …". Xuất Word giữ nguyên.
 
 **1c. Cuộc trò chuyện**
 
@@ -254,15 +254,15 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 - URL `/c/{id}`; có phím tắt mở cuộc trò chuyện mới. `query_log` giữ nguyên (dùng cho đo và trang "Truy vấn bỏ sót").
 - Ghi lượt mở trích dẫn cho đúng câu hỏi: khi người dùng bấm trích dẫn, app gửi (mã tin nhắn, id đơn vị) về server. Cách cũ không dùng tiếp được: `/unit/{id}` ghi vào dòng `query_log` mới nhất bất kể câu nào sinh ra thẻ, còn neo `#u…` của trình đọc không tới server. Dữ liệu này cần cho việc chỉnh `SURE_GAP` (nhánh chính xác).
 
-**Kỹ thuật:** tách JS/CSS khỏi `index.html` (450 dòng) ra `static/`, phục vụ bằng `StaticFiles`, thêm vào `package-data` và `pack/SoiLuat.spec`. Giữ Jinja trả HTML từng phần; không thêm Node hay SPA. Mọi endpoint ghi mới đi qua `_check_csrf`.
+**Kỹ thuật:** tách JS/CSS khỏi `index.html` (450 dòng) ra `static/`, phục vụ bằng `StaticFiles`, thêm vào `package-data` và `pack/SoiLuat.spec`. Giữ Jinja trả HTML từng phần; không thêm Node hay SPA. Mọi endpoint ghi mới đi qua `_check_csrf`. Giao diện dựng lại theo mẫu `mau/giao-dien-1.0.html` (việc G0 của kế hoạch): phông nhúng, không tải gì từ ngoài; hộp thoại xác nhận dùng chung thay `confirm()`.
 
 **Cổng P1:**
 
 - Bấm một trích dẫn: trình đọc mở đúng văn bản, đúng đơn vị, đoạn được tô, trong ≤ 1 giây với kho 61 nghìn Điều.
-- Hit@1/@5 tính theo mục hiển thị không thấp hơn mốc hiện có trên Zalo và gold, và mốc đo ở P0 trên văn bản thật (gộp trùng và gom nhóm không được làm tụt).
+- Hit@1/@5 tính theo mục hiển thị không thấp hơn mốc hiện có trên Zalo và gold, và mốc trên văn bản thật đo ở Normal trên cùng bản dựng (gộp trùng và gom nhóm không được làm tụt; Advance không thuộc cổng P1, mục 9 điều 8).
 - Số mục hiện sẵn ≤ 5 (từ ~40).
 - Mở lại cuộc trò chuyện cũ hiện đúng kết quả mà không chạy lại tìm kiếm.
-- 3–5 người dùng thật làm 8 việc (tìm đoạn, mở đúng đoạn, mở cuộc mới, tìm lại cuộc cũ…): ≥ 90% việc làm được không cần hướng dẫn.
+- 3–5 người dùng thật làm 9 việc (tìm đoạn, mở đúng đoạn, mở cuộc mới, tìm lại cuộc cũ…): ≥ 90% việc làm được không cần hướng dẫn.
 - `pytest` xanh, có test mới cho: neo và tô đúng đơn vị, gộp trùng, thêm/sửa/xoá cuộc trò chuyện, CSRF.
 
 ### P2 — Kho văn bản: tag, ghi chú, @, hiệu lực (3 tuần)
@@ -408,7 +408,7 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 
 - **Cửa sổ app:** bỏ cửa sổ đen (PyInstaller `console=False`); mở bằng Edge chế độ app (`msedge --app=<url>`; Edge có sẵn trên Windows 10/11, không có thì dùng trình duyệt mặc định) để trông như một phần mềm riêng. Thêm nút "Thoát Soi Luật" trong Cài đặt (hoặc biểu tượng ở khay hệ thống) để tắt hẳn. Hướng dẫn hiện phải dặn "đừng tắt cửa sổ đen"; bỏ được câu đó.
 - **Lần đầu mở app:** màn chào 3 bước (nạp văn bản → hỏi thử → mở đoạn); câu hỏi mẫu lấy từ chính kho.
-- **Thống nhất giao diện:** một bộ token màu và chữ (đã có `_style.html`). Mọi màn có trạng thái trống, đang tải, lỗi viết bằng lời thường. Kiểm tra độ tương phản, thao tác bằng bàn phím, trình đọc màn hình (`aria-live` cho câu trả lời đang hiện).
+- **Thống nhất giao diện:** một bộ token màu và chữ (đã có từ P1, việc G0). Mọi màn có trạng thái trống, đang tải, lỗi viết bằng lời thường. Kiểm tra độ tương phản, thao tác bằng bàn phím, trình đọc màn hình (`aria-live` cho câu trả lời đang hiện).
 - **Xuất Word câu trả lời và căn cứ** (báo cáo tra cứu có ngày, nguồn, hiệu lực), mở rộng `export_word.py`.
 - **Đóng gói:** bộ cài chính giữ ~840 MB. **Gói AI** riêng (`llama-server` + GGUF Qwen3-VL-4B Q4_K_M, ~2,5 GB) cài vào `models\llm\`; hoặc gộp thành một bộ cài ~3,3 GB (mục 9). `build.ps1` kiểm SHA-256 mô hình; NOTICE và giấy phép Apache-2.0/MIT đi kèm, như hai mô hình hiện tại.
 - **Chữ ký số** cho bộ cài để hết cảnh báo SmartScreen (cần mua chứng thư, mục 9).
@@ -437,7 +437,7 @@ Câu trả lời AI chỉ đúng khi đoạn đúng nằm trong 5 đoạn đưa 
 
 | Thay đổi | Phase | Ghi chú |
 |---|---|---|
-| Bảng `conversations`, `messages` | P1 | Bảng mới |
+| Bảng `conversations`, `messages` | P1 | Bảng mới, kèm hai chỉ mục (`updated_at`; `conversation_id, id`) |
 | Bảng `citation_opens` | P1 | Bảng mới, không khoá ngoại: xoá cuộc trò chuyện vẫn giữ dữ liệu chỉnh `SURE_GAP` |
 | Bốn chỉ mục khoá ngoại (`units.fine_source_unit`, `page_regions.unit_id`, `query_log.selected_unit`, `effect_hints.source_unit_id`) | P1 | `CREATE INDEX IF NOT EXISTS`; kho cũ tự có chỉ mục ở lần mở đầu |
 | `app_meta.parse_rev`; dựng lại văn bản có chữ đổi sau khi sửa parser | P1 | Sao lưu một lần trước khi dựng lại. Đổi đầu ra parser thì tăng `PARSE_REV` |
@@ -487,7 +487,7 @@ Nguyên tắc: chỉ thêm, không xoá hay đổi cột; tự sao lưu trước
 10. **Cách tính cổng P0 cho câu trả lời AI** (`bench/llm/KET-QUA.md`, vòng 2). (a) JSON: tính câu bị cắt ở trần token mà app cứu được các ý đã viết xong, hay chỉ tính JSON đọc được ngay. Lưu ý: 15/20 câu Qwen bị cắt, sau khi cứu không còn ý nào có nguồn (chỉ còn câu trả lời và tiền đề sai). Đề xuất: chỉ tính câu đã cứu còn ít nhất một ý có nguồn, và sửa việc câu bẫy chạm trần trước. (b) Từ chối: chỉ tính `du_can_cu = false`, hay tính cả câu trả lời gắn `pham_vi` "hẹp hơn" kèm dải cảnh báo trên giao diện (đề xuất: tính cả, vì trên train biến thể này ít khẳng định sai nhất: 5/12 so với 7/12 và 8/12 ở Zalo; cách tính không đổi số khẳng định sai, chỉ đổi cách đọc cổng).
 11. **Ngoại lệ quy tắc 7 cho bản sửa parser điểm nhiều dòng** (kế hoạch P1, mục 2b). Trên văn bản thật (n = 84, Normal), Hit rộng @1 tăng 83,3 → 84,5%, @3 giảm 94,0 → 91,7%: mất 2 câu, cả hai rơi từ hạng 3 xuống hạng 4. Chênh lệch chưa vượt nhiễu (p = 0,5), nhưng theo chữ của quy tắc 7 vẫn là tụt. Đề xuất: giữ bản sửa nếu Zalo và gold không thấp hơn, vì đây là sửa đúng cho trình đọc (điểm nhiều dòng đang bị cắt), không phải chỉnh xếp hạng. Hạn: ngày 2 của P1.
 12. **Cổng "Hit theo mục" khi đã gộp trùng** (kế hoạch P1, mục 2b): tính theo mục đại diện hay tính cả các bản trùng trong "Cũng có ở". Đề xuất: văn bản thật tính theo mục đại diện; Zalo và gold tính cả bản trùng, vì kho Zalo gần như không có ngày ban hành để chọn bản đại diện. Mọi bộ báo cả hai cách.
-13. **P1 làm 4 tuần hay 3 tuần.** Kế hoạch ước 20 ngày làm việc. Cắt cả bốn việc nhỏ trong danh sách cắt, bỏ `citation_opens` và dời TIFF/BMP sang P5 thì còn khoảng 18,5 ngày, vẫn hơn 3 tuần. Muốn về 3 tuần thì phải bớt thêm phần đệm hoặc ngày thử với người dùng (kế hoạch P1, mục 7). Tổng lộ trình vẫn khoảng 16 tuần, vì P3 giảm 1 tuần. Các quyết định nhỏ hơn của P1 (khối chế tài, người thử, máy Windows) ghi ở kế hoạch P1, mục 1.
+13. **P1 làm 22 ngày (4,5 tuần) hay ít hơn.** Cắt cả ba việc nhỏ trong danh sách cắt, bỏ `citation_opens` và dời TIFF/BMP sang P5 thì còn khoảng 20,6 ngày. Không có đường cắt nhỏ nào về 3 tuần (15 ngày) mà vẫn giữ cổng người dùng (kế hoạch P1, mục 7). Tổng lộ trình khoảng 16,5 tuần, vì P1 tăng còn P3 giảm 1 tuần. Các quyết định nhỏ hơn của P1 (khối chế tài, người thử, máy Windows) ghi ở kế hoạch P1, mục 1.
 
 ---
 
