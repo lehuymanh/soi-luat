@@ -6,6 +6,16 @@ Phần mềm trả lại **nguyên văn** điều luật trong văn bản của 
 
 Cách dùng chỉ có 4 bước: **Cài → Mở → Cho phần mềm đọc văn bản của bạn → Gõ câu hỏi.**
 
+## Có gì mới ở bản 0.9
+
+- **Mở văn bản ngay tại đoạn cần đọc.** Bấm **Mở tại đoạn này** (trước đây là "Xem nguồn →"): văn bản mở bên cạnh, cuộn tới đúng khoản/điểm và tô sẵn. Tab **Bản gốc** cho cuộn ảnh trang PDF.
+- **Kết quả gọn.** Mỗi mục là một Điều, gom theo văn bản; hiện 5 mục đầu, bấm **Xem thêm** để xem tiếp. Điều giống hệt ở văn bản khác nằm trong "Cũng có ở".
+- **Lịch sử trò chuyện** ở thanh bên trái: **Cuộc trò chuyện mới** (Alt+N), tìm lại cuộc cũ, đổi tên, xoá.
+- Nút **Nạp file** nay ở thanh bên, tên là **Nạp văn bản**. **Cài đặt** cũng ở thanh bên.
+- Lần đầu mở bản 0.9, phần mềm tự sao lưu kho rồi đọc lại văn bản cũ cho đúng cấu trúc hơn (thanh bên ghi "Nâng cấp dữ liệu"). Trong lúc đó vẫn tìm được bình thường.
+
+Các mục dưới đây viết cho bản 0.8; chỗ nào nhắc "Nạp file góc trên bên trái" thì hiểu là **Nạp văn bản** ở thanh bên.
+
 ---
 
 ## Trước khi cài: máy bạn cần gì?

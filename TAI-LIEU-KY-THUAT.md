@@ -1,6 +1,6 @@
 # Soi Luật — Tài liệu kỹ thuật
 
-Phiên bản app 0.8 · cập nhật 29/10/2026 · Đối tượng đọc: người bảo trì, người build/đóng gói, người đánh giá chất lượng tìm kiếm.
+Phiên bản app 0.9 · cập nhật 31/10/2026 · Đối tượng đọc: người bảo trì, người build/đóng gói, người đánh giá chất lượng tìm kiếm.
 Hướng dẫn cho người dùng cuối: [HUONG-DAN-DON-GIAN.md](HUONG-DAN-DON-GIAN.md) (ngắn) và [HUONG-DAN.md](HUONG-DAN.md) (đầy đủ).
 
 ---
@@ -44,7 +44,9 @@ Một tiến trình duy nhất: tìm kiếm chạy trong luồng request, nạp 
 
 | Module | Vai trò |
 |---|---|
-| `app.py` | FastAPI: trang tìm, nạp file, cài đặt, duyệt liên kết/từ điển, xem nguồn, xuất Word; `HostGuard` và CSRF |
+| `app.py` | FastAPI: trang hỏi đáp (`/`, `POST /ask`), lịch sử (`/history`, `/c/{id}`, đổi tên, xoá), trình đọc (`/doc/{id}`, `/page/{id}/{n}`; `/unit/{id}` chuyển hướng 303), nạp file, cài đặt, duyệt liên kết/từ điển, xuất Word; `HostGuard` và CSRF |
+| `reader.py` | Trình đọc (0.9): thân văn bản theo thứ tự, đơn vị được chọn và con của nó, tô từ khớp (tập dừng riêng), địa chỉ và chuỗi trích dẫn |
+| `conversations.py` | Lịch sử trò chuyện (0.9): lưu câu hỏi và tham chiếu kết quả `(doc_id, path, băm chữ)`, mở lại không tìm lại, báo khi nguồn đã đổi |
 | `extract.py` | Đọc DOCX/DOC/RTF/PDF/XLSX/ảnh/TXT thành trang (giữ bảng, footnote, comment, text box) |
 | `convert.py` | `.doc/.rtf` → `.docx` tạm qua Word COM, dự phòng LibreOffice |
 | `ocr.py` | OCR bằng Tesseract (chỉ importer gọi; không import ở mức module) |
@@ -55,10 +57,11 @@ Một tiến trình duy nhất: tìm kiếm chạy trong luồng request, nạp 
 | `search.py` | Tra số hiệu/Điều; cascade BM25 nhiều tầng; gọi Advance |
 | `semantic.py` | Embedding AITeamVN, hợp RRF toàn kho |
 | `crossrank.py` | Reranker AITeamVN top-5 và độ tin cậy |
-| `cards.py` | Gom đơn vị thành thẻ, gắn chế tài, nhãn rủi ro, ghi chú |
+| `cards.py` | Gom đơn vị thành thẻ, gắn chế tài, nhãn rủi ro, ghi chú; `compact` (0.9) gộp Điều trùng nội dung giữa văn bản ("Cũng có ở"), phần trích có địa chỉ khớp; một thẻ mỗi Phụ lục |
 | `answer.py` | Trợ lý trả lời 1.0 (chưa gắn vào giao diện): dựng ngữ cảnh 3–5 Điều, lời nhắc, JSON schema, gọi `llama-server`, kiểm nguồn và số liệu; đo bằng `bench/llm/run.py` |
 | `labels.py`, `links.py` | Nhãn (NGHIA_VU, CAM, THOI_HAN, DIEU_KIEN, QUYEN, CHE_TAI, DINH_NGHIA) và liên kết nghĩa vụ–chế tài (chờ người duyệt) |
-| `jobs.py` | Hàng đợi nạp file và nhúng vector nền |
+| `jobs.py` | Hàng đợi nạp file, nâng cấp dữ liệu một lần khi `PARSE_REV` đổi (sao lưu trước), nhúng vector nền |
+| `static/` | `app.css`, `app.js`, `reader.js` và phông Be Vietnam Pro (`fonts/`, giấy phép OFL); phục vụ với `Cache-Control: no-cache` |
 | `importer.py`, `health.py` | Dòng lệnh nạp/nhúng; khám sức khoẻ kho (CSV) |
 | `db.py`, `schema.sql`, `config.py` | Kết nối, lược đồ, đường dẫn dữ liệu |
 
@@ -67,6 +70,7 @@ Một tiến trình duy nhất: tìm kiếm chạy trong luồng request, nạp 
 | Bảng | Nội dung chính |
 |---|---|
 | `documents` | Một dòng/văn bản: `so_hieu`, `loai`, `co_quan`, ngày ban hành/hiệu lực, `hieu_luc` ∈ {con, het, chua_ro}, `sha256` (chống nạp trùng), cờ `fallback_doan` |
+| `conversations`, `messages` | Lịch sử trò chuyện (0.9): tên cuộc, phạm vi; mỗi tin giữ câu hỏi và tham chiếu kết quả `result_json`. `AUTOINCREMENT`, xoá cuộc xoá tin; không khoá ngoại tới `units` (nạp lại đổi id) |
 | `pages` | Trang gốc: văn bản thô, văn bản chuẩn hoá, trạng thái OCR (`ocr_status`, độ tin cậy), `reviewed_text` |
 | `units` | Đơn vị tìm kiếm: `level` ∈ {dieu, khoan, diem, doan}, `path` dạng `D3.K1.Đa`, `parent_id`, các cột chuẩn hoá cho FTS (`search_text` không dấu, `search_accent` có dấu, `context_*` ngữ cảnh cha), `fine_min/fine_max` (chế tài tiền) |
 | `units_fts` | FTS5 external-content trên `units`, tokenizer `unicode61 remove_diacritics 0`, đồng bộ bằng trigger |
@@ -245,7 +249,8 @@ Giấy phép mô hình: cả hai mô hình AITeamVN theo Apache-2.0 (nền BGE-M
 
 ## 10. Kiểm thử
 
-- `pytest` (234 test qua, 2 bỏ qua khi thiếu mô hình thật): parser, nạp file, tìm kiếm, thẻ kết quả, bộ lọc, CSRF/Host, importer, đóng gói (`test_pack_spec.py`), `semantic` và `crossrank` (có `FakeRanker`, không cần mô hình).
+- `pytest` (số test thay đổi theo bản; một số ca bỏ qua khi thiếu Word COM, Tesseract, fitz hoặc mô hình thật): parser (kể cả Phụ lục, khối chữ ký), nạp file, nâng cấp dữ liệu, tìm kiếm, kết quả gọn, trình đọc, lịch sử trò chuyện, bộ lọc, CSRF/Host, importer, đóng gói (`test_pack_spec.py`), khớp số phiên bản, `semantic` và `crossrank` (có `FakeRanker`, không cần mô hình).
+- Cổng hồi quy khi sửa parser: `bench/van-ban-that/cau_truc_chi_tiet.py` (đo từng phần trên 21 văn bản thật) và `bench/parse_khac.py` (số văn bản trong một kho mà parser mới cho đơn vị khác). Mở trình đọc: `bench/doc_open.py`. Giao diện: `bench/kiem_anh.js` (Playwright).
 - Hai test dùng mô hình thật chỉ chạy khi đặt `SOILUAT_MODEL_DIR` / `SOILUAT_RERANK_DIR`.
 - Đo chất lượng: `bench/zalo`, `bench/gold` (có kiểm tra rò rỉ dữ liệu huấn luyện của mô hình), `bench/van-ban-that` (21 văn bản thật, phần lớn scan), `bench/stress10`.
 - Nghiệm thu bản đóng gói: cài vào thư mục tạm, nhúng và hỏi thử, kiểm tra không có kết nối ngoài `127.0.0.1`, gỡ cài.
@@ -257,6 +262,6 @@ Giấy phép mô hình: cả hai mô hình AITeamVN theo Apache-2.0 (nền BGE-M
 - Hit@1 khoảng 79 % ở Advance: cứ khoảng 5 câu có 1 câu kết quả đầu sai; khoảng 1/40 câu Điều đúng ra ngoài 10 kết quả đầu. Nhãn "tin cậy cao" sai khoảng 1/16.
 - Chưa thử trên máy 8 GB thật (RAM đỉnh đo ở máy 16 GB: ~2,2 GB).
 - Nâng cấp từ bản dùng EmbeddingGemma: vector cũ bị bỏ qua (khác `model`), app nhúng lại nền; kho 61 nghìn Điều mất vài giờ.
-- App không tự biết hiệu lực; không có nút xoá/sửa từng văn bản trong giao diện (nạp lại cùng đường dẫn thì cập nhật).
+- App không tự biết hiệu lực; không có nút xoá/sửa từng văn bản trong giao diện (nạp lại cùng đường dẫn thì cập nhật). Liên kết, gợi ý hiệu lực đã bác có thể hiện lại một lần sau khi văn bản được dựng lại.
 - Bộ cài chưa có chữ ký số, nên Windows SmartScreen cảnh báo.
-- Ý tưởng chưa làm: gộp Điều trùng nội dung giữa các văn bản ("cũng có ở…"), từ điển viết tắt mở rộng, hiệu chỉnh `SURE_GAP` trên nhật ký câu hỏi thật.
+- Ý tưởng chưa làm: từ điển viết tắt mở rộng; hiệu chỉnh `SURE_GAP` trên lượt mở trích dẫn thật (0.9 chưa ghi lượt mở, việc này ở nhánh độ chính xác của lộ trình). Gộp Điều trùng nội dung ("Cũng có ở") đã có từ 0.9.
