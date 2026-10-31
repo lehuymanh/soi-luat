@@ -146,6 +146,7 @@ Thời lượng trên máy ảo 4 nhân: Qwen ~50–60 s mỗi lần gọi, Gemm
 - **Gemma 4 qua `llama-server`**: issue llama.cpp #30256, khuôn JSON qua `response_format` vẫn cho kênh suy nghĩ khi tắt suy nghĩ. llama-cpp-python tự dịch schema nên không vướng; trên máy 16 GB nếu gặp thì truyền grammar GBNF.
 - **Đọc tệp kết quả lúc `run.py` đang ghi** cho số sai (một lần đọc được 29 thay vì 30 câu `dan`). Đọc sau khi có dòng trạng thái kết thúc.
 - **Mẫu lời nhắc ghi ví dụ "không phải 5.000.000 đồng"**: mô hình chép ví dụ vào câu thường, bộ kiểm bỏ. Ví dụ trong lời nhắc nên dùng số khó trùng.
+- **Giao diện: kiểm bằng ảnh, không bằng đọc mã.** Script đo của taste-skill là mã tải về nên bị bộ phân loại quyền chặn; đừng lách. Dùng Playwright có sẵn (`require('playwright')`, Chromium ở `/opt/pw-browsers`) chụp 1440/1100/768/390, sáng và tối, từng trạng thái (mở trình đọc, lọc hết, kho trống…), đo cuộn ngang và số h1, rồi mở từng ảnh mà chấm theo `references/app-screens.md`. Một quy tắc lớp như `.scrim { display: grid }` đè thuộc tính `hidden`; luôn thêm `[hidden] { display: none !important; }`.
 - **Số hiệu như `QH15`, tên tệp, mã đoạn `[1]`, nhãn khoản `1.`** từng "bảo lãnh" cho số bịa. Bộ kiểm hiện tách chúng thành nhãn; thêm luật mới thì thêm test cho đúng loại này (`.claude/skills/vietnamese-legal-number-check`).
 
 ## 6. Việc tiếp theo
@@ -169,5 +170,5 @@ Thời lượng trên máy ảo 4 nhân: Qwen ~50–60 s mỗi lần gọi, Gemm
 | `bench/van-ban-that/KET-QUA.md` | Mốc tìm kiếm trên văn bản thật (Normal/Advance) |
 | `soi-luat-lo-trinh-1.0.md` | Lộ trình 1.0; P0 trạng thái; P3 "Việc trước P3"; quyết định mở |
 | `soi-luat-ke-hoach-p1.md` | Kế hoạch triển khai P1 |
-| `mau/giao-dien-1.0.html` | Mẫu giao diện chờ duyệt |
+| `mau/giao-dien-1.0.html` | Mẫu giao diện chờ duyệt. Dựng lại 31/10/2026 theo taste-skill (repo leonxlnx/taste-skill, `references/app-screens.md`). Script đo của skill bị chặn trong môi trường này nên kiểm bằng Playwright |
 | `.claude/skills/` | Kỹ năng rút ra trong P0 (đóng gói ngữ cảnh, khuôn JSON, kiểm số tiếng Việt, chạy llama.cpp) |

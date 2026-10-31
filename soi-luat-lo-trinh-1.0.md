@@ -214,7 +214,7 @@ Chủ dự án yêu cầu tìm CSDL mã nguồn mở phù hợp, kể cả loạ
 | 2. Bộ đo câu trả lời | **Xong.** `bench/llm/run.py` (dẫn đúng, từ chối, tiền đề sai, JSON, số liệu, chữ CJK, thời gian) dùng chung mã với app: `src/soiluat/answer.py` (ngữ cảnh, lời nhắc, khuôn JSON, bộ kiểm số liệu) |
 | 3. Mốc tìm kiếm trên văn bản thật | **Xong.** Hit@1 (rộng) Normal 83,3%, Advance 72,6%; ~40 thẻ mỗi câu (`bench/van-ban-that/KET-QUA.md`); xem mục 2 điều 8 |
 | 4. ≥ 100 câu hỏi thật của văn phòng | Chưa (người dùng) |
-| 5. Mẫu giao diện | **Xong**, chờ người dùng duyệt: `mau/giao-dien-1.0.html` |
+| 5. Mẫu giao diện | **Xong**, chờ người dùng duyệt: `mau/giao-dien-1.0.html`. Dựng lại 31/10/2026 theo taste-skill sau khi chủ dự án báo mẫu cũ không dùng được (mục 9, điều 9) |
 
 ### P1 — Mở đúng đoạn, kết quả gọn, lịch sử chat (4 tuần)
 
@@ -483,7 +483,7 @@ Nguyên tắc: chỉ thêm, không xoá hay đổi cột; tự sao lưu trước
 6. **Ai duyệt hiệu lực và quan hệ văn bản, bao nhiêu giờ mỗi tuần** (đã hỏi từ 0.8, chưa có câu trả lời).
 7. **Có cần đồ thị toàn kho không:** quyết sau khi dùng đồ thị cục bộ ở P4.
 8. **Chế độ tìm mặc định trên máy 16 GB: Normal hay Advance.** Đề xuất (theo số đo P0): giữ Normal cho tới khi nhánh độ chính xác (điều 0) đưa Advance lên không thấp hơn Normal ở Hit@1 trên văn bản thật. Phần trả lời AI (P3) vẫn dùng được với Normal: ngữ cảnh là 5 Điều đầu.
-9. **Duyệt mẫu giao diện** (`mau/giao-dien-1.0.html`): cổng P0, cần trước khi viết mã P1. Trước khi duyệt, kế hoạch P1 (mục 1) đề nghị sửa ba chỗ cho khớp bản sẽ làm: "Xem thêm" mở 10 mục mỗi lần, bỏ khung tô trên ảnh trang, thêm mục "Mở toàn văn".
+9. **Duyệt mẫu giao diện** (`mau/giao-dien-1.0.html`; bản bấm thử là Artifact "Soi Luật 1.0"): cổng P0, cần trước khi viết mã P1. Mẫu cũ được chủ dự án đánh giá là không dùng được; mẫu hiện tại dựng lại ngày 31/10/2026 theo taste-skill (màn hình làm việc, khung không màu, một màu nhấn cho chữ khớp và đoạn được dẫn), rồi sửa theo một lượt soát độc lập. Mẫu chỉ vẽ những gì P1 làm, kể cả các trạng thái lỗi và rỗng. Cuộc "Xem trước: câu trả lời AI" là bản thử của P3.
 10. **Cách tính cổng P0 cho câu trả lời AI** (`bench/llm/KET-QUA.md`, vòng 2). (a) JSON: tính câu bị cắt ở trần token mà app cứu được các ý đã viết xong, hay chỉ tính JSON đọc được ngay. Lưu ý: 15/20 câu Qwen bị cắt, sau khi cứu không còn ý nào có nguồn (chỉ còn câu trả lời và tiền đề sai). Đề xuất: chỉ tính câu đã cứu còn ít nhất một ý có nguồn, và sửa việc câu bẫy chạm trần trước. (b) Từ chối: chỉ tính `du_can_cu = false`, hay tính cả câu trả lời gắn `pham_vi` "hẹp hơn" kèm dải cảnh báo trên giao diện (đề xuất: tính cả, vì trên train biến thể này ít khẳng định sai nhất: 5/12 so với 7/12 và 8/12 ở Zalo; cách tính không đổi số khẳng định sai, chỉ đổi cách đọc cổng).
 11. **Ngoại lệ quy tắc 7 cho bản sửa parser điểm nhiều dòng** (kế hoạch P1, mục 2b). Trên văn bản thật (n = 84, Normal), Hit rộng @1 tăng 83,3 → 84,5%, @3 giảm 94,0 → 91,7%: mất 2 câu, cả hai rơi từ hạng 3 xuống hạng 4. Chênh lệch chưa vượt nhiễu (p = 0,5), nhưng theo chữ của quy tắc 7 vẫn là tụt. Đề xuất: giữ bản sửa nếu Zalo và gold không thấp hơn, vì đây là sửa đúng cho trình đọc (điểm nhiều dòng đang bị cắt), không phải chỉnh xếp hạng. Hạn: ngày 2 của P1.
 12. **Cổng "Hit theo mục" khi đã gộp trùng** (kế hoạch P1, mục 2b): tính theo mục đại diện hay tính cả các bản trùng trong "Cũng có ở". Đề xuất: văn bản thật tính theo mục đại diện; Zalo và gold tính cả bản trùng, vì kho Zalo gần như không có ngày ban hành để chọn bản đại diện. Mọi bộ báo cả hai cách.
