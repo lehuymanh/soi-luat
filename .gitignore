@@ -34,3 +34,7 @@ prof.out
 
 # câu hỏi từ bộ dữ liệu chưa rõ giấy phép (ViLegalExperts): chỉ giữ trên máy
 bench/zalo/ket_qua_gold*.json
+
+# kết quả bench ghi vào thư mục đang đứng khi quên --out (bench/README.md)
+/ket_qua_llm.json
+/cau_truc_chi_tiet.json

@@ -44,7 +44,9 @@ def citation_remainder(raw: str) -> str:
     s = unicodedata.normalize("NFC", raw or "")
     s = SO_HIEU_RE.sub(" ", s)
     s = SO_HIEU_PREFIX_RE.sub(" ", s)
-    if DIEU_RE.search(s):  # tra "khoản 2 Điều 5 <số hiệu>": ra cả Điều 5, không tìm chữ "khoản", "2" trong văn bản
+    # shortcut: "khoản 2 Điều 5 <số hiệu>" ra cả Điều 5 (không tìm chữ "khoản", "2"), chưa thu hẹp tới khoản 2;
+    # nâng khi compact và phần trích chọn được đúng khoản (C6/F5, xếp ở P2)
+    if DIEU_RE.search(s):
         s = KHOAN_DIEM_RE.sub(" ", s)
     s = DIEU_RE.sub(" ", s)
     s = _CITE_BOILER_RE.sub(" ", s)

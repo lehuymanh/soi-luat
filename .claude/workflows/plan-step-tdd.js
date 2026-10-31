@@ -61,7 +61,7 @@ Làm theo thứ tự:
 2. TEST TRƯỚC: viết từng test mà mục liệt kê; chạy, thấy nó HỎNG trên mã hiện tại (test không thể hỏng thì nói rõ vì sao). Chưa thấy hỏng thì chưa sửa mã.
 3. Cài đặt thay đổi nhỏ nhất đủ việc: không thêm tầng ngoài những gì mục nêu tên; tìm hàm có sẵn dùng lại trước khi viết mới; grep mọi nơi gọi của hàm bạn đổi.
 4. Chạy TOÀN BỘ \`${pytest}\`, phải xanh.
-5. Cổng đo: nếu bước chạm tìm kiếm, parser, trình đọc hay giao diện, chạy đúng cổng trong docs/quy-trinh.md mục "Cổng đo" và ghi số kèm bộ dữ liệu, tập chia, n, mã. Cổng trượt thì dừng và nói rõ (status=blocked), không vá số. ${A.gates || ''}
+5. Cổng đo: nếu bước chạm tìm kiếm, parser, trình đọc hay giao diện, chạy đúng cổng trong docs/quy-trinh.md mục "Cổng đo" và ghi số kèm bộ dữ liệu, tập chia, n, mã. Cổng trượt thì dừng và nói rõ (status=blocked), không vá số. Cổng nào chạy quá 10 phút (Zalo test, gold, bench/llm): KHÔNG chạy rồi ngồi chờ trong agent (agent bị báo Stalled; lượt điều phối bị ngắt là mất việc chưa commit). Chạy các cổng nhanh, commit, và ghi nguyên lệnh đo dài vào measurements, mở đầu bằng "CHỜ ĐO:", để người điều phối chạy nền. ${A.gates || ''}
 6. Trước khi commit, đọc lại mục của bước trong kế hoạch (\`git diff -- ${A.plan}\` xem tệp có bị agent khác viết lại không). Mục đổi thì đối chiếu lại việc đã làm.
 ${recordInPlan ? `7. Ghi trạng thái và số đo của bước vào ${A.plan} trong CÙNG commit, sửa tại chỗ tiêu đề hoặc gạch đầu dòng đầu của mục, KHÔNG thêm dòng (skill plan-doc-line-reference-edits); kiểm \`diff <(git show HEAD:${A.plan} | wc -l) <(wc -l < ${A.plan})\` không in gì.\n8.` : '7.'} ${COMMIT_RULES}
 Nếu bị chặn thật (thiếu quyết định của chủ dự án, cổng trượt, đặc tả mâu thuẫn với luật dự án): không commit nửa vời, trả status=blocked, commit="" và nói rõ lý do ở not_done.
@@ -72,6 +72,8 @@ Trả: step, status, commit, tests (tên: kiểm gì), measurements, not_done.`,
   log(`${s.key} xong: ${r.commit}`)
 }
 const commits = built.filter(b => b.report && b.report.status === 'done' && b.report.commit).map(b => b.report.commit)
+const pending = built.filter(b => b.report && /CHỜ ĐO:/.test(b.report.measurements || '')).map(b => b.step)
+if (pending.length) log(`Bước còn lệnh đo dài cho người điều phối chạy nền (CHỜ ĐO): ${pending.join(', ')}`)
 if (!commits.length) return { built, review: null, fixed: null, note: 'không có commit nào để soát' }
 
 phase('Soát')
@@ -96,4 +98,4 @@ PHÁT HIỆN:
 ${JSON.stringify(todo, null, 1)}`, { label: 'sua', phase: 'Sửa', schema: FIXED })
 } else log('không có phát hiện cần sửa')
 
-return { built, review, fixed }
+return { built, review, fixed, pending }

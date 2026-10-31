@@ -82,6 +82,23 @@ flowchart LR
 
 Gặp lỗi lạ thì dùng `superpowers:systematic-debugging` trước khi sửa. Phát hiện mình sai (chạy sai lệnh, giả định thiếu, kiểm không kỹ) thì sửa xong gọi `/autoharness:learn` ngay trong lượt đó.
 
+**Cuối mỗi vòng** (trước khi báo xong, trước khi hết phiên): đây là bước làm harness tốt lên sau mỗi vòng.
+
+1. Có sai sót trong vòng mà chưa gọi `/autoharness:learn` thì gọi.
+2. Đồng bộ skill. Hệ thống skill ghi bài học vào `.claude/skills/` của repo, hoặc vào bản chung của máy `~/.claude/skills/`; bản chung mất khi container bị thu hồi. So hai nơi:
+
+   ```bash
+   for d in ~/.claude/skills/*/; do n=$(basename "$d"); [ -f "$d/SKILL.md" ] || continue
+     if [ -d ".claude/skills/$n" ]; then cmp -s "$d/SKILL.md" ".claude/skills/$n/SKILL.md" || echo "khác: $n"
+     else echo "chỉ ở máy: $n"; fi; done
+   ```
+
+   Cùng tên mà khác: đọc cả hai, giữ bản mới hơn trong `.claude/skills/`. Chỉ ở máy mà thuộc dự án: chép vào repo (bỏ qua skill của công cụ như `session-start-hook`). Skill mới thì thêm một hàng vào bảng mục 7.
+3. `git status --short`: tệp `SKILL.md` mà hệ thống vừa ghi vào `.claude/skills/` cũng phải commit (`.ledger.jsonl`, `.sidecar.json`, `references/evidence-*.md` đã bị bỏ qua).
+4. Bẫy mới chưa có skill nào giữ: thêm một hàng vào mục 11.
+5. Cập nhật `docs/nghien-cuu/ghi-nho.md` mục 1.1 (trạng thái, bước đầu tiên của phiên sau) và trạng thái, số đo trong kế hoạch.
+6. Toàn bộ pytest xanh, commit, push; tiến độ đổi thì sửa mô tả PR.
+
 ## 4. Cổng đo
 
 Mọi lệnh chạy từ gốc repo, **trên bản sao kho** (kho thật và kho đo gốc không bao giờ bị ghi), với `python -I`. Đo trước và sau trên cùng một bản dựng. `<zalo-q>` là thư mục câu hỏi và qrels của Zalo, `<data zalo>` là thư mục có `soiluat.db` của kho Zalo, `<realdocs>` là thư mục kho 21 văn bản thật (có `data/soiluat.db` và `queries.json`); vị trí ở mục 8.
@@ -127,6 +144,7 @@ Giới hạn chi phí: mỗi workflow dưới khoảng 10 agent (mỗi script t�
 3. Commit phần mã mà workflow sẽ đọc hay chạy. Đừng sửa tệp nguồn trong lúc một agent soát đang đọc chúng (skill `background-job-orchestration`).
 4. `df -h /` nếu workflow sẽ chép kho.
 5. Truyền `args` là **đối tượng JSON**, không phải chuỗi đã mã hoá.
+6. **Lượt đo dài không nằm trong agent.** Zalo test và gold (25 đến 40 phút mỗi lượt trên máy 4 nhân), `bench/llm` (hàng giờ) do người điều phối chạy nền với dấu `EXIT=`. Agent chỉ chạy cổng nhanh (pytest, văn bản thật, `parse_khac`), commit, rồi trả nguyên lệnh đo dài trong kết quả, mở đầu bằng `CHỜ ĐO:`. Báo trước cho chủ dự án lượt đo mất bao lâu. Lý do: mục 11, hàng "Stalled".
 
 **Sau khi chạy workflow**
 
@@ -135,6 +153,7 @@ Giới hạn chi phí: mỗi workflow dưới khoảng 10 agent (mỗi script t�
 3. Kết quả rỗng hay không đọc được: đọc `journal.jsonl` của lượt chạy (`subagents/workflows/wf_*/journal.jsonl`): dòng `started` nối `key` với `label`, dòng `result` cùng `key` mang dữ liệu. Đừng regex tệp thông báo.
 4. Phát hiện bị bác bỏ ghi một dòng lý do; phát hiện còn đứng đi vào bước sửa của skill `review-findings-fix-loop` (nếu workflow chưa tự sửa).
 5. Push từng commit đã kiểm. Agent con không push.
+6. Có lệnh `CHỜ ĐO:` thì chạy nền, so với mốc trên cùng bản dựng, rồi giữ hay hoàn commit đó trước khi push (skill `vietnamese-legal-qa-bench`: đối chứng trước khi đổ lỗi cho mã mới).
 
 Các script cũ của phiên 0.9.0 (cứng đường dẫn phiên và mã commit) không được giữ; việc chúng làm đã gom vào 4 script có tham số bên dưới. Ba mẫu chưa thành script, ghi lại cách làm để viết lại khi cần (xem skill `workflow-authoring`): (a) tính lại số báo cáo bằng hai agent độc lập từ JSON thô, `ghi-nho.md` mục 3.5; (b) tìm mô hình: bốn hướng quét song song, một bước xếp hạng theo lỗi đang gặp, hai agent kiểm chứng ngược tại nguồn, `ghi-nho.md` mục 3.6; (c) hai thẩm phán độc lập phân loại từng câu trả lời lỗi (có căn cứ, một phần, không căn cứ), skill `benchmark-split-hygiene`.
 
@@ -332,7 +351,7 @@ Gộp từ các skill và từ các phiên làm bản 0.9.0; bảng bẫy cũ �
 | Chép bản sao kho cũ mà không xoá | Ổ đầy tới 99% giữa lượt chạy; lúc viết chỉ còn 1,7 GB trống | `df -h /` trước khi chép; trống từ 1 GB; xoá bản sao ngay khi đã ghi số |
 | Container khởi động lại giữa chừng (hai lần trong P0) | Mọi tiến trình nền chết | Commit và push sớm; job dài ghi `EXIT=0` từng phần và bỏ qua phần đã xong |
 | Hai job nặng cùng lúc trên máy 4 nhân | Sinh chữ chậm khoảng 10 lần; client time out và mọi yêu cầu xếp hàng sau cũng time out | Chạy một job nặng mỗi lúc; workflow chỉ 2 agent nặng song song; lượt có `TimeoutError` thì bỏ, không báo số |
-| Giao diện báo agent con "Stalled" | Chưa rõ nguyên nhân. Lượt tài liệu 31/10/2026 (`wf_4986fa64-530`): `journal.jsonl` không có chữ Stalled, và các agent đã xong đều có dòng `result` kèm commit | Đừng kết luận lỗi và đừng chạy lại ngay (sẽ trùng commit): đọc `journal.jsonl` (mục 5, sau khi chạy workflow, bước 3) và `git log`. Giữ mỗi lệnh ngắn, chia việc viết dài thành vài lượt ghi. Chưa có bằng chứng về nguyên nhân: đừng biến phỏng đoán thành luật |
+| Giao diện báo agent con "Stalled" | "Stalled" nghĩa là agent mấy phút liền không có đầu ra, không phải lỗi. Lượt dọn mã 31/10/2026 (`wf_5378f4c2-7b2`): agent tự chạy đo Zalo và gold (25 đến 40 phút mỗi lượt) rồi chờ bằng vòng `sleep` 5 phút, bị báo Stalled hơn một giờ. Lượt điều phối bị ngắt thì cả workflow bị huỷ (`status: killed`): agent chết với thay đổi chưa commit, hai tiến trình đo chạy mồ côi. Ở lượt soát toàn repo, một agent chờ đo độ trễ 3,9 phút cũng bị báo thoáng qua | Lượt đo trên 10 phút không giao cho agent trong workflow (mục 5, trước khi chạy workflow, bước 6). Đừng chạy lại ngay (sẽ trùng commit): đọc `journal.jsonl` và `git log`. Workflow đã bị huỷ thì đọc `subagents/workflows/wf_*/agent-*.jsonl` để biết agent đã chạy gì; để tiến trình mồ côi chạy xong nếu đầu vào còn đúng và dùng lại kết quả; tự kiểm lại phần sửa còn trong cây (test hỏng trên mã cũ, toàn bộ pytest) rồi mới commit, như `a13af05` |
 | Lệnh nền chờ quá 10 phút ở foreground | Bị cắt ở 600 giây, đầu ra chỉ còn thông báo | `run_in_background: true` từ đầu cho mọi lần chờ dài |
 | `$(grep -c ... \|\| echo 0)` | Ra hai số 0, điều kiện chờ không bao giờ đúng, chạy lặng lẽ tới hết giờ | `n=$(grep -c ... log); n=${n:-0}` |
 | Máy chủ mô hình khởi động bằng lệnh nền có hạn 2 giờ | Hết giờ thì mọi lời gọi sau `Connection refused` và bị chấm sai | `setsid nohup ... & disown`; bỏ lượt chạy đã hỏng và chạy lại |
@@ -346,6 +365,8 @@ Gộp từ các skill và từ các phiên làm bản 0.9.0; bảng bẫy cũ �
 | Không truyền `--tag` | Ghi đè `bench/zalo/ket_qua_test.json` đang được commit | Luôn `--tag`; xoá JSON gắn thẻ của lượt thử trước `git add` |
 | `eval_real.py` chạy trên kho gốc | Ghi `search_mode` vào DB | Mỗi bản dựng một bản sao `<realdocs>` riêng |
 | `k in want` với khoá `frozenset` | Luôn sai, Recall ra 0 mà không có lỗi | Chuẩn hoá tập trước khi so; kiểm tay một câu có đáp án |
+| So p50 giữa hai lượt `eval.py` khác `--only` | Mốc 73 ms của `hien_tai_muc` chỉ là phần gom mục (thẻ đã cache từ `hien_tai` chạy trước); lượt chạy riêng tính cả thời gian tìm (2,6 s), trông như chậm gấp 35 lần | Chỉ so p50 của cùng một bước; muốn so tốc độ thì đo cùng câu trên cùng kho với mã cũ và mã mới (skill `vietnamese-legal-qa-bench`) |
+| Một câu đổi hạng ngay sau khi dựng lại văn bản | Ba thông tư có khoản giống nhau từng chữ; dựng lại cho đơn vị id mới nên đổi thứ tự giữa các bản trùng (gold `vle-test-4593`, đợt dọn mã 0.9.0) | Lượt đối chứng: dựng lại cùng văn bản bằng parser cũ, chạy mã HEAD; ra cùng kết quả thì là thứ tự giữa bản trùng, ghi vào commit, không tính hồi quy |
 | Chế độ có nhãn mà không thật sự bật (thiếu vector hay mô hình) | Báo Advance mà đo Normal | Thất bại nhanh khi thiếu `SOILUAT_MODEL_DIR`, `SOILUAT_RERANK_DIR` |
 | Câu bẫy sinh từ cả kho, không chia train và test | 6/20 câu bẫy test đã dùng khi chỉnh | Chia theo mục trước khi chỉnh, hoặc báo riêng dòng "đã chạm" |
 | Con số "tăng ở cả ba bộ" khi một bộ chỉ hơn 1 câu | Diễn giải thổi phồng | Cho agent độc lập tính lại từng số và từng từ so sánh từ JSON thô |

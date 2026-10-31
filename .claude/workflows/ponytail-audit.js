@@ -102,7 +102,7 @@ else if (!must.length) log('không có mục Phải sửa đã xác nhận')
 else {
   const FIX_RULES = `BÂY GIỜ bạn ĐƯỢC sửa repo. Trạng thái repo là HEAD hiện tại; các agent khác có thể đang sửa cùng cây: chỉ đụng tệp cần cho các mục dưới đây, \`git add\` đúng các tệp đó (không \`git add -A\`, không \`git stash\`), gặp index.lock thì đợi vài giây rồi thử lại.
 Với MỖI mục: (1) kiểm lại ở HEAD là có thật; (2) viết test hồi quy HỎNG trên mã hiện tại, chạy và thấy nó hỏng; mục chỉ xoá mã chết thì không cần test mới nhưng phải grep cả cây (src, tests, bench, pack, mau, template, JS) chứng minh không có nơi gọi; (3) sửa nhỏ nhất, grep mọi nơi gọi và sửa gốc một lần ở mã dùng chung; (4) thấy test qua. Cuối lô chạy TOÀN BỘ \`${pytest}\`, phải xanh.
-Thay đổi có thể đổi kết quả tìm (search, sohieu, query, parse, semantic) phải qua cổng đo theo docs/quy-trinh.md mục "Cổng đo": giữ chỉ khi Hit@1 và Hit@5 không thấp hơn trước trên các bộ đó; không thì hoàn lại và ghi lý do. ${A.gates || ''}
+Thay đổi có thể đổi kết quả tìm (search, sohieu, query, parse, semantic) phải qua cổng đo theo docs/quy-trinh.md mục "Cổng đo": giữ chỉ khi Hit@1 và Hit@5 không thấp hơn trước trên các bộ đó; không thì hoàn lại và ghi lý do. Cổng nào chạy quá 10 phút (Zalo test, gold): KHÔNG chạy rồi ngồi chờ trong agent (agent bị báo Stalled; lượt điều phối bị ngắt là mất việc chưa commit). Chạy các cổng nhanh (pytest, văn bản thật, bench/parse_khac.py), commit, và ghi nguyên lệnh đo dài vào note của mục, mở đầu bằng "CHỜ ĐO:", để người điều phối chạy nền rồi quyết giữ hay hoàn. ${A.gates || ''}
 Mục cần chủ dự án quyết hay cần bảng mới mà lộ trình xếp ở phase sau thì KHÔNG làm: outcome=deferred kèm lý do. Mục kiểm lại thấy sai thì outcome=refuted, một dòng lý do, không đổi mã.
 Đúng MỘT commit local cho lô này (không push), thông điệp tiếng Việt liệt kê từng id: sửa, bác bỏ hay hoãn (lý do), kiểm bằng test nào, lệnh đo nào. Trailer chép NGUYÊN VĂN hai dòng sau và kết thúc thông điệp bằng chúng:\n${A.trailer || ''}\nQuy trình commit: ghi thông điệp ra tệp trong ${sp}, chạy \`grep -E '^(Co-Authored-By|Claude-Session):' <tệp>\` và so với hai dòng trên, rồi \`git commit -F <tệp>\`; sau commit chạy \`git log -1 --format=%B\` và so lại. Sai thì \`git commit --amend\` sửa dòng đó.`
   for (let i = 0; i < must.length; i += chunkSize) {
@@ -114,4 +114,6 @@ Mục cần chủ dự án quyết hay cần bảng mới mà lộ trình xếp 
   }
 }
 
-return { findings: all, not_read: notRead, failed, fixed }
+const pending = fixed.flatMap(f => (f.result && f.result.items) || []).filter(it => /CHỜ ĐO:/.test(it.note || '')).map(it => it.id)
+if (pending.length) log(`Mục còn lệnh đo dài cho người điều phối chạy nền (CHỜ ĐO): ${pending.join(', ')}`)
+return { findings: all, not_read: notRead, failed, fixed, pending }
