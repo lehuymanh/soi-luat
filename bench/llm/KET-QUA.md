@@ -6,7 +6,7 @@
 
 ## Vòng 2: sau bảy việc sửa (30/10/2026)
 
-Mã đo: commit `b17461f`. Mọi lựa chọn làm trên phần train (Zalo train; văn bản thật: các câu ngoài 15 câu test) hoặc offline, rồi chấm tập test **một lần**, cùng ba bộ và cùng mẫu câu như vòng 1. Cùng máy ảo, cùng llama-cpp-python 0.3.36, 4 luồng, nhiệt độ 0,1, seed 2026. **Ngoại lệ: câu bẫy.** Câu bẫy sinh từ kho, không chia train/test, nên 6 câu bẫy dùng ở A/B (và ở các lần chỉnh của vòng 1) nằm trong 20 câu bẫy của tập test. Số bẫy trên test vì thế không hoàn toàn chưa thấy. Việc chọn biến thể không dựa vào bẫy: bẫy 5/6 ở cả ba biến thể.
+Mã đo: commit `b17461f`. Sau lượt chấm, bản soát ponytail sửa thêm 6 lỗi ở bộ kiểm số và phần dựng ngữ cảnh (`bc9f9af`; câu còn bằng chứng trên train không đổi); các số test dưới đây là của `b17461f`, đo lại ở đợt sau. Mọi lựa chọn làm trên phần train (Zalo train; văn bản thật: các câu ngoài 15 câu test) hoặc offline, rồi chấm tập test **một lần**, cùng ba bộ và cùng mẫu câu như vòng 1. Cùng máy ảo, cùng llama-cpp-python 0.3.36, 4 luồng, nhiệt độ 0,1, seed 2026. **Ngoại lệ: câu bẫy.** Câu bẫy sinh từ kho, không chia train/test, nên 6 câu bẫy dùng ở A/B (và ở các lần chỉnh của vòng 1) nằm trong 20 câu bẫy của tập test. Số bẫy trên test vì thế không hoàn toàn chưa thấy. Việc chọn biến thể không dựa vào bẫy: bẫy 5/6 ở cả ba biến thể.
 
 ### Bảy việc đã làm và số đo trước khi chấm test
 
