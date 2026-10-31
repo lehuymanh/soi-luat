@@ -16,7 +16,7 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from soiluat.cards import assemble_cards  # noqa: E402
+from soiluat.cards import assemble_cards, compact  # noqa: E402
 from soiluat.db import connect  # noqa: E402
 from soiluat.fold import fold_search, search_accent  # noqa: E402
 from soiluat.query import classify_query, strip_question  # noqa: E402
@@ -34,6 +34,8 @@ class Kho:
         self.law = {r[0]: r[1] for r in conn.execute("SELECT id, file_path FROM documents")}
         self.n_units = conn.execute("SELECT COUNT(*) FROM units").fetchone()[0]
         self._df: dict[tuple[str, str], int] = {}
+        self._cards: dict[str, list] = {}  # một lần cascade_search mỗi câu cho mọi cách tính dùng thẻ
+        self._items: dict[str, list] = {}
 
     def key(self, unit_id: int) -> str | None:
         r = self.conn.execute("SELECT doc_id, path FROM units WHERE id = ?", (unit_id,)).fetchone()
@@ -49,19 +51,39 @@ class Kho:
         return self._df[k]
 
 
+def _cards(kho: Kho, q: str) -> list:
+    """Thẻ đúng như app._search (không bộ lọc)."""
+    if q not in kho._cards:
+        conn = kho.conn
+        r = cascade_search(conn, q)  # như app._search: nguyên câu hỏi
+        ids = r.ids[:DIEU_CAP] if r.note == "dieu" else r.ids
+        idset = set(ids)
+        kho._cards[q] = assemble_cards(conn, ids, synonym_note=r.note, fold_ids={i for i in r.fold_ids if i in idset},
+                                       f2_ids={i for i in r.f2_ids if i in idset}, tiers=r.tiers, intent=r.intent)
+    return kho._cards[q]
+
+
 def current(kho: Kho, q: str) -> list[str]:
-    """Đúng như app._search_ctx (không bộ lọc)."""
-    conn = kho.conn
-    r = cascade_search(conn, q)  # như app._search_ctx: nguyên câu hỏi
-    ids = r.ids[:DIEU_CAP] if r.note == "dieu" else r.ids
-    idset = set(ids)
-    cards = assemble_cards(conn, ids, synonym_note=r.note, fold_ids={i for i in r.fold_ids if i in idset},
-                           f2_ids={i for i in r.f2_ids if i in idset}, tiers=r.tiers, intent=r.intent)
+    """Theo thẻ (mốc 0.8): mỗi khoá văn bản+Điều một lần."""
     out: list[str] = []
-    for c in cards:
+    for c in _cards(kho, q):
         k = kho.key(c.unit_ids[0]) if c.unit_ids else None
         if k and k not in out:
             out.append(k)
+        if len(out) == K:
+            break
+    return out
+
+
+def _muc(kho: Kho, q: str, also: bool) -> list[frozenset]:
+    """Theo mục hiển thị (P1 K1 compact): mỗi mục một tập khoá; also=True tính cả các bản trùng ở "Cũng có ở"."""
+    if q not in kho._items:
+        kho._items[q] = compact(kho.conn, list(_cards(kho, q)), q, limit=0)  # limit=0: không cần phần trích
+    out: list[frozenset] = []
+    for it in kho._items[q]:
+        ks = frozenset(k for c in ([it, *it.also_in] if also else [it]) if c.unit_ids and (k := kho.key(c.unit_ids[0])))
+        if ks:
+            out.append(ks)
         if len(out) == K:
             break
     return out
@@ -98,6 +120,8 @@ def bm25_or(kho: Kho, q: str, *, cols: tuple[str, ...], fold: bool, prune: float
 
 METHODS = {
     "hien_tai": current,
+    "hien_tai_muc": lambda kho, q: _muc(kho, q, True),
+    "hien_tai_muc_dai_dien": lambda kho, q: _muc(kho, q, False),
     "bm25_or_codau": lambda kho, q: bm25_or(kho, q, cols=("search_accent",), fold=False),
     "bm25_or_codau_bo_tu_tren_20pct": lambda kho, q: bm25_or(kho, q, cols=("search_accent",), fold=False, prune=0.20),
     "bm25_or_codau_bo_tu_tren_35pct": lambda kho, q: bm25_or(kho, q, cols=("search_accent",), fold=False, prune=0.35),
@@ -121,7 +145,7 @@ def main(zalo: Path, data: Path, split: str, limit: int | None) -> None:
     for name, fn in METHODS.items():
         if only and name not in only:
             continue
-        hit = rr = rec = zero = 0.0
+        hit = h1 = h5 = rr = rec = zero = 0.0
         lat: list[float] = []
         for qid in qids:
             q = qs[qid]
@@ -129,16 +153,19 @@ def main(zalo: Path, data: Path, split: str, limit: int | None) -> None:
             got = fn(kho, q)
             lat.append((time.perf_counter() - t) * 1000)
             want = rel[qid]
-            ranks = [i for i, k in enumerate(got, start=1) if k in want]
+            sets = [k if isinstance(k, frozenset) else {k} for k in got]  # cách tính theo mục trả tập khoá
+            ranks = [i for i, ks in enumerate(sets, start=1) if ks & want]
             hit += bool(ranks)
+            h1 += bool(ranks) and ranks[0] == 1
+            h5 += bool(ranks) and ranks[0] <= 5
             rr += 1 / ranks[0] if ranks else 0
-            rec += len(set(got) & want) / len(want)
+            rec += len(set().union(*sets) & want) / len(want)
             zero += not got
             per_q.setdefault(qid, {"q": q, "dap_an": sorted(want)})[name] = ranks[0] if ranks else None
         n = len(qids)
         lat.sort()
         report[name] = {
-            "Hit@10": round(hit / n, 3), "Recall@10": round(rec / n, 3), "MRR@10": round(rr / n, 3),
+            "Hit@1": round(h1 / n, 3), "Hit@5": round(h5 / n, 3), "Hit@10": round(hit / n, 3), "Recall@10": round(rec / n, 3), "MRR@10": round(rr / n, 3),
             "khong_ket_qua": round(zero / n, 3), "p50_ms": round(lat[n // 2]), "p95_ms": round(lat[int(n * 0.95)]),
         }
         print(name, report[name], flush=True)
