@@ -203,3 +203,10 @@ Kết luận cho lộ trình:
 - **Trên văn bản thật, Advance làm tụt hạng 1 khoảng 10 điểm so với Normal**, dù hơn ở @10 (thêm 1 câu). Bước gây tụt là **hợp BM25 với vector** (−15 điểm @1); reranker gỡ lại được ~5 điểm. Cùng chiều với các lần đo bằng mô hình nhúng cũ ở trên (Advance 73,8–75,0% so với Normal 81–82%). Trên Zalo và gold, Advance hơn Normal rõ (`bench/zalo/KET-QUA.md`), nên hệ số hợp (`semantic.TOP`, `DENSE_K`, `RRF_K`, `W = 2`) chọn trên kho lớn 61 nghìn Điều có thể không hợp kho nhỏ, văn bản mới. Lộ trình mục 2 (điều 8) đề xuất để Advance làm mặc định trên máy 16 GB; mốc này cho thấy cần sửa phần hợp trước (nhánh độ chính xác, đo theo quy tắc ở lộ trình mục 5, điều 7) hoặc giữ Normal làm mặc định.
 - **Số thẻ trung bình ~40 mỗi câu** ở cả hai chế độ: đây là mốc "số mục hiện sẵn" mà cổng P1 hạ xuống ≤ 5.
 - Độ trễ đo ở lần này không dùng được: máy ảo 4 nhân đang chạy song song mô hình sinh câu trả lời.
+
+
+## P1 K3: đo theo mục hiển thị (31/10/2026)
+
+84 câu, Normal, bản sao kho dựng ở P0 (chưa dựng lại sau sửa parser N1a); `python -I bench/van-ban-that/eval_real.py <realdocs> normal`. Theo mục (bản đại diện, cách tính của cổng P1) và kèm "Cũng có ở" đều bằng theo thẻ: rộng 83,3 / 94,0 / 96,4 / 96,4, chặt 78,6 / 89,3 / 92,9 / 94,0 (@1 / @3 / @5 / @10), vì 21 văn bản không có Điều nào trùng nội dung (0 mục gộp). 39,5 mục mỗi câu, 5 mục hiện sẵn. Cổng P1: đạt.
+
+Mở trình đọc (`python -I bench/doc_open.py <data Zalo>`, bản sao Zalo 3.271 văn bản, văn bản nhiều đơn vị nhất và 100 văn bản ngẫu nhiên, TestClient): p50 14 ms, p95 27 ms, văn bản lớn nhất (2.823 đơn vị, HTML 1,6 MB) 121 ms. Cổng ≤ 1 giây đạt ở phía máy chủ; thời gian trình duyệt vẽ trang 1,6 MB chưa đo (bấm tay ở Z1).
