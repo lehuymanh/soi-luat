@@ -7,23 +7,41 @@
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body class="chat" data-csrf="{{ csrf_token }}" data-suffixes="{{ suffixes }}">
-  <header class="bar">
-    <button type="button" class="tool" id="btn-import" data-open="import" aria-haspopup="dialog">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4"/><path d="m7 9 5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg>
-      <span class="lbl">Nạp file</span>
-      <span class="busy" id="busy" hidden></span>
-    </button>
-    <div class="title">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18"/><path d="M5 7h14"/><path d="M5 7l-3 7a3 3 0 0 0 6 0z"/><path d="M19 7l-3 7a3 3 0 0 0 6 0z"/><path d="M8 21h8"/></svg>
-      Soi Luật <span class="sub" id="kho-count">{{ n_docs }} văn bản</span>
-    </div>
-    <button type="button" class="tool icon" id="btn-settings" data-open="settings" aria-haspopup="dialog" aria-label="Cài đặt" title="Cài đặt">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-    </button>
+  <div class="app" id="app">
+  <header class="topbar">
+    <button type="button" class="icon-btn" id="open-side" aria-label="Mở thanh bên" aria-controls="side" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <b>Soi Luật</b>
+    <a class="icon-btn" href="/" aria-label="Cuộc trò chuyện mới"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a>
   </header>
 
-  <main class="thread" id="thread" aria-live="polite">
+  <aside class="side" id="side" aria-label="Thanh bên">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="2.5" width="13" height="17" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6.5 7h7M6.5 10h7M6.5 13h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="16" r="4.2" fill="var(--surface)" stroke="var(--pen)" stroke-width="1.8"/><path d="m19 19 2.5 2.5" stroke="var(--pen)" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <b>Soi Luật</b>
+    </div>
+    <p class="scope">Kho văn phòng · <span id="kho-count">{{ n_docs }} văn bản</span></p>
+    <a class="btn newchat" href="/">Cuộc trò chuyện mới <span class="kbd">Alt+N</span></a>
+    <nav class="hist" id="hist" aria-label="Các cuộc trò chuyện"></nav>
+    <div class="util">
+      <button type="button" class="u-item" id="btn-import" data-open="import" aria-haspopup="dialog">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M4 15v5h16v-5"/></svg>Nạp văn bản
+        <span class="busy" id="busy" hidden></span>
+      </button>
+      <a href="/review/docs"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 4h6l2 2h8v14H4z"/></svg>Văn bản trong kho</a>
+      <a href="/review"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>Liên kết chờ duyệt{% if n_queue %} <span class="cnt">{{ n_queue }}</span>{% endif %}</a>
+      <button type="button" class="u-item" id="btn-settings" data-open="settings" aria-haspopup="dialog">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Cài đặt
+      </button>
+      <p class="local"><i></i>Chạy trên máy này, không gửi gì ra ngoài</p>
+    </div>
+  </aside>
+  <div class="side-scrim" id="side-scrim"></div>
+
+  <main class="main" id="main">
+  <div class="scroll" id="scroll"><div class="col">
+  <div class="thread" id="thread" aria-live="polite">
     {% if q %}
+      <header class="title-row"><h1>{{ q }}</h1></header>
       <div class="msg user"><div class="bubble">{{ q }}</div></div>
       <div class="msg bot">{% include "_results.html" %}</div>
     {% else %}
@@ -43,7 +61,8 @@
         </div>
       </section>
     {% endif %}
-  </main>
+  </div>
+  </div></div>
 
   <form class="composer" id="composer" method="get" action="/" aria-label="Hỏi">
     <div class="in">
@@ -72,6 +91,8 @@
     </div>
     <p class="note hint">Enter để gửi, Shift+Enter xuống dòng. Chế độ tìm: <b id="mode-chip">{{ 'Advance' if mode.mode == 'advance' else 'Normal' }}</b> (đổi ở Cài đặt).</p>
   </form>
+  </main>
+  </div>
 
   <dialog class="panel left" id="dlg-import" aria-labelledby="t-import">
     <div class="panel-body">

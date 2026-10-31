@@ -26,6 +26,10 @@
     q = q.trim();
     if (!q) return;
     $("#hello")?.remove();
+    if (!thread.querySelector("h1")) {  // trang luôn có một h1: câu hỏi đầu làm tiêu đề, như mẫu
+      const t = document.createElement("header"); t.className = "title-row";
+      const h = document.createElement("h1"); h.textContent = q; t.append(h); thread.prepend(t);
+    }
     const u = document.createElement("div"); u.className = "msg user";
     const bub = document.createElement("div"); bub.className = "bubble"; bub.textContent = q; u.append(bub);
     const b = document.createElement("div"); b.className = "msg bot";
@@ -189,6 +193,25 @@
     for (const en of entries) await walk(en);
     return out;
   }
+
+  /* ---- khung: thanh bên thành ngăn kéo ở màn hẹp; Alt+N mở cuộc mới ---- */
+  const side = $("#side"), sideScrim = $("#side-scrim"), openSide = $("#open-side");
+  const narrow = matchMedia("(max-width: 900px)");
+  function setSide(open, focusBack) {
+    side.classList.toggle("open", open); sideScrim.classList.toggle("open", open);
+    openSide.setAttribute("aria-expanded", String(open));
+    side.inert = narrow.matches && !open;  // ngăn kéo đóng: ra khỏi thứ tự Tab
+    $("#main").inert = narrow.matches && open;
+    if (open) side.querySelector("a, button")?.focus(); else if (focusBack) openSide.focus();
+  }
+  openSide.addEventListener("click", () => setSide(true));
+  sideScrim.addEventListener("click", () => setSide(false, true));
+  narrow.addEventListener("change", () => setSide(false));
+  setSide(false);
+  document.addEventListener("keydown", e => {
+    if (e.altKey && (e.key === "n" || e.key === "N")) { e.preventDefault(); location.href = "/"; }
+    else if (e.key === "Escape" && side.classList.contains("open")) setSide(false, true);
+  });
 
   refresh(false);
 })();

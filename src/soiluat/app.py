@@ -190,6 +190,8 @@ def _search_ctx(
             ).fetchall()
             hints = [r["term"] for r in rows]
         dates = _card_dates(conn, cards)
+    # số trên thanh bên "Liên kết chờ duyệt": cùng hàng chờ với trang /review
+    n_queue = conn.execute("SELECT COUNT(*) FROM links WHERE confirmed = 0").fetchone()[0]
     conn.close()
     return {
         "q": q,
@@ -204,6 +206,7 @@ def _search_ctx(
         "sure": sure,
         "empty_kho": empty_kho,
         "n_docs": int(n_docs or 0),
+        "n_queue": n_queue,
     }
 
 

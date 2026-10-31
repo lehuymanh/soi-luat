@@ -47,3 +47,31 @@ def test_403_mang_cookie_moi_de_post_gui_lai(tmp_path, monkeypatch):
     new = r.cookies.get("soiluat_csrf")
     assert new == "token-sau-khi-khoi-dong-lai"
     assert c.post("/backup", headers={**h, "X-CSRF-Token": new}).status_code == 200
+
+
+def test_phong_nhung_khong_tai_tu_ngoai(tmp_path, monkeypatch):
+    """G0: phông Be Vietnam Pro đóng kèm trong static/fonts; không chỗ nào dẫn Google Fonts (nguyên tắc 8)."""
+    import re
+
+    monkeypatch.setenv("SOILUAT_DATA", str(tmp_path))
+    c = TestClient(app)
+    css = c.get("/static/app.css").text
+    assert "@font-face" in css and "font-display: swap" in css
+    fonts = re.findall(r'url\("(fonts/[^"]+\.woff2)"\)', css)
+    assert len(fonts) == 9
+    for f in fonts:
+        r = c.get("/static/" + f)
+        assert r.status_code == 200 and r.headers["content-type"] == "font/woff2", f
+    pkg = Path(app_mod.__file__).parent
+    assert (pkg / "static" / "fonts" / "OFL.txt").exists()
+    for p in [*(pkg / "static").rglob("*"), *(pkg / "templates").rglob("*")]:
+        if p.suffix in {".css", ".js", ".html"}:
+            t = p.read_text(encoding="utf-8")
+            assert "googleapis" not in t and "gstatic" not in t, p
+
+
+def test_trang_chu_co_khung_moi(tmp_path, monkeypatch):
+    monkeypatch.setenv("SOILUAT_DATA", str(tmp_path))
+    html = TestClient(app).get("/").text
+    for needle in ('class="side"', 'id="btn-import"', 'id="btn-settings"', 'id="composer"', 'id="open-side"', "0 văn bản", "Kho chưa có văn bản"):
+        assert needle in html, needle
