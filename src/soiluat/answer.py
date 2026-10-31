@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 
 from soiluat import semantic
-from soiluat.fold import fold_search
+from soiluat.fold import fold_search, strip_page_numbers
 
 MAX_PASSAGES = 5
 # Thân đoạn. Cộng tiêu đề, câu hỏi ≈ 1.000 token Qwen3-VL mới mỗi câu (đo ~3,1 ký tự/token, bench/llm). Từ 2.600 hạ còn
@@ -216,7 +216,7 @@ def snippet(conn: sqlite3.Connection, root_id: int, query: str, budget: int = SN
     """(tên Điều, phần trích một đoạn ≤ budget ký tự, path dòng khớp nhất trong phần trích) cho một mục kết quả (P1 K1).
     path lấy trong số dòng được giữ, nên địa chỉ của mục khớp chữ người đọc; rỗng khi không dòng nào khớp câu hỏi."""
     head, lines = semantic.root_lines(conn, root_id)
-    lines = [(p, t) for p, t in lines if t.strip()]
+    lines = [(p, t) for p, t in ((p, strip_page_numbers(t)) for p, t in lines) if t.strip()]
     title = re.sub(r"^Điều \w+\.\s*", "", head)
     if lines and title and lines[0][1].startswith(title):  # dòng đầu là thân Điều bắt đầu bằng tên: bỏ phần tên
         lines[0] = (lines[0][0], lines[0][1][len(title):].strip())

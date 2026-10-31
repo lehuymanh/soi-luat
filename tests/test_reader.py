@@ -159,3 +159,23 @@ def test_to_tu_chuan_hoa_moi_chu_mot_lan_khong_nhan_voi_so_tu_cau_hoi():
     finally:
         reader.fold_search = real
     assert "<mark" not in str(out) and len(calls) <= 50
+
+
+def test_dong_so_trang_khong_hien_trong_trinh_doc_va_phan_trich(db, tmp_path):
+    """Giảm nhiễu (N3 nhóm A): dòng chỉ có số trang ("12", "- 13 -") lọt vào chữ đơn vị không hiện ra; chỉ mục không đổi."""
+    from soiluat import answer, reader
+    from soiluat.ingest import ingest_path
+
+    p = tmp_path / "t.txt"
+    p.write_text("Nghị định số 1/2026/NĐ-CP\nĐiều 1. Phạm vi\n1. Dòng đầu của khoản.\n12\n- 13 -\ntiếp theo của khoản một.\n"
+                 "2. Khoản hai có 3 trường hợp.\n", encoding="utf-8")
+    did = ingest_path(db, p, tmp_path)
+    k1 = db.execute("SELECT id FROM units WHERE path = 'D1.K1'").fetchone()[0]
+    db.execute("UPDATE units SET raw_text = ?, normalized_text = ? WHERE id = ?",
+               ("Dòng đầu của khoản.\n12\n- 13 -\ntiếp theo của khoản một.",) * 2 + (k1,))
+    db.commit()
+    v = reader.build_view(db, did, k1, "")
+    html = next(ln["html"] for ln in v["lines"] if ln["id"] == k1)
+    assert "12" not in html and "13" not in html and "tiếp theo" in html
+    _, text, _ = answer.snippet(db, db.execute("SELECT id FROM units WHERE path = 'D1'").fetchone()[0], "khoản")
+    assert " 12 " not in text and "13" not in text and "3 trường hợp" in text

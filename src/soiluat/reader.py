@@ -8,7 +8,7 @@ import sqlite3
 from markupsafe import Markup, escape
 
 from soiluat.answer import STOP
-from soiluat.fold import _PATH_RE, fold_search, pretty_path, search_accent
+from soiluat.fold import _PATH_RE, fold_search, pretty_path, search_accent, strip_page_numbers
 from soiluat.query import _eq, _w, classify_query
 from soiluat.sohieu import citation_remainder
 
@@ -121,7 +121,7 @@ def build_view(conn: sqlite3.Connection, doc_id: int, sel_id: int | None, q: str
     lines, orphan, toc = [], [], []
 
     def item(r) -> dict:
-        text = r["reviewed_text"] or r["raw_text"] or ""
+        text = strip_page_numbers(r["reviewed_text"] or r["raw_text"] or "")
         title = (r["title"] or "").strip()
         if r["level"] == "dieu" and title and text.startswith(title):
             text = text[len(title):].strip()  # thân Điều không lặp tên
