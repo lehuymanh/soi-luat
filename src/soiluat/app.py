@@ -40,7 +40,7 @@ from soiluat.db import backup_db, connect, init_schema
 from soiluat.export_word import card_pages, export_cards, page_label
 from soiluat.fold import display_addr
 from soiluat.jobs import JOBS, SUFFIXES
-from soiluat.search import DIEU_CAP, _so_hieu_docs, apply_doc_filters, cascade_search, filter_docs
+from soiluat.search import DIEU_CAP, _so_hieu_docs, apply_doc_filters, cascade_search, filter_docs, lookup_so_hieu
 from soiluat.sohieu import find_dieu_so
 
 
@@ -173,6 +173,8 @@ def _full_docs(conn: sqlite3.Connection, q: str, s: dict, loai: str = "", co_qua
     if r.note != "so_hieu" or r.intent or (dieu and r.ids):
         return None
     doc_ids = filter_docs(conn, _so_hieu_docs(conn, q), loai=loai, co_quan=co_quan, hieu_luc=hieu_luc)
+    if "docs" in s:  # mở lại: chỉ các văn bản đã lưu và còn đúng nguồn, không văn bản nào mới khớp số hiệu sau đó
+        doc_ids = [d for d in doc_ids if d in s["docs"]]
     out = []
     for did in doc_ids:
         d = conn.execute(
@@ -180,7 +182,7 @@ def _full_docs(conn: sqlite3.Connection, q: str, s: dict, loai: str = "", co_qua
             "(SELECT COUNT(*) FROM pages p WHERE p.doc_id = d.id) AS n_pages FROM documents d WHERE d.id = ?", (did,)
         ).fetchone()
         out.append(SimpleNamespace(full=True, doc_id=did, missing_dieu=dieu or "", **{k: d[k] for k in (
-            "so_hieu", "loai", "co_quan", "file_path", "hieu_luc", "ngay_ban_hanh", "ngay_hieu_luc", "n_dieu", "n_pages")}))
+            "so_hieu", "so_hieu_search", "loai", "co_quan", "file_path", "hieu_luc", "ngay_ban_hanh", "ngay_hieu_luc", "n_dieu", "n_pages")}))
     return out
 
 
@@ -264,15 +266,21 @@ def _reopen(conn: sqlite3.Connection, res: dict, kho: dict) -> str:
     "Còn N mục nữa" tính từ dữ liệu hiện tại. Có ref hỏng thì thêm dải cảnh báo (biến `stale` của `_results.html`)."""
     got = list(conversations.match(conn, res["refs"]))
     ok = [(ref, i) for ref, i in got if i is not None]
-    f = res["filters"]
-    r = SimpleNamespace(note=res["note"], intent=res["intent"], ids=[],  # ids rỗng: `_full_docs` tự tính lại các văn bản khớp số hiệu
-                        tiers={i: ref[3] for ref, i in ok}, fold_ids={i for ref, i in ok if ref[4]}, f2_ids={i for ref, i in ok if ref[5]})
+    f, full = res["filters"], res["kind"] == "full"
+    units = [] if full else ok  # ref tin toàn văn là văn bản (mức văn bản), không phải đơn vị
+    # tin toàn văn dựng từ chữ câu hỏi: "Số hiệu + Điều n" lúc hỏi không có Điều n mà nay có thì `ids` khác rỗng, `_full_docs` ngừng
+    # nói "không có Điều n" (câu cũ sai) và chỉ còn dải cảnh báo bên dưới
+    ids = lookup_so_hieu(conn, res["q"]) if full and find_dieu_so(res["q"]) else []
+    r = SimpleNamespace(note=res["note"], intent=res["intent"], ids=ids,  # tin danh sách: ids rỗng, không dùng
+                        tiers={i: ref[3] for ref, i in units}, fold_ids={i for ref, i in units if ref[4]}, f2_ids={i for ref, i in units if ref[5]})
     # nhãn tin cậy nói về kết quả đầu: ref đầu hỏng thì thẻ đầu là cái khác, bỏ nhãn (cùng luật `_search`)
-    s = {"kind": res["kind"], "result": r, "ids": [i for _, i in ok], "n_found": res["n_found"], "n_ids": res["n_ids"],
+    s = {"kind": res["kind"], "result": r, "ids": [i for _, i in units], "n_found": res["n_found"], "n_ids": res["n_ids"],
          "sure": res["sure"] if got and got[0][1] is not None else None}
+    if full:
+        s["docs"] = {i for _, i in ok}  # `_full_docs` chỉ dựng lại các văn bản đã lưu và còn đúng nguồn
     ctx = _msg_ctx(conn, res["q"], s, f["loai"], f["co_quan"], f["hieu_luc"], kho)
-    if len(ok) < len(got):
-        ctx["stale"] = {"bad": len(got) - len(ok), "total": len(got), "filters": f}
+    if len(ok) < len(got) or ids:
+        ctx["stale"] = {"bad": len(got) if ids else len(got) - len(ok), "total": len(got), "filters": f}
     return _render_results(ctx)
 
 
@@ -297,10 +305,11 @@ def _index(request: Request, ctx: dict):
     try:
         co_quans = [r[0] for r in conn.execute(
             "SELECT DISTINCT co_quan FROM documents WHERE co_quan IS NOT NULL AND co_quan != '' ORDER BY co_quan")]
-        groups = conversations.history(conn, "", _now())
+        groups, hmore = conversations.history(conn, "", _now())
     finally:
         conn.close()
-    return _tpl(request, "index.html", {**ctx, "mode": _mode_status(), "suffixes": ",".join(sorted(SUFFIXES)), "co_quans": co_quans, "groups": groups})
+    return _tpl(request, "index.html", {**ctx, "mode": _mode_status(), "suffixes": ",".join(sorted(SUFFIXES)), "co_quans": co_quans,
+                                        "groups": groups, "hmore": hmore})
 
 
 PREBUILT = 3  # tin gần nhất dựng sẵn khi mở cuộc; tin cũ hơn hiện nút "Xem lại". Đo 31/10/2026: dựng một tin ~230 ms (compact ~200), cuộc 10 câu ~2,3-2,6 s
@@ -367,10 +376,10 @@ def history_list(request: Request, q: str = Query(""), cid: int = Query(0)):
     """Mảnh `<nav>` của thanh bên (P1 H4): lịch sử lọc theo `q`, đánh dấu cuộc `cid`. JS gọi khi tìm và sau mỗi câu hỏi."""
     conn = get_conn()
     try:
-        groups = conversations.history(conn, q, _now())
+        groups, hmore = conversations.history(conn, q, _now())
     finally:
         conn.close()
-    return _tpl(request, "_history.html", {"groups": groups, "hq": q.strip(), "conversation_id": cid})
+    return _tpl(request, "_history.html", {"groups": groups, "hmore": hmore, "hq": q.strip(), "conversation_id": cid})
 
 
 def _conv_write(sql: str, args: tuple) -> None:

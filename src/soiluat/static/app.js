@@ -20,7 +20,8 @@
     $("#toast").textContent = msg;
     clearTimeout(toastT); toastT = setTimeout(() => { $("#toast").textContent = ""; }, 3400);
   }
-  /* Trả Promise<boolean>. Nền (#app) inert khi mở; Esc, "Huỷ" và bấm ra ngoài đóng và trả focus về nút đã mở; "đồng ý" thì nơi gọi đặt focus. */
+  /* Trả Promise<boolean>. Nền (#app) inert khi mở; Esc, "Huỷ" và bấm ra ngoài đóng và trả focus về nút đã mở; "đồng ý" thì nơi gọi đặt focus.
+     Phím nghe ở document (pha bắt) chứ không ở scrim: bấm vào chữ của hộp thoại đưa focus ra BODY, khi đó Esc, Tab và Alt+N không tới scrim. */
   function dialog(title, text, okLabel) {
     const opener = document.activeElement, app = $("#app");
     const scrim = document.createElement("div"); scrim.className = "scrim";
@@ -28,13 +29,24 @@
       '<div class="row"><button type="button" class="btn" data-v="0">Huỷ</button><button type="button" class="btn danger" data-v="1"></button></div></div>';
     $("h2", scrim).textContent = title; $("p", scrim).textContent = text; $('[data-v="1"]', scrim).textContent = okLabel;
     return new Promise(done => {
-      const close = ok => { scrim.remove(); app.inert = false; if (!ok && document.contains(opener)) opener.focus(); done(ok); };
+      const keys = e => {
+        e.stopPropagation();  // chặn cả Alt+N và Esc của trình đọc: không rời trang khi đang hỏi xoá
+        if (e.key === "Escape") close(false);
+        else if (e.key === "Tab") {  // vòng giữa hai nút; focus ở BODY thì vào nút đầu (Shift+Tab: nút cuối)
+          e.preventDefault();
+          const bs = scrim.querySelectorAll("button"), i = [...bs].indexOf(document.activeElement);
+          bs[e.shiftKey ? (i < 1 ? bs.length - 1 : i - 1) : (i + 1) % bs.length].focus();
+        }
+      };
+      const close = ok => { document.removeEventListener("keydown", keys, true); scrim.remove(); app.inert = false; if (!ok && document.contains(opener)) opener.focus(); done(ok); };
       scrim.addEventListener("click", e => { const b = e.target.closest("[data-v]"); if (b) close(b.dataset.v === "1"); else if (e.target === scrim) close(false); });
-      scrim.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Escape") close(false); });  // chặn cả Alt+N: không rời trang khi đang hỏi xoá
+      document.addEventListener("keydown", keys, true);
       document.body.append(scrim); app.inert = true;
       $('[data-v="0"]', scrim).focus();  // nút an toàn lấy focus đầu tiên
     });
   }
+
+  const setTitle = t => { $("#thread h1").textContent = t; document.title = t + " · Soi Luật"; };
 
   /* ---- hỏi đáp ---- */
   qbox.addEventListener("input", () => { qbox.style.height = "auto"; qbox.style.height = Math.min(qbox.scrollHeight, 140) + "px"; });
@@ -49,6 +61,8 @@
 
   /* Các lần hỏi xếp thành một chuỗi: cuộc mới chưa có id tới khi có câu trả lời đầu, hai lần Enter nhanh sẽ tạo hai cuộc. */
   let cid = thread.dataset.cid || "", queue = Promise.resolve();  // cuộc mở lại từ /c/{id} có sẵn id: câu mới ghi tiếp vào đó
+  const turns = thread.querySelectorAll(".msg.user");
+  if (turns.length > 1) turns[turns.length - 1].scrollIntoView({ block: "start" });  // cuộc nhiều câu mở ra ở câu cuối (như sau khi hỏi), không ở đầu trang
   function ask(q, filters) {
     q = q.trim();
     if (!q) return;
@@ -72,7 +86,11 @@
         if (!r.ok) throw new Error("HTTP " + r.status);
         b.innerHTML = await r.text();
         const id = r.headers.get("X-Conversation-Id");  // không có khi chưa lưu được (đang nạp file): giữ id cũ
-        if (id) { cid = id; history.replaceState(null, "", "/c/" + id); refreshHist(); }  // cuộc mới hiện trong danh sách, cuộc cũ lên đầu
+        if (id) {
+          cid = id; history.replaceState(null, "", "/c/" + id);
+          refreshHist().then(() => { const a = hist.querySelector(`.hrow[data-id="${id}"] a`); if (a) setTitle(a.textContent); });  // cuộc mới hiện trong danh sách, cuộc cũ lên đầu; h1 và tên trang theo tên thanh bên (đã cắt)
+          const sub = $(".sub"); if (sub) sub.textContent = sub.textContent.replace(/\d+ câu hỏi/, n => `${parseInt(n) + 1} câu hỏi`);  // chỉ cuộc mở lại có dòng này
+        }
       } catch (err) {
         b.innerHTML = '<p class="err"></p>'; b.firstChild.textContent = "Không tìm được: " + err.message;
       }
@@ -128,7 +146,10 @@
 
   /* ---- thanh bên: lịch sử (H4). Mỗi dòng là liên kết /c/{id} thật (tải lại cả trang); ô tìm, menu ⋯, đổi tên tại chỗ và xoá do JS làm ---- */
   const hist = $("#hist"), hq = $("#hq");
-  let hseq = 0;  // lần gọi cuối thắng: gõ nhanh thì mảnh về không theo thứ tự bấm
+  let hseq = 0, ht = 0;  // lần gọi cuối thắng: gõ nhanh thì mảnh về không theo thứ tự bấm
+  /* Mỗi dòng là liên kết tải lại cả trang nên #hist luôn về đầu: đưa dòng đang chọn vào tầm nhìn sau khi dựng và sau mỗi lần vẽ lại. */
+  const showOn = () => hist.querySelector(".hrow.on")?.scrollIntoView({ block: "nearest" });
+  showOn();
   async function refreshHist() {
     if (hist.querySelector("input")) return;  // đang đổi tên: không vẽ đè ô nhập
     const my = ++hseq, q = hq.value.trim();
@@ -137,11 +158,11 @@
       if (!r.ok) return;
       const html = await r.text();
       if (my !== hseq || hist.querySelector("input")) return;
-      hist.innerHTML = html;
+      hist.innerHTML = html; showOn();
       $("#hist-status").textContent = q ? `${hist.querySelectorAll(".hrow").length} cuộc trò chuyện khớp` : "";
     } catch (_) { /* app đang tắt */ }
   }
-  hq.addEventListener("input", refreshHist);
+  hq.addEventListener("input", () => { clearTimeout(ht); ht = setTimeout(refreshHist, 250); });  // gõ liền: chỉ gọi sau khi ngừng 250 ms
 
   const menuOf = () => hist.querySelector(".menu");
   function closeMenu(refocus) {
@@ -198,7 +219,7 @@
         const fd = new FormData(); fd.set("title", t);
         const r = await post(`/c/${id}/rename`, fd, {});
         if (!r.ok) throw new Error("HTTP " + r.status);
-        if (id === cid) $("#thread h1").textContent = (await r.json()).title;
+        if (id === cid) setTitle((await r.json()).title);
         await refreshHist();
         if (refocus) hist.querySelector(`.hrow[data-id="${id}"] a`)?.focus();  // danh sách vừa vẽ lại: giữ focus ở dòng vừa đổi tên
         toast("Đã đổi tên.");
@@ -385,7 +406,7 @@
     else { reader.removeAttribute("role"); reader.removeAttribute("aria-modal"); }
     $("#main").inert = on || (narrow.matches && side.classList.contains("open"));
     side.inert = on || (narrow.matches && !side.classList.contains("open"));
-    $(".topbar").inert = on;
+    $(".topbar").inert = on || (narrow.matches && side.classList.contains("open"));  // ngăn kéo phủ lên topbar
   }
   let rdSeq = 0;  // /doc về không theo thứ tự bấm (văn bản lớn chậm hơn): chỉ lần bấm cuối được vẽ
   async function openDoc(a) {
@@ -434,7 +455,12 @@
   narrow.addEventListener("change", () => setSide(false));
   setSide(false);
   document.addEventListener("keydown", e => {
-    if (e.altKey && (e.key === "n" || e.key === "N")) { e.preventDefault(); location.href = "/"; }
+    if (e.altKey && (e.key === "n" || e.key === "N")) {
+      e.preventDefault();
+      if (document.querySelector("dialog[open], .scrim, .hrow input")) return;  // đang xem tiến độ nạp, hỏi xoá hay gõ tên mới: không bỏ ngang
+      if (location.pathname === "/" && !location.search && !thread.querySelector(".msg")) { setSide(false); qbox.focus(); }  // đã ở màn mới: giữ nháp
+      else location.href = "/";
+    }
     else if (e.key === "Escape" && document.querySelector("dialog[open]")) return;  // hộp thoại gốc tự đóng
     else if (e.key === "Escape" && !reader.hidden) closeDoc();
     else if (e.key === "Escape" && side.classList.contains("open")) setSide(false, true);

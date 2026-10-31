@@ -14,8 +14,8 @@ from fastapi.testclient import TestClient
 import soiluat.app as appmod
 from soiluat import conversations
 from soiluat.db import connect, init_schema
-from soiluat.ingest import ingest_path
-from soiluat.rebuild import rebuild_document
+from soiluat.ingest import ingest_path, relative_path, sha256_file
+from soiluat.rebuild import rebuild_document, rebuild_document_from_file
 
 
 def _kho_08(path):
@@ -152,8 +152,9 @@ def test_resolve_bao_hong_khi_doc_id_bi_van_ban_khac_dung(db, tmp_path):
     d2 = _nap(db, tmp_path, "16/2020", n_dieu=2, noi="Nội dung khác hẳn")
     assert d2 == d1  # documents.id tái dùng: nếu SQLite đổi cách cấp id thì test này không còn kiểm gì
     ids, bad = conversations.resolve(db, refs)
-    # D1.K1, D2.K1 cùng path nhưng chữ khác; D3, D3.K1 không còn: chỉ (doc_id, path) sẽ hiện nhầm. D1 (chữ y hệt) vẫn nhận
-    assert bad == 4 and len(ids) == 1
+    # D1.K1, D2.K1 cùng path nhưng chữ khác; D3, D3.K1 không còn; D1 chữ y hệt nhưng là Điều của văn bản khác (D1 soát):
+    # `h` gắn cả số hiệu, nên hỏng cả năm. Chỉ băm chữ thì D1 "Phạm vi điều chỉnh" của văn bản mới được nhận nhầm
+    assert (ids, bad) == ([], 5)
 
 
 def test_resolve_sau_rebuild_document_van_tim_lai_bang_path(db, tmp_path):
@@ -168,9 +169,12 @@ def test_resolve_sau_rebuild_document_van_tim_lai_bang_path(db, tmp_path):
     assert conversations.resolve(db, refs) == ([after[p] for p in paths], 0)
 
 
-def test_resolve_ref_muc_van_ban_chi_kiem_doc_id(db, tmp_path):
+def test_resolve_ref_muc_van_ban_kiem_doc_id_va_so_hieu(db, tmp_path):
     d1 = _nap(db, tmp_path, "15/2020")
-    assert conversations.resolve(db, [[d1, None, None, 0, 0, 0], [d1 + 99, None, None, 0, 0, 0]]) == ([d1], 1)
+    h = conversations._h("15/2020/nd-cp")
+    assert db.execute("SELECT so_hieu_search FROM documents WHERE id = ?", (d1,)).fetchone()[0] == "15/2020/nd-cp"
+    assert conversations.resolve(db, [[d1, None, h, 0, 0, 0], [d1 + 99, None, h, 0, 0, 0]]) == ([d1], 1)
+    assert conversations.resolve(db, [[d1, None, conversations._h("99/2026/nd-cp"), 0, 0, 0]]) == ([], 1)  # id còn nhưng là văn bản khác
 
 
 def test_ask_luu_cuoc_va_hai_tin_roi_ghi_tiep(db, tmp_path, monkeypatch):
@@ -268,7 +272,7 @@ def test_ask_so_hieu_mot_minh_luu_ref_muc_van_ban(db, tmp_path, monkeypatch):
     cid = int(r.headers["X-Conversation-Id"])
     raw = db.execute("SELECT result_json FROM messages WHERE conversation_id = ? AND role = 'bot'", (cid,)).fetchone()[0]
     res = json.loads(raw)
-    assert res["kind"] == "full" and res["note"] == "so_hieu" and res["refs"] == [[d1, None, None, 0, 0, 0]]
+    assert res["kind"] == "full" and res["note"] == "so_hieu" and res["refs"] == [[d1, None, conversations._h("20/2020/nd-cp"), 0, 0, 0]]
     assert len(raw) < 400  # không phải 13 ref đơn vị, càng không phải ~1.500 ref của luật 300 Điều
     assert conversations.resolve(db, res["refs"]) == ([d1], 0)
 
@@ -500,6 +504,80 @@ def test_mo_lai_thoat_html_cau_hoi_va_ten_cuoc(db, tmp_path, monkeypatch):
     assert html.unescape(re.search(r'data-ask="([^"]*)"', f.text)[1]) == q  # nút "Hỏi lại" gửi đúng chữ đã hỏi
 
 
+def test_mo_lai_ghi_de_tep_bang_van_ban_khac_cung_id_bao_hong_het(db, tmp_path, monkeypatch):
+    """D1 soát: ghi đè đúng tệp bằng văn bản khác rồi nạp lại giữ nguyên documents.id; Điều chỉ có tiêu đề ("Báo cáo lần 1")
+    y hệt nhau giữa hai văn bản, nên chỉ băm chữ thì ref Điều vẫn "hợp lệ" và hiện Điều của văn bản mới như kết quả cũ."""
+    d1 = _nap(db, tmp_path, "15/2020")
+    c = _client(tmp_path, monkeypatch)
+    cid, _ = _hoi(c, "báo cáo lần 1")
+    n = len(_bot(db, cid)["refs"])
+    assert n > 1
+    p = tmp_path / "15-2020.txt"
+    p.write_text(_nd("99/2026", noi="Nội dung khác hẳn"), encoding="utf-8")
+    assert ingest_path(db, p, tmp_path) == d1  # id văn bản (và id đơn vị cũ) được dùng lại
+    r = c.get(f"/c/{cid}")
+    assert f"<b>{n}/{n} kết quả không còn đúng nguồn</b>" in r.text and 'class="card' not in r.text
+
+
+def _viet_lai(db, tmp_path, doc_id, so, **kw):
+    p = tmp_path / (so.replace("/", "-") + ".txt")
+    p.write_text(_nd(so, **kw), encoding="utf-8")
+    rebuild_document_from_file(db, doc_id, p, relative_path(p, tmp_path), sha256_file(p))
+
+
+def test_mo_lai_toan_van_dieu_vang_nay_da_co_thi_bao_hoi_lai(db, tmp_path, monkeypatch):
+    """D2 soát: tin "Số hiệu + Điều 7" dựng ra "không có Điều 7"; nạp lại bản đủ hơn (nay có Điều 7) thì mở lại không được
+    khẳng định câu cũ, mà hiện dải "Hỏi lại". Trước khi nạp lại thì giữ nguyên câu cũ."""
+    d1 = _nap(db, tmp_path, "20/2020", n_dieu=4)
+    c = _client(tmp_path, monkeypatch)
+    cid, (truoc,) = _hoi(c, "20/2020/NĐ-CP Điều 7")
+    assert _bot(db, cid)["kind"] == "full" and "không có Điều 7" in truoc
+    r = c.get(f"/c/{cid}")
+    assert "không có Điều 7" in r.text and "không còn đúng nguồn" not in r.text
+    _viet_lai(db, tmp_path, d1, "20/2020", n_dieu=8)
+    r = c.get(f"/c/{cid}")
+    assert "<b>1/1 kết quả không còn đúng nguồn</b>" in r.text and 'data-ask="20/2020/NĐ-CP Điều 7"' in r.text
+    assert "không có Điều 7" not in r.text and "Mở toàn văn" not in r.text
+
+
+def test_mo_lai_toan_van_van_ban_khac_chiem_id_thi_bao_hong(db, tmp_path, monkeypatch):
+    """D3 soát: id văn bản bị văn bản khác dùng lại; ref mức văn bản chỉ kiểm id còn thì không có dải cảnh báo, còn phần
+    kết quả (dựng từ chữ câu hỏi) rỗng và nói "không tìm thấy" như chưa từng có."""
+    d1 = _nap(db, tmp_path, "20/2020")
+    c = _client(tmp_path, monkeypatch)
+    cid, _ = _hoi(c, "20/2020/NĐ-CP")
+    db.execute("DELETE FROM documents WHERE id = ?", (d1,))
+    db.commit()
+    assert _nap(db, tmp_path, "77/2026") == d1
+    r = c.get(f"/c/{cid}")
+    assert "<b>1/1 kết quả không còn đúng nguồn</b>" in r.text and "Không tìm thấy đoạn nào" not in r.text
+
+
+def test_mo_lai_toan_van_nap_lai_id_moi_chi_con_dai_canh_bao(db, tmp_path, monkeypatch):
+    """D3 soát: xoá rồi nạp lại cùng văn bản với id mới: ref hỏng (dải 1/1), nên thẻ của văn bản mới không được hiện bên
+    dưới (tự mâu thuẫn); "Hỏi lại" mới ra văn bản mới."""
+    d1 = _nap(db, tmp_path, "20/2020")
+    _nap(db, tmp_path, "16/2020")  # chiếm id kế tiếp: văn bản nạp lại không nhận lại id cũ
+    c = _client(tmp_path, monkeypatch)
+    cid, _ = _hoi(c, "20/2020/NĐ-CP")
+    db.execute("DELETE FROM documents WHERE id = ?", (d1,))
+    db.commit()
+    d3 = _nap(db, tmp_path, "20/2020")
+    assert d3 != d1
+    r = c.get(f"/c/{cid}")
+    assert "<b>1/1 kết quả không còn đúng nguồn</b>" in r.text and "Mở toàn văn" not in r.text and f"/doc/{d3}" not in r.text
+    assert f"/doc/{d3}" in _ask(c, "20/2020/NĐ-CP", cid).text  # hỏi lại ra văn bản mới
+
+
+def test_ten_trang_theo_ten_cuoc(db, tmp_path, monkeypatch):
+    """UX-6 soát: tên trang (lịch sử trình duyệt, thanh tác vụ, trình đọc màn hình) là tên cuộc đang mở."""
+    _nap(db, tmp_path, "15/2020")
+    c = _client(tmp_path, monkeypatch)
+    cid, _ = _hoi(c, "báo cáo <b>định</b> kỳ")
+    assert "<title>báo cáo &lt;b&gt;định&lt;/b&gt; kỳ · Soi Luật</title>" in c.get(f"/c/{cid}").text
+    assert "<title>Soi Luật</title>" in c.get("/").text
+
+
 # ---- P1 H4: thanh bên (lịch sử theo nhóm, tìm, đổi tên, xoá) ----
 
 UTC7 = timezone(timedelta(hours=7))
@@ -567,6 +645,22 @@ def test_lich_su_tim_khong_dau_theo_ten_va_cau_hoi(db, tmp_path, monkeypatch):
     r = c.get("/history", params={"q": "<b>không</b>"})
     assert 'class="hrow' not in r.text and "Không có cuộc nào khớp “&lt;b&gt;không&lt;/b&gt;”." in r.text
     assert "<html" not in r.text  # mảnh cho nav, không phải cả trang
+
+
+def test_lich_su_chi_hien_cuoc_moi_nhat_kem_dong_con_lai(db, tmp_path, monkeypatch):
+    """D4 soát: 5.000 cuộc làm GET / và GET /history nặng ~2,7 MB mỗi lần: hiện tối đa HIST_MAX cuộc mới nhất, nói rõ còn bao
+    nhiêu cuộc chưa hiện (cả khi tìm), cuộc cũ vẫn tới được bằng ô tìm."""
+    n, now = conversations.HIST_MAX + 5, datetime.now(timezone.utc)
+    db.executemany("INSERT INTO conversations(title, created_at, updated_at) VALUES (?, ?, ?)",
+                   [(f"Cuộc số {i:03d}", t, t) for i in range(n) for t in [(now - timedelta(minutes=i)).isoformat(timespec="seconds")]])
+    db.commit()
+    c = _client(tmp_path, monkeypatch)
+    for page in (_nav(c.get("/").text), c.get("/history").text, c.get("/history", params={"q": "cuoc so"}).text):
+        assert page.count('class="hrow') == conversations.HIST_MAX
+        assert "Cuộc số 000" in page and f"Cuộc số {n - 1:03d}" not in page  # giữ cuộc mới nhất
+        assert "Còn 5 cuộc cũ hơn chưa hiện. Gõ vào ô tìm để thu hẹp." in page
+    cu = c.get("/history", params={"q": f"cuoc so {n - 1:03d}"}).text
+    assert cu.count('class="hrow') == 1 and "chưa hiện" not in cu  # cuộc cũ nhất tìm được, không dòng "còn"
 
 
 def test_thanh_ben_danh_dau_cuoc_dang_mo_va_co_loi_vao_ban_phim(db, tmp_path, monkeypatch):

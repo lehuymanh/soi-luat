@@ -46,7 +46,7 @@ Một tiến trình duy nhất: tìm kiếm chạy trong luồng request, nạp 
 |---|---|
 | `app.py` | FastAPI: trang hỏi đáp (`/`, `POST /ask`), lịch sử (`/history`, `/c/{id}`, đổi tên, xoá), trình đọc (`/doc/{id}`, `/page/{id}/{n}`; `/unit/{id}` chuyển hướng 303), nạp file, cài đặt, duyệt liên kết/từ điển, xuất Word; `HostGuard` và CSRF |
 | `reader.py` | Trình đọc (0.9): thân văn bản theo thứ tự, đơn vị được chọn và con của nó, tô từ khớp (tập dừng riêng), địa chỉ và chuỗi trích dẫn |
-| `conversations.py` | Lịch sử trò chuyện (0.9): lưu câu hỏi và tham chiếu kết quả `(doc_id, path, băm chữ)`, mở lại không tìm lại, báo khi nguồn đã đổi |
+| `conversations.py` | Lịch sử trò chuyện (0.9): lưu câu hỏi và tham chiếu kết quả `(doc_id, path, băm số hiệu + chữ)` (băm có số hiệu để id văn bản bị dùng lại không hiện nhầm Điều chỉ có tiêu đề), mở lại không tìm lại, báo khi nguồn đã đổi; thanh bên hiện tối đa 200 cuộc mới nhất |
 | `extract.py` | Đọc DOCX/DOC/RTF/PDF/XLSX/ảnh/TXT thành trang (giữ bảng, footnote, comment, text box) |
 | `convert.py` | `.doc/.rtf` → `.docx` tạm qua Word COM, dự phòng LibreOffice |
 | `ocr.py` | OCR bằng Tesseract (chỉ importer gọi; không import ở mức module) |

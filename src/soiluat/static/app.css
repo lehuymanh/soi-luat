@@ -56,7 +56,7 @@ body.chat { margin: 0; background: var(--ground); color: var(--text); font: 400 
 mark.m { background: none; color: inherit; text-decoration: underline; text-decoration-color: var(--pen); text-decoration-thickness: 2px; text-underline-offset: 3px; text-decoration-skip-ink: none; }
 
 /* Thành phần dùng chung */
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 34px; padding: 0 12px; border-radius: var(--r-ctl); border: 1px solid var(--control); background: var(--surface); color: var(--text); font: 500 14px var(--font); white-space: nowrap; text-decoration: none; cursor: pointer; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 34px; min-height: 0; padding: 0 12px; border-radius: var(--r-ctl); border: 1px solid var(--control); background: var(--surface); color: var(--text); font: 500 14px var(--font); white-space: nowrap; text-decoration: none; cursor: pointer; }
 .btn:hover { background: var(--raised); }
 .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
 .btn.danger { color: var(--neg); border-color: var(--neg); }
@@ -88,9 +88,9 @@ mark.m { background: none; color: inherit; text-decoration: underline; text-deco
 .kbd { color: var(--muted); font-size: 12px; font-weight: 400; }
 .hsearch { position: relative; display: block; }
 .hsearch svg { position: absolute; left: 10px; top: 9px; color: var(--muted); }
-.hsearch input { width: 100%; height: 34px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--surface); color: var(--text); font: 14px var(--font); padding: 0 10px 0 32px; }
+.hsearch input { width: 100%; height: 34px; min-height: 0; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--surface); color: var(--text); font: 14px var(--font); padding: 0 10px 0 32px; }
 .hsearch input::placeholder { color: var(--faint); }
-.hist { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+.hist { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -4px; padding: 0 4px 4px; }
 .hgrp + .hgrp { margin-top: 18px; }
 .hgrp h2 { margin: 0 0 4px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--muted); }
 .hrow { position: relative; display: flex; align-items: center; border-radius: var(--r-ctl); }
@@ -98,8 +98,8 @@ mark.m { background: none; color: inherit; text-decoration: underline; text-deco
 .hrow:hover { background: var(--raised); }
 .hrow.on { background: var(--active); }
 .hrow .more { width: 28px; height: 28px; margin-right: 2px; opacity: 0; }
-.hrow:hover .more, .hrow.on .more, .hrow .more:focus-visible, .hrow .more[aria-expanded="true"] { opacity: 1; }
-.hrow input { flex: 1; min-width: 0; height: 32px; margin: 1px 0; border: 1px solid var(--pen); border-radius: var(--r-ctl); padding: 0 8px; background: var(--surface); color: var(--text); font: 14px var(--font); }
+.hrow:hover .more, .hrow.on .more, .hrow:focus-within .more, .hrow .more[aria-expanded="true"] { opacity: 1; }
+.hrow input { flex: 1; min-width: 0; height: 33px; min-height: 0; margin: 1px 0; border: 1px solid var(--pen); border-radius: var(--r-ctl); padding: 0 8px; background: var(--surface); color: var(--text); font: 14px var(--font); }
 .menu { position: absolute; right: 0; top: 34px; z-index: 30; min-width: 150px; padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); box-shadow: var(--shadow-float); }
 .menu button { display: block; width: 100%; text-align: left; border: 0; background: none; color: var(--text); font: 14px var(--font); padding: 7px 10px; border-radius: var(--r-chip); cursor: pointer; }
 .menu button:hover { background: var(--raised); }
