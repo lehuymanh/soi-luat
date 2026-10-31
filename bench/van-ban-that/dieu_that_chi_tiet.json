@@ -1,0 +1,9 @@
+{
+ "_doc": "Số Điều thật (chính văn bản, không tính Điều trích dẫn) đối chiếu thủ công trên text OCR/PDF. last = số Điều cuối; mặc định 1..last liên tục. extra_line_from = dòng (chỉ số trong văn bản nối) của Điều parser lấy nhầm.",
+ "2":  {"last": 10, "note": "Điều 8 OCR thành 'Điều §.'"},
+ "3":  {"last": 6,  "note": "Điều 3 OCR thành 'Điều 3,' (dấu phẩy)"},
+ "5":  {"last": 66, "note": "Điều 60-63 bị nuốt: '‹ Điều 60.' mở khối trích dẫn không đóng"},
+ "18": {"last": 65, "note": "Điều 50-65 bị nuốt: '“Điều 50.' mở khối trích dẫn không đóng"},
+ "19": {"last": 3,  "extra_line_from": [111], "note": "'Điều 15.' là Điều trích dẫn (mất “ mở) bị lấy làm Điều của chính văn bản"},
+ "21": {"last": 26, "note": "Điều 15 OCR thành 'Điều 1ã.'"}
+}
